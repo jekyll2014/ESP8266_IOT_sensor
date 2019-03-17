@@ -1,85 +1,92 @@
-/* TM1637 display leds layout:
-	  a
-	  -
-	f| |b
-	g -
-	e| |c
-	  -
-	  d
+/*
+GPIO 16		 D0 - WAKE, USER button
+GPIO 5		 D1 - I2C_SCL
+GPIO 4		~D2 - I2C_SDA
+GPIO 0		 D3 - pullup, FLASH, TM1637_CLK
+GPIO 2		 D4 - pullup, Serial1_TX, TM1637_DIO
+GPIO 14		~D5 - SoftUART_TX
+GPIO 12		~D6 - SoftUART_RX
+GPIO 13		 D7 -
+GPIO 15		~D8 - pulldown
+GPIO 13		 A7 - analog in
+*/
+
+/* Untested feature:
+ - set pwm output
+ - select interrupt mode (FALLING/RISING/CHANGE)
+ - set_time=
 */
 
 /*
-PIN	16		 D0 - WAKE, USER button
-PIN 5		 D1 - I2C_SCL
-PIN 4		~D2 - I2C_SDA
-PIN 0		 D3 - FLASH, TM1637_CLK
-PIN 2		 D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-PIN 14		~D5 - SoftUART_TX
-PIN 12		~D6 - SoftUART_RX
-PIN 13		 D7 - 
-PIN 15		~D8 - keep LOW on boot
+Planned features:
+ - event action:
+	conditions:
+		value<=>x,
+		input?=x,
+		out?=x,
+		counter>????;
+	actions:
+		out?=x,
+		send_mail=address,
+		send_telegram=all/admin/???????,
+		send_GScript,
+		send_PushingBox,
+		save_log;
+ - GoogleDocs actions service
+ - efficient sleep till next event planned with network connectivity restoration after wake up and parameter/timers restore to fire.
+ - compile time pin arrangement control
 */
 
-// Untested feature:
-// - set pwm output
-// - select interrupt mode (FALLING/RISING/CHANGE)
-// - set_time=
-
-//Planned features:
-// - event actions ( conditions: value </>/=, input state, output state, counter>max; actions: out?=x, send_mail, send_telegram, sang_GScript, send_PushingBox, save_log)
-// - PushBullet service connection
-// - GoogleDocs actions service
-// - scheduling service
-// - efficient sleep till next event planned with network connectivity restoration after wake up
-// - compile time pin arrangement control
-
-// Sensors to be supported:
-// - DHT22/11(pin)
-// - DS12B20(pin)
-// - ACS712(range)
-// - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
+/*
+Sensors to be supported:
+ - ACS712(A0)
+ - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
+*/
 
 //#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
-//#define EVENTS_ENABLE
-//#define SCHEDULER_ENABLE
-//#define AMS2320_ENABLE
-//#define TM1637DISPLAY_ENABLE
-//#define MH_Z19_UART_ENABLE
-//#define MH_Z19_PPM_ENABLE
+#define EVENTS_ENABLE
+#define SCHEDULER_ENABLE
+#define AMS2320_ENABLE
+#define HTU21D_ENABLE
+#define DS18B20_ENABLE
+#define DHT_ENABLE
+#define MH_Z19_UART_ENABLE
+#define MH_Z19_PPM_ENABLE
+#define TM1637DISPLAY_ENABLE
 #define HTTP_SERVER_ENABLE
-//#define EMAIL_ENABLE
+#define EMAIL_ENABLE
 #define TELEGRAM_ENABLE
-//#define GSCRIPT
+#define GSCRIPT
 #define PUSHINGBOX
 #define NTP_TIME_ENABLE
 #define ADC_ENABLE // A0
 
-//#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
-//#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
-//#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
-//#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INTERRUPT_COUNTER5_ENABLE 14		//~D5 - SoftUART_TX
-//#define INTERRUPT_COUNTER6_ENABLE 12		//~D6 - SoftUART_RX
-//#define INTERRUPT_COUNTER7_ENABLE 13		// D7
-//#define INTERRUPT_COUNTER8_ENABLE 15		//~D8 - keep LOW on boot
+#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
+#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
+#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
+#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
+#define INTERRUPT_COUNTER6_ENABLE 12	//~D6 - SoftUART_RX
+#define INTERRUPT_COUNTER7_ENABLE 13	// D7
+#define INTERRUPT_COUNTER8_ENABLE 15	//~D8 - keep LOW on boot
 
-//#define INPUT1_ENABLE 5					// D1 - I2C_SCL
-//#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
-//#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
-//#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INPUT5_ENABLE 14					//~D5 - SoftUART_TX
-//#define INPUT6_ENABLE 12					//~D6 - SoftUART_RX
-//#define INPUT7_ENABLE 13					// D7
-//#define INPUT8_ENABLE 15					//~D8 - keep LOW on boot
+#define INPUT1_ENABLE 5					// D1 - I2C_SCL
+#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
+#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
+#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define INPUT6_ENABLE 12				//~D6 - SoftUART_RX
+#define INPUT7_ENABLE 13				// D7
+#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
-#define OUTPUT1_ENABLE 5					// D1 - I2C_SCL
-#define OUTPUT2_ENABLE 4					//~D2 - I2C_SDA
-#define OUTPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
-#define OUTPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-#define OUTPUT5_ENABLE 14					//~D5 - SoftUART_TX
-#define OUTPUT6_ENABLE 12					//~D6 - SoftUART_RX
-#define OUTPUT7_ENABLE 13					// D7
-#define OUTPUT8_ENABLE 15					//~D8 - keep LOW on boot
+#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
+#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
+#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
+#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
+#define OUTPUT7_ENABLE 13				// D7
+#define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
 #include <ESP8266WiFi.h>
 #include <EEPROM.h>
@@ -106,7 +113,7 @@ unsigned long checkSensorPeriod = 5000;
 String uartCommand;
 bool uartReady = false;
 
-//Log settings for 32 hours of storage
+// Log settings for 32 hours of storage
 #define LOG_SIZE 192 // Save sensors value each 10 minutes: ( 32hours * 60minutes/hour ) / 10minutes/pcs = 192 pcs
 sensorDataCollection history_log[LOG_SIZE];
 unsigned int history_record_number = 0;
@@ -116,28 +123,29 @@ unsigned long logPeriod = ((60 / (LOG_SIZE / 32)) * 60 * 1000) / 5; // 60minutes
 bool isTimeSet = false;
 bool autoReport = false;
 
-const byte eventsNumber = 10;
-const byte schedulesNumber = 10;
-const byte telegramUsersNumber = 10;
 
-//not tested
+// not tested
 #ifdef SLEEP_ENABLE
 bool SleepEnable = false;
 #endif
 
-//not implemented yet
+// not tested
+const byte eventsNumber = 10;
 #ifdef EVENTS_ENABLE
 String eventsActions[eventsNumber];
+bool eventsFlags[eventsNumber];
 bool EventsEnable = false;
 #endif
 
-//not implemented yet
+// not implemented yet
+const byte schedulesNumber = 10;
 #ifdef SCHEDULER_ENABLE
 String schedulesActions[schedulesNumber];
 bool SchedulerEnable = false;
 #endif
 
 // E-mail config
+// Need smtp parameters, credentials
 #ifdef EMAIL_ENABLE
 #include <sendemail.h>
 String smtpServerAddress = "";
@@ -149,6 +157,8 @@ bool EMailEnable = false;
 #endif
 
 // Telegram config
+// Need token
+const byte telegramUsersNumber = 10;
 #ifdef TELEGRAM_ENABLE
 //#include <WiFiClientSecure.h>
 #include "CTBot.h"
@@ -305,6 +315,8 @@ uint64_t StringToUint64(String value)
 }
 #endif
 
+// Google script config
+// Need token
 #ifdef GSCRIPT
 #include <HTTPSRedirect.h>
 String GScriptId = "";
@@ -362,6 +374,8 @@ void sendValueToGoogle(String value)
 }
 #endif
 
+// Pushingbox config
+// PushingBox device ID
 #ifdef PUSHINGBOX
 String pushingBoxId = "";
 String pushingBoxParameter = "";
@@ -400,6 +414,8 @@ void sendToPushingBox(String message)
 }
 #endif
 
+// HTTP server
+// Need port 
 #ifdef HTTP_SERVER_ENABLE
 #include <ESP8266WebServer.h>
 unsigned int httpPort = 80;
@@ -441,6 +457,7 @@ String HTML_footer()
 #endif
 
 // NTP Server
+// Need server address, local time zone
 #ifdef NTP_TIME_ENABLE
 #include <WiFiUdp.h>
 IPAddress timeServer(129, 6, 15, 28); //129.6.15.28 = time-a.nist.gov
@@ -507,7 +524,62 @@ void sendNTPpacket(IPAddress &address)
 }
 #endif
 
-// MH-Z19 CO2 sensor via UART
+/*
+AM2320 I2C temperature + humidity sensor
+PINS: D1 - SCL, D2 - SDA
+pin 1 (on the left) of the sensor to +3.3V/+5V
+pin 2 of the sensor to whatever your DHTPIN is
+pin 4 (on the right) of the sensor to GROUND
+5-10K pullup resistor from pin 2 (SDA) to pin 1 (power) of the sensor
+5-10K pullup resistor from pin 4 (SCL) to pin 1 (power) of the sensor
+*/
+#ifdef AMS2320_ENABLE
+#include "Adafruit_Sensor.h"
+#include "Adafruit_AM2320.h"
+Adafruit_AM2320 am2320 = Adafruit_AM2320();
+#endif
+
+// HTU21D I2C temperature + humidity sensor
+// PINS: D1 - SCL, D2 - SDA
+#ifdef HTU21D_ENABLE
+#include <Wire.h>
+#include "Adafruit_HTU21DF.h"
+Adafruit_HTU21DF htu21d = Adafruit_HTU21DF();
+#endif
+
+/*
+DS18B20 OneWire temperature sensor
+PINS: D3 - OneWire
+pin 1 to +3.3V/+5V
+pin 2 to whatever your OneWire is
+pin 3 to GROUND
+5-10K pullup resistor from pin 2 (data) to pin 1 (power) of the sensor
+*/
+#ifdef DS18B20_ENABLE
+#include <OneWire.h>
+#include "DallasTemperature.h"
+#define ONE_WIRE_PIN 0 //D3
+OneWire oneWire(ONE_WIRE_PIN);
+DallasTemperature ds1820(&oneWire);
+#endif
+
+/*
+DHT11/DHT21(AM2301)/DHT22(AM2302, AM2321) temperature + humidity sensor
+PINS: D3 - DATA
+pin 1 (on the left) of the sensor to +3.3V/+5V
+pin 2 of the sensor to whatever your DHTPIN is
+pin 4 (on the right) of the sensor to GROUND
+5-10K pullup resistor from pin 2 (data) to pin 1 (power) of the sensor
+*/
+#ifdef DHT_ENABLE
+#include "DHT.h"
+#define DHTTYPE DHT11 //DHT11, DHT21, DHT22 
+#define DHTPIN 0 //D3
+DHT dht(DHTPIN, DHTTYPE);
+#endif
+
+// MH-Z19 CO2 sensor via UART. PIN D5 - TX, D6- RX
+// PINS: TX, RX
 #ifdef MH_Z19_UART_ENABLE
 #include <SoftwareSerial.h>;
 #define MHZ19_TX 14 //D5
@@ -547,6 +619,8 @@ unsigned int co2SerialRead()
 }
 #endif
 
+// MH-Z19 CO2 sensor via PPM signal
+// PINS: PPM
 #ifdef MH_Z19_PPM_ENABLE
 #define MHZ19_PPM 13 //D7
 unsigned int co2_ppm_avg[3] = { 0, 0, 0 };
@@ -572,7 +646,16 @@ unsigned int co2PPMRead(byte pin)
 }
 #endif
 
-// TM1637 display
+/* TM1637 display.
+TM1637 display leds layout:
+	  a
+	  _
+	f| |b
+	  -g
+	e|_|c
+	  d
+PINS: CLK, DIO
+*/
 #ifdef TM1637DISPLAY_ENABLE
 #include <TM1637Display.h>
 #define TM1637_CLK 0 //D3
@@ -580,14 +663,9 @@ unsigned int co2PPMRead(byte pin)
 const uint8_t SEG_DEGREE[] = { SEG_A | SEG_B | SEG_F | SEG_G };
 const uint8_t SEG_HUMIDITY[] = { SEG_C | SEG_E | SEG_F | SEG_G };
 TM1637Display display(TM1637_CLK, TM1637_DIO);
-unsigned int sw = 0;
-#endif
-
-// AM2320 I2C temperature + humidity sensor
-#ifdef AMS2320_ENABLE
-#include "Adafruit_Sensor.h"
-#include "Adafruit_AM2320.h"
-Adafruit_AM2320 am2320 = Adafruit_AM2320();
+unsigned long displaySwitchedLastTime = 0;
+unsigned long displaySwitchPeriod = 3000;
+byte sw = 0;
 #endif
 
 #ifdef ADC_ENABLE
@@ -615,7 +693,6 @@ void int1count()
 	intCount1++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER2_ENABLE
 unsigned long int intCount2 = 0;
 byte intMode2 = FALLING;
@@ -624,7 +701,6 @@ void int2count()
 	intCount2++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER3_ENABLE
 unsigned long int intCount3 = 0;
 byte intMode3 = FALLING;
@@ -633,7 +709,6 @@ void int3count()
 	intCount3++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER4_ENABLE
 unsigned long int intCount4 = 0;
 byte intMode4 = FALLING;
@@ -642,7 +717,6 @@ void int4count()
 	intCount4++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER5_ENABLE
 unsigned long int intCount5 = 0;
 byte intMode5 = FALLING;
@@ -651,7 +725,6 @@ void int5count()
 	intCount5++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER6_ENABLE
 unsigned long int intCount6 = 0;
 byte intMode6 = FALLING;
@@ -660,7 +733,6 @@ void int6count()
 	intCount6++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER7_ENABLE
 unsigned long int intCount7 = 0;
 byte intMode7 = FALLING;
@@ -669,7 +741,6 @@ void int7count()
 	intCount7++;
 }
 #endif
-
 #ifdef INTERRUPT_COUNTER8_ENABLE
 unsigned long int intCount8 = 0;
 byte intMode8 = FALLING;
@@ -677,6 +748,31 @@ void int8count()
 {
 	intCount8++;
 }
+#endif
+
+#ifdef INPUT1_ENABLE
+bool in1;
+#endif
+#ifdef INPUT2_ENABLE
+bool in2;
+#endif
+#ifdef INPUT3_ENABLE
+bool in3;
+#endif
+#ifdef INPUT4_ENABLE
+bool in4;
+#endif
+#ifdef INPUT5_ENABLE
+bool in5;
+#endif
+#ifdef INPUT6_ENABLE
+bool in6;
+#endif
+#ifdef INPUT7_ENABLE
+bool in7;
+#endif
+#ifdef INPUT8_ENABLE
+bool in8;
 #endif
 
 #ifdef OUTPUT1_ENABLE
@@ -706,6 +802,8 @@ bool out8 = OUT_OFF;
 
 void setup()
 {
+	//WiFi.setPhyMode(WIFI_PHY_MODE_11B); //WIFI_PHY_MODE_11B = 1 (60-215mA); WIFI_PHY_MODE_11G = 2 (145mA); WIFI_PHY_MODE_11N = 3 (135mA)
+	//WiFi.setOutputPower(); //[0 - 20.5]dBm
 	Serial.begin(115200);
 
 	//init EEPROM of certain size
@@ -734,7 +832,7 @@ void setup()
 	int a = EVENTS_TABLE_size / eventsNumber;
 	for (int i = 0; i < eventsNumber; i++)
 	{
-		eventsActions[i] = readConfigString((TELEGRAM_USERS_TABLE_addr + i * a), a);
+		eventsActions[i] = readConfigString((EVENTS_TABLE_addr + i * a), a);
 	}
 	EventsEnable = readConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size).toInt();
 #endif
@@ -812,7 +910,25 @@ void setup()
 #endif
 
 #ifdef AMS2320_ENABLE
-	am2320.begin();
+	if (!am2320.begin())
+	{
+		Serial.println("Couldn't find AMS2320 sensor!");
+	}
+#endif
+
+#ifdef HTU21D_ENABLE
+	if (!htu21d.begin())
+	{
+		Serial.println("Couldn't find HTU21D sensor!");
+	}
+#endif
+
+#ifdef DS18B20_ENABLE
+	ds1820.begin();
+#endif
+
+#ifdef DHT_ENABLE
+	dht.begin();
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
@@ -826,6 +942,7 @@ void setup()
 #endif
 
 #ifdef TM1637DISPLAY_ENABLE
+	displaySwitchPeriod = readConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size).toInt();
 	display.setBrightness(1);
 	display.showNumberDec(0, false);
 #endif
@@ -873,33 +990,40 @@ void setup()
 
 #ifdef INPUT1_ENABLE
 	pinMode(INPUT1_ENABLE, INPUT_PULLUP);
+	in1 = digitalRead(INPUT1_ENABLE);
 #endif
 #ifdef INPUT2_ENABLE
 	pinMode(INPUT2_ENABLE, INPUT_PULLUP);
+	in2 = digitalRead(INPUT2_ENABLE);
 #endif
 #ifdef INPUT3_ENABLE
 	pinMode(INPUT3_ENABLE, INPUT_PULLUP);
+	in3 = digitalRead(INPUT3_ENABLE);
 #endif
 #ifdef INPUT4_ENABLE
 	pinMode(INPUT4_ENABLE, INPUT_PULLUP);
+	in4 = digitalRead(INPUT4_ENABLE);
 #endif
 #ifdef INPUT5_ENABLE
 	pinMode(INPUT5_ENABLE, INPUT_PULLUP);
+	in5 = digitalRead(INPUT5_ENABLE);
 #endif
 #ifdef INPUT6_ENABLE
 	pinMode(INPUT6_ENABLE, INPUT_PULLUP);
+	in6 = digitalRead(INPUT6_ENABLE);
 #endif
 #ifdef INPUT7_ENABLE
 	pinMode(INPUT7_ENABLE, INPUT_PULLUP);
+	in7 = digitalRead(INPUT7_ENABLE);
 #endif
 #ifdef INPUT8_ENABLE
 	pinMode(INPUT8_ENABLE, INPUT_PULLUP);
+	in8 = digitalRead(INPUT8_ENABLE);
 #endif
 
 #ifdef OUTPUT1_ENABLE
 	pinMode(OUTPUT1_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT1_ENABLE, out1);
-
 #endif
 #ifdef OUTPUT2_ENABLE
 	pinMode(OUTPUT2_ENABLE, OUTPUT);
@@ -970,44 +1094,8 @@ void loop()
 	if (millis() - checkSensorLastTime > checkSensorPeriod)
 	{
 		checkSensorLastTime = millis();
-
-		sensorDataCollection sensor = collectData();
-
-		int ppm_p_avg = 0;
-		int ppm_u_avg = 0;
-		int ams_temp = -200;
-		int mh_temp = -200;
 		String str = "";
-
-#ifdef MH_Z19_UART_ENABLE
-		if (sensor.mh_uart_co2 > 0)
-		{
-			co2_uart_avg[0] = co2_uart_avg[1];
-			co2_uart_avg[1] = co2_uart_avg[2];
-			co2_uart_avg[2] = sensor.mh_uart_co2;
-			ppm_u_avg = (co2_uart_avg[0] + co2_uart_avg[1] + co2_uart_avg[2]) / 3;
-			str += "Average UART CO2 = " + String(ppm_u_avg) + "\r\n";
-		}
-#endif
-#if defined(MH_Z19_PPM_ENABLE)
-		if (sensor.mh_ppm_co2 > 0)
-		{
-			co2_ppm_avg[0] = co2_ppm_avg[1];
-			co2_ppm_avg[1] = co2_ppm_avg[2];
-			co2_ppm_avg[2] = sensor.mh_ppm_co2;
-			ppm_p_avg = (co2_ppm_avg[0] + co2_ppm_avg[1] + co2_ppm_avg[2]) / 3;
-			str += "Average PPM CO2 = " + String(ppm_p_avg) + "\r\n";
-		}
-#endif
-
-#ifdef AMS2320_ENABLE
-		ams_temp = sensor.ams_temp;
-#endif
-
-#ifdef MH_Z19_UART_ENABLE
-		mh_temp = sensor.mh_temp;
-#endif
-
+		sensorDataCollection sensor = collectData();
 		if (autoReport)
 		{
 			str = ParseSensorReport(sensor, "\r\n") + "\r\n" + str + "\r\n";
@@ -1045,46 +1133,8 @@ void loop()
 			}
 			Serial.println(str);
 		}
-
-#ifdef TM1637DISPLAY_ENABLE
-		if (sw == 0)  //show CO2
-		{
-			if (ppm_u_avg > 0) display.showNumberDec(ppm_u_avg, false);
-			else if (ppm_p_avg > 0) display.showNumberDec(ppm_p_avg, false);
-			else sw++;
-		}
-		if (sw == 1)  //show Temperature
-		{
-			if (ams_temp > -200)
-			{
-				display.showNumberDec(round(ams_temp), false, 3, 0);
-				display.setSegments(SEG_DEGREE, 1, 3);
-			}
-			else if (mh_temp > -200)
-			{
-				display.showNumberDec(round(mh_temp), false, 3, 0);
-				display.setSegments(SEG_DEGREE, 1, 3);
-			}
-			else sw++;
-		}
-		if (sw == 2)  //show Humidity
-		{
-#ifdef AMS2320_ENABLE
-			display.showNumberDec(round(sensor.ams_humidity), false, 3, 0);
-			display.setSegments(SEG_HUMIDITY, 1, 3);
-#else
-			sw++;
-#endif
-		}
-		if (sw == 3)  //show clock
-		{
-			display.showNumberDecEx(hour(), 0xff, true, 2, 0);
-			display.showNumberDecEx(minute(), 0xff, true, 2, 2);
-		}
-		sw++;
-		if (sw > 3) sw = 0;
-#endif
 	}
+
 
 	//check if it's time to collect log
 	if (millis() - logLastTime > logPeriod)
@@ -1236,10 +1286,96 @@ void loop()
 #endif
 	}
 
+#ifdef TM1637DISPLAY_ENABLE
+	if (millis() - displaySwitchedLastTime > displaySwitchPeriod)
+	{
+		displaySwitchedLastTime = millis();
+		int ppm_avg = 0;
+		int temp = -200;
+		int humidity = -1;
+		sensorDataCollection sensor = collectData();
+
+#if defined(MH_Z19_PPM_ENABLE)
+		if (sensor.mh_ppm_co2 > 0)
+		{
+			co2_ppm_avg[0] = co2_ppm_avg[1];
+			co2_ppm_avg[1] = co2_ppm_avg[2];
+			co2_ppm_avg[2] = sensor.mh_ppm_co2;
+			ppm_avg = (co2_ppm_avg[0] + co2_ppm_avg[1] + co2_ppm_avg[2]) / 3;
+		}
+#endif
+
+#ifdef MH_Z19_UART_ENABLE
+		if (sensor.mh_uart_co2 > 0)
+		{
+			co2_uart_avg[0] = co2_uart_avg[1];
+			co2_uart_avg[1] = co2_uart_avg[2];
+			co2_uart_avg[2] = sensor.mh_uart_co2;
+			ppm_avg = (co2_uart_avg[0] + co2_uart_avg[1] + co2_uart_avg[2]) / 3;
+		}
+		temp = sensor.mh_temp;
+#endif
+
+#ifdef DHT_ENABLE
+		humidity = sensor.dht_humidity;
+		temp = sensor.dht_temp;
+#endif
+
+#ifdef AMS2320_ENABLE
+		temp = sensor.ams_temp;
+		humidity = round(sensor.ams_humidity);
+#endif
+
+#ifdef HTU21D_ENABLE
+		temp = sensor.htu21d_humidity;
+		humidity = sensor.htu21d_temp;
+#endif
+
+#ifdef DS18B20_ENABLE
+		temp = sensor.ds1820_temp;
+#endif
+
+		if (sw == 0)  //show CO2
+		{
+			if (ppm_avg > 0) display.showNumberDec(ppm_avg, false);
+			else sw++;
+		}
+		if (sw == 1)  //show Temperature
+		{
+			if (temp > -200)
+			{
+				display.showNumberDec(temp, false, 3, 0);
+				display.setSegments(SEG_DEGREE, 1, 3);
+			}
+			else sw++;
+		}
+		if (sw == 2)  //show Humidity
+		{
+			if (temp > -200)
+			{
+
+				display.showNumberDec(humidity, false, 3, 0);
+				display.setSegments(SEG_HUMIDITY, 1, 3);
+			}
+			else sw++;
+		}
+		if (sw == 3)  //show clock
+		{
+			display.showNumberDecEx(hour(), 0xff, true, 2, 0);
+			display.showNumberDecEx(minute(), 0xff, true, 2, 2);
+		}
+		sw++;
+		if (sw > 3) sw = 0;
+	}
+#endif
+
 #ifdef EVENTS_ENABLE
 	if (EventsEnable)
 	{
-		//????????????????
+		for (int i = 0; i < eventsNumber; i++)
+		{
+			processEvent(eventsActions[i], i);
+		}
 	}
 #endif
 
@@ -1257,6 +1393,7 @@ void loop()
 		if (ms < checkSensorPeriod)
 		{
 			Serial.println("Sleep " + String(checkSensorPeriod - ms) + "ms");
+			Serial.flush();
 			ESP.deepSleep((checkSensorPeriod - ms) * 1000);
 		}
 	}
@@ -1304,6 +1441,8 @@ int CollectEepromSize()
 	eeprom_size += NTP_TIME_ZONE_size;
 	eeprom_size += NTP_REFRESH_DELAY_size;
 	eeprom_size += ENABLE_NTP_size;
+
+	eeprom_size += TM1637DISPLAY_REFRESH_size;
 
 	eeprom_size += INT1_MODE_size;
 	eeprom_size += INT2_MODE_size;
@@ -1362,6 +1501,7 @@ String printConfig()
 	//Log settings
 	str += "Device log size: " + String(LOG_SIZE) + "\r\n";
 	str += "Log record period: " + String(logPeriod) + "\r\n";
+	int m;
 
 #ifdef HTTP_SERVER_ENABLE
 	str += "HTTP port: " + readConfigString(HTTP_PORT_addr, HTTP_PORT_size) + "\r\n";
@@ -1381,7 +1521,7 @@ String printConfig()
 	str += "TELEGRAM token: " + readConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size) + "\r\n";
 	str += "TELEGRAM users number: " + String(telegramUsersNumber) + "\r\n";
 	str += "Admin: " + uint64ToString(telegramUsers[0]) + "\r\n";
-	int m = TELEGRAM_USERS_TABLE_size / telegramUsersNumber;
+	m = TELEGRAM_USERS_TABLE_size / telegramUsersNumber;
 	for (int i = 1; i < telegramUsersNumber; i++)
 	{
 		str += "\tUser #" + String(i) + ": " + readConfigString((TELEGRAM_USERS_TABLE_addr + i * m), m) + "\r\n";
@@ -1407,7 +1547,21 @@ String printConfig()
 	str += "NTP service enabled: " + readConfigString(ENABLE_NTP_addr, ENABLE_NTP_size) + "\r\n";
 #endif
 
+#ifdef EVENTS_ENABLE
+	m = EVENTS_TABLE_size / eventsNumber;
+	for (int i = 1; i < eventsNumber; i++)
+	{
+		str += "\tEVENT #" + String(i) + ": " + readConfigString((EVENTS_TABLE_addr + i * m), m) + "\r\n";
+	}
+	str += "EVENTS service enabled: " + readConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size) + "\r\n";
+#endif
+
 #ifdef SCHEDULER_ENABLE
+	m = SCHEDULER_TABLE_size / schedulesNumber;
+	for (int i = 1; i < schedulesNumber; i++)
+	{
+		str += "\tSCHEDULE #" + String(i) + ": " + readConfigString((SCHEDULER_TABLE_addr + i * m), m) + "\r\n";
+	}
 	str += "SCHEDULER service enabled: " + readConfigString(ENABLE_SCHEDULER_addr, ENABLE_SCHEDULER_size) + "\r\n";
 #endif
 
@@ -1415,14 +1569,27 @@ String printConfig()
 	str += "SLEEP mode enabled: " + readConfigString(ENABLE_SLEEP_addr, ENABLE_SLEEP_size) + "\r\n";
 #endif
 
-#ifdef AMS2320_ENABLE
-	str += "AMS2320 via i2c\r\n";
-#endif
-
 #ifdef TM1637DISPLAY_ENABLE
-	str += "TM1637 display:\r\n";
+	str += "TM1637 display refresh delay:";
+	str += readConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size) + "\r\n";
 	str += "pin TM1637_CLK: " + String(TM1637_CLK) + "\r\n";
 	str += "pin TM1637_DIO: " + String(TM1637_DIO) + "\r\n";
+#endif
+
+#ifdef AMS2320_ENABLE
+	str += "AMS2320 on i2c\r\n";
+#endif
+
+#ifdef HTU21D_ENABLE
+	str += "HTU21D on i2c\r\n";
+#endif
+
+#ifdef DS18B20_ENABLE
+	str += "DS18B20 on pin " + String(ONE_WIRE_PIN) + "\r\n";
+#endif
+
+#ifdef DHT_ENABLE
+	str += DHTTYPE + " on pin " + String(DHTPIN) + "\r\n";
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
@@ -1646,11 +1813,13 @@ String printHelp()
 	tmp += "[ADMIN][FLASH] ntp_refresh_delay=n\r\n";
 	tmp += "[ADMIN][FLASH] ntp_enable=1/0\r\n";
 
-	// set_event?=""
+	tmp += "[ADMIN][FLASH] set_event?=condition:action\r\n";
 	tmp += "[ADMIN][FLASH] events_enable=1/0\r\n";
 
-	// set_schedule?=""
+	tmp += "[ADMIN][FLASH] set_schedule?=time:action\r\n";
 	tmp += "[ADMIN][FLASH] scheduler_enable=1/0\r\n";
+
+	tmp += "[ADMIN][FLASH] display_refresh=n\r\n";
 
 	tmp += "[ADMIN][FLASH] sleep_enable=1/0\r\n";
 
@@ -1684,17 +1853,36 @@ sensorDataCollection collectData()
 	sensorData.loghour = hour();
 	sensorData.logminute = minute();
 	sensorData.logsecond = second();
-#ifdef MH_Z19_PPM_ENABLE
-	sensorData.mh_ppm_co2 = co2PPMRead(MHZ19_PPM);
-#endif
+
 #ifdef AMS2320_ENABLE
 	sensorData.ams_humidity = am2320.readHumidity();
 	sensorData.ams_temp = am2320.readTemperature();
 #endif
+
+#ifdef HTU21D_ENABLE
+	sensorData.htu21d_humidity = htu21d.readHumidity();
+	sensorData.htu21d_temp = htu21d.readTemperature();
+#endif
+
+#ifdef DS18B20_ENABLE
+	ds1820.requestTemperatures();
+	sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
+#endif
+
+#ifdef DHT_ENABLE
+	sensorData.dht_humidity = dht.readHumidity();
+	sensorData.dht_temp = dht.readTemperature();
+#endif
+
 #ifdef MH_Z19_UART_ENABLE
 	sensorData.mh_uart_co2 = co2SerialRead();
 	sensorData.mh_temp = mhtemp_s;
 #endif
+
+#ifdef MH_Z19_PPM_ENABLE
+	sensorData.mh_ppm_co2 = co2PPMRead(MHZ19_PPM);
+#endif
+
 #ifdef ADC_ENABLE
 	sensorData.adc = getAdc();
 #endif
@@ -1724,30 +1912,29 @@ sensorDataCollection collectData()
 	sensorData.InterruptCounter8 = intCount8;
 #endif
 
-
 #ifdef INPUT1_ENABLE
-	sensorData.input1 = digitalRead(INPUT1_ENABLE);
+	sensorData.input1 = in1 = digitalRead(INPUT1_ENABLE);
 #endif
 #ifdef INPUT2_ENABLE
-	sensorData.input2 = digitalRead(INPUT2_ENABLE);
+	sensorData.input2 = in2 = digitalRead(INPUT2_ENABLE);
 #endif
 #ifdef INPUT3_ENABLE
-	sensorData.input3 = digitalRead(INPUT3_ENABLE);
+	sensorData.input3 = in3 = digitalRead(INPUT3_ENABLE);
 #endif
 #ifdef INPUT4_ENABLE
-	sensorData.input4 = digitalRead(INPUT4_ENABLE);
+	sensorData.input4 = in4 = digitalRead(INPUT4_ENABLE);
 #endif
 #ifdef INPUT5_ENABLE
-	sensorData.input5 = digitalRead(INPUT5_ENABLE);
+	sensorData.input5 = in5 = digitalRead(INPUT5_ENABLE);
 #endif
 #ifdef INPUT6_ENABLE
-	sensorData.input6 = digitalRead(INPUT6_ENABLE);
+	sensorData.input6 = in6 = digitalRead(INPUT6_ENABLE);
 #endif
 #ifdef INPUT7_ENABLE
-	sensorData.input7 = digitalRead(INPUT7_ENABLE);
+	sensorData.input7 = in7 = digitalRead(INPUT7_ENABLE);
 #endif
 #ifdef INPUT8_ENABLE
-	sensorData.input8 = digitalRead(INPUT8_ENABLE);
+	sensorData.input8 = in8 = digitalRead(INPUT8_ENABLE);
 #endif
 
 #ifdef OUTPUT1_ENABLE
@@ -1803,6 +1990,20 @@ String ParseSensorReport(sensorDataCollection data, String delimiter)
 #ifdef AMS2320_ENABLE
 	str += delimiter + "AMS2320 t=" + String(data.ams_temp);
 	str += delimiter + "AMS2320 h=" + String(data.ams_humidity);
+#endif
+
+#ifdef HTU21D_ENABLE
+	str += delimiter + "HTU21D t=" + String(data.htu21d_temp);
+	str += delimiter + "HTU21D h=" + String(data.htu21d_humidity);
+#endif
+
+#ifdef DS18B20_ENABLE
+	str += delimiter + "DS18B20 t=" + String(data.ds1820_temp);
+#endif
+
+#ifdef DHT_ENABLE
+	str += delimiter + DHTTYPE + " t=" + String(data.dht_temp);
+	str += delimiter + DHTTYPE + " h=" + String(data.dht_humidity);
 #endif
 
 #ifdef ADC_ENABLE
@@ -1998,85 +2199,9 @@ String processCommand(String command, byte channel, bool isAdmin)
 
 		else if (tmp.startsWith("set_output") && tmp.length() >= 13)
 		{
-			int t = command.indexOf('=');
-			if (t >= 11 && t < tmp.length() - 1)
-			{
-				byte outNum = tmp.substring(10, t).toInt();
-				String outStateStr = tmp.substring(t + 1);
-				byte outState = outStateStr.toInt();
-				bool pwm_mode = false;
-				//Serial.println("Out" + String(outNum) + "=" + String(outState));
-				if (outStateStr == "on") outState = OUT_ON;
-				else if (outStateStr == "off") outState = OUT_OFF;
-				else
-				{
-					outState = outStateStr.toInt();
-					pwm_mode = true;
-					if (outState > 1)
-					{
-						return "Incorrect value \"" + String(outState) + "\"";
-					}
-				}
-#ifdef OUTPUT1_ENABLE
-				if (outNum == 1)
-				{
-					if (pwm_mode) analogWrite(OUTPUT1_ENABLE, outState);
-					else digitalWrite(OUTPUT1_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT2_ENABLE
-				if (outNum == 2)
-				{
-					digitalWrite(OUTPUT2_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT3_ENABLE
-				if (outNum == 3)
-				{
-					digitalWrite(OUTPUT3_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT4_ENABLE
-				if (outNum == 4)
-				{
-					digitalWrite(OUTPUT4_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT5_ENABLE
-				if (outNum == 5)
-				{
-					digitalWrite(OUTPUT5_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT6_ENABLE
-				if (outNum == 6)
-				{
-					digitalWrite(OUTPUT6_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT7_ENABLE
-				if (outNum == 7)
-				{
-					digitalWrite(OUTPUT7_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-#ifdef OUTPUT8_ENABLE
-				if (outNum == 8)
-				{
-					digitalWrite(OUTPUT8_ENABLE, (bool)outState);
-					str = "Output" + String(outNum) + "=" + String(int(outState));
-				}
-#endif
-				if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
-			}
+			str = set_output(tmp);
 		}
+
 		else if (tmp.startsWith("set_interrupt_mode") && tmp.length() >= 21)
 		{
 			int t = command.indexOf('=');
@@ -2342,9 +2467,9 @@ String processCommand(String command, byte channel, bool isAdmin)
 				if (userNum < telegramUsersNumber)
 				{
 					int m = TELEGRAM_USERS_TABLE_size / telegramUsersNumber;
-					str = "User #" + String(userNum) + " is now: " + uint64ToString(newUser) + "\r\n";
 					writeConfigString(TELEGRAM_USERS_TABLE_addr + userNum * m, m, uint64ToString(newUser));
-					telegramUsers[0] = newUser;
+					telegramUsers[userNum] = newUser;
+					str = "User #" + String(userNum) + " is now: " + uint64ToString(telegramUsers[userNum]) + "\r\n";
 				}
 				else
 				{
@@ -2495,9 +2620,26 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef EVENTS_ENABLE
-
-		// set_event?=""
-
+		else if (tmp.startsWith("set_event"))
+		{
+			int t = command.indexOf('=');
+			if (t >= 10 && t < tmp.length() - 1)
+			{
+				byte eventNum = tmp.substring(9, t).toInt();
+				String newEvent = tmp.substring(t + 1);
+				if (eventNum < eventsNumber)
+				{
+					int m = EVENTS_TABLE_size / eventsNumber;
+					writeConfigString(EVENTS_TABLE_addr + eventNum * m, m, newEvent);
+					eventsActions[eventNum] = newEvent;
+					str = "Event #" + String(eventNum) + " is now: " + eventsActions[eventNum] + "\r\n";
+				}
+				else
+				{
+					str = "Event #" + String(eventNum) + " is out of range [0," + String(eventsNumber - 1) + "]\r\n";
+				}
+			}
+		}
 		else if (tmp.startsWith("events_enable="))
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
@@ -2520,7 +2662,26 @@ String processCommand(String command, byte channel, bool isAdmin)
 #ifdef SCHEDULER_ENABLE
 
 		// set_schedule?=""
-
+		else if (tmp.startsWith("set_schedule"))
+		{
+			int t = command.indexOf('=');
+			if (t >= 13 && t < tmp.length() - 1)
+			{
+				byte scheduleNum = tmp.substring(12, t).toInt();
+				String newSchedule = tmp.substring(t + 1);
+				if (scheduleNum < schedulesNumber)
+				{
+					int m = SCHEDULER_TABLE_size / schedulesNumber;
+					writeConfigString(SCHEDULER_TABLE_addr + scheduleNum * m, m, newSchedule);
+					schedulesActions[scheduleNum] = newSchedule;
+					str = "Schedule #" + String(scheduleNum) + " is now: " + schedulesActions[scheduleNum] + "\r\n";
+				}
+				else
+				{
+					str = "Schedule #" + String(scheduleNum) + " is out of range [0," + String(schedulesNumber - 1) + "]\r\n";
+				}
+			}
+		}
 		else if (tmp.startsWith("scheduler_enable="))
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
@@ -2539,6 +2700,16 @@ String processCommand(String command, byte channel, bool isAdmin)
 			else str = "Incorrect value: " + String(ar) + "\r\n";
 		}
 #endif
+		//display_refresh
+#ifdef TM1637DISPLAY_ENABLE
+		if (tmp.startsWith("display_refresh="))
+		{
+			displaySwitchPeriod = command.substring(command.indexOf('=') + 1).toInt();
+			str = "New display refresh period = \"" + String(displaySwitchPeriod) + "\"\r\n";
+			writeConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size, String(displaySwitchPeriod));
+		}
+#endif
+
 		else
 		{
 			str = "Incorrect command: \"" + command + "\"\r\n";
@@ -2549,6 +2720,503 @@ String processCommand(String command, byte channel, bool isAdmin)
 	{
 		str = "Incorrect command: \"" + command + "\"\r\n";
 		str += printHelp() + "\r\n";
+	}
+	return str;
+}
+
+//to do: value list and processing
+String processEvent(String event, byte eventNum)
+{
+	//conditions:
+	//	value<=>x; adc, temp, hum, co2,
+	//	input?=0/1/c;
+	//	output?=0/1/c;
+	//	counter?>x;
+	String condition = event.substring(0, event.indexOf(';') - 1);
+	condition.toLowerCase();
+	event = event.substring(event.indexOf(';') + 1);
+	String str = "";
+	if (condition.startsWith("input"))
+	{
+		int t = condition.indexOf('=');
+		if (t >= 6 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(5, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			int outState = OUT_OFF;
+			if (outStateStr != "c")
+			{
+				outState = outStateStr.toInt();
+				bool pwm_mode = false;
+				if (outStateStr == "on") outState = OUT_ON;
+				else if (outStateStr == "off") outState = OUT_OFF;
+				else pwm_mode = true;
+			}
+#ifdef INTPUT1_ENABLE
+			if (outNum == 1)
+			{
+				if (outStateStr == "c")
+				{
+					if (in1 != digitalRead(INPUT1_ENABLE))
+					{
+						in1 = digitalRead(INPUT1_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT1_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT2_ENABLE
+			if (outNum == 2)
+			{
+				if (outStateStr == "c")
+				{
+					if (in2 != digitalRead(INPUT2_ENABLE))
+					{
+						in2 = digitalRead(INPUT2_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT2_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT3_ENABLE
+			if (outNum == 3)
+			{
+				if (outStateStr == "c")
+				{
+					if (in3 != digitalRead(INPUT3_ENABLE))
+					{
+						in3 = digitalRead(INPUT3_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT3_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT4_ENABLE
+			if (outNum == 4)
+			{
+				if (outStateStr == "c")
+				{
+					if (in4 != digitalRead(INPUT4_ENABLE))
+					{
+						in4 = digitalRead(INPUT4_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT4_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT5_ENABLE
+			if (outNum == 5)
+			{
+				if (outStateStr == "c")
+				{
+					if (in5 != digitalRead(INPUT5_ENABLE))
+					{
+						in5 = digitalRead(INPUT5_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT5_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT6_ENABLE
+			if (outNum == 6)
+			{
+				if (outStateStr == "c")
+				{
+					if (in6 != digitalRead(INPUT6_ENABLE))
+					{
+						in6 = digitalRead(INPUT6_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT6_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT7_ENABLE
+			if (outNum == 7)
+			{
+				if (outStateStr == "c")
+				{
+					if (in7 != digitalRead(INPUT7_ENABLE))
+					{
+						in7 = digitalRead(INPUT7_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT7_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT8_ENABLE
+			if (outNum == 8)
+			{
+				if (outStateStr == "c")
+				{
+					if (in8 != digitalRead(INPUT8_ENABLE))
+					{
+						in8 = digitalRead(INPUT8_ENABLE);
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(INPUT8_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
+		}
+	}
+	else if (condition.startsWith("output"))
+	{
+		int t = condition.indexOf('=');
+		if (t >= 7 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(6, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			int outState = OUT_OFF;
+			if (outStateStr != "c")
+			{
+				outState = outStateStr.toInt();
+				bool pwm_mode = false;
+				if (outStateStr == "on") outState = OUT_ON;
+				else if (outStateStr == "off") outState = OUT_OFF;
+				else pwm_mode = true;
+			}
+#ifdef OUTPUT1_ENABLE
+			if (outNum == 1)
+			{
+				if (outStateStr == "c")
+				{
+					if (out1 != digitalRead(OUTPUT1_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT1_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT2_ENABLE
+			if (outNum == 2)
+			{
+				if (outStateStr == "c")
+				{
+					if (out2 != digitalRead(OUTPUT2_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT2_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT3_ENABLE
+			if (outNum == 3)
+			{
+				if (outStateStr == "c")
+				{
+					if (out3 != digitalRead(OUTPUT3_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT3_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT4_ENABLE
+			if (outNum == 4)
+			{
+				if (outStateStr == "c")
+				{
+					if (out4 != digitalRead(OUTPUT4_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT4_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT5_ENABLE
+			if (outNum == 5)
+			{
+				if (outStateStr == "c")
+				{
+					if (out5 != digitalRead(OUTPUT5_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT5_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT6_ENABLE
+			if (outNum == 6)
+			{
+				if (outStateStr == "c")
+				{
+					if (out6 != digitalRead(OUTPUT6_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT6_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT7_ENABLE
+			if (outNum == 7)
+			{
+				if (outStateStr == "c")
+				{
+					if (out7 != digitalRead(OUTPUT7_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT7_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT8_ENABLE
+			if (outNum == 8)
+			{
+				if (outStateStr == "c")
+				{
+					if (out8 != digitalRead(OUTPUT8_ENABLE))
+					{
+						str = ProcessAction(event, eventNum);
+					}
+				}
+				else if ((bool)outState == digitalRead(OUTPUT8_ENABLE)) str = ProcessAction(event, eventNum);
+			}
+#endif
+			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
+		}
+	}
+	else if (condition.startsWith("counter"))
+	{
+		int t = condition.indexOf('=');
+		if (t >= 8 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(7, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			int outState = outStateStr.toInt();
+#ifdef INTERRUPT_COUNTER1_ENABLE
+			if (outNum == 1)
+			{
+				if (intCount1 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER2_ENABLE
+			if (outNum == 2)
+			{
+				if (intCount2 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER3_ENABLE
+			if (outNum == 3)
+			{
+				if (intCount3 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER4_ENABLE
+			if (outNum == 4)
+			{
+				if (intCount4 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER5_ENABLE
+			if (outNum == 5)
+			{
+				if (intCount5 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER6_ENABLE
+			if (outNum == 6)
+			{
+				if (intCount6 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER7_ENABLE
+			if (outNum == 7)
+			{
+				if (intCount7 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER8_ENABLE
+			if (outNum == 8)
+			{
+				if (intCount8 > outState) str = ProcessAction(event, eventNum);
+			}
+#endif
+			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
+		}
+	}
+
+	else if (condition.startsWith("adc"))
+	{
+		;
+	}
+	else if (condition.startsWith("temperature"))
+	{
+		;
+	}
+	else if (condition.startsWith("humidity"))
+	{
+		;
+	}
+	else if (condition.startsWith("co2"))
+	{
+		;
+	}
+	else if (condition.startsWith("current"))
+	{
+		;
+	}
+	else
+	{
+		str = "Incorrect event condition: \"" + event + "\"\r\n";
+		str += printHelp() + "\r\n";
+	}
+	return str;
+}
+
+String ProcessAction(String action, byte eventNum)
+{
+#ifdef EVENTS_ENABLE
+	eventsFlags[eventNum] = true;
+#endif
+
+	int n = countOf(action, ';');
+	if (action.lastIndexOf(';') == action.length() - 1) n--;
+	String str;
+	while (n > 0)
+	{
+		String tmpAction = action.substring(0, action.indexOf(';') - 1);
+		action = action.substring(action.indexOf(';') + 1);
+		//actions:
+		//	set_output?=x
+		//	reset_flag?
+		//	reset_counter?
+		//	send_telegram=all/admin/???????, message
+		//	send_PushingBox=message
+		//	save_log
+		//	send_mail=address, message
+		//	send_GScript=
+		if (tmpAction.startsWith("set_output") && tmpAction.length() >= 13)
+		{
+			str = set_output(tmpAction);
+		}
+		else if (tmpAction.startsWith("reset_flag"));
+		else if (tmpAction.startsWith("reset_counter"));
+		else if (tmpAction.startsWith("send_telegram"));
+		else if (tmpAction.startsWith("send_PushingBox"));
+		else if (tmpAction.startsWith("save_log"));
+		else if (tmpAction.startsWith("send_mail"));
+		else if (tmpAction.startsWith("send_GScript"));
+		else
+		{
+			str = "Incorrect action #" + String(eventNum) + ": \"" + tmpAction + "\"\r\n";
+			str += printHelp() + "\r\n";
+		}
+		n--;
+	}
+	return str;
+}
+
+int countOf(String str, char c)
+{
+	int count = -1;
+	for (int i = 0; i < str.length(); i++)
+		if (str[i] == c) count++;
+	if (count > -1) count++;
+	return count;
+}
+
+String set_output(String tmpAction)
+{
+	int t = tmpAction.indexOf('=');
+	String str;
+	if (t >= 11 && t < tmpAction.length() - 1)
+	{
+		byte outNum = tmpAction.substring(10, t).toInt();
+		String outStateStr = tmpAction.substring(t + 1);
+		byte outState = outStateStr.toInt();
+		bool pwm_mode = false;
+		//Serial.println("Out" + String(outNum) + "=" + String(outState));
+		if (outStateStr == "on") outState = OUT_ON;
+		else if (outStateStr == "off") outState = OUT_OFF;
+		else
+		{
+			pwm_mode = true;
+			outState = outStateStr.toInt();
+		}
+#ifdef OUTPUT1_ENABLE
+		if (outNum == 1)
+		{
+			out1 = (bool)outState;
+			digitalWrite(OUTPUT1_ENABLE, out1);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT2_ENABLE
+		if (outNum == 2)
+		{
+			out2 = (bool)outState;
+			if (pwm_mode) analogWrite(OUTPUT2_ENABLE, outState);
+			else digitalWrite(OUTPUT2_ENABLE, out2);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT3_ENABLE
+		if (outNum == 3)
+		{
+			out3 = (bool)outState;
+			digitalWrite(OUTPUT3_ENABLE, out3);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT4_ENABLE
+		if (outNum == 4)
+		{
+			out4 = (bool)outState;
+			digitalWrite(OUTPUT4_ENABLE, out4);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT5_ENABLE
+		if (outNum == 5)
+		{
+			out5 = (bool)outState;
+			if (pwm_mode) analogWrite(OUTPUT5_ENABLE, outState);
+			else digitalWrite(OUTPUT5_ENABLE, out5);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT6_ENABLE
+		if (outNum == 6)
+		{
+			out6 = (bool)outState;
+			if (pwm_mode) analogWrite(OUTPUT6_ENABLE, outState);
+			else digitalWrite(OUTPUT6_ENABLE, out6);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT7_ENABLE
+		if (outNum == 7)
+		{
+			out7 = (bool)outState;
+			digitalWrite(OUTPUT7_ENABLE, out7);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+#ifdef OUTPUT8_ENABLE
+		if (outNum == 8)
+		{
+			out8 = (bool)outState;
+			if (pwm_mode) analogWrite(OUTPUT8_ENABLE, outState);
+			else digitalWrite(OUTPUT8_ENABLE, out8);
+			str = "Output" + String(outNum) + "=" + String(int(outState));
+		}
+#endif
+		if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
 	}
 	return str;
 }

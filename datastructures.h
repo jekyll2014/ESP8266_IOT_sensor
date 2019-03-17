@@ -85,7 +85,10 @@
 #define NTP_TIME_ZONE_addr	NTP_SERVER_addr + NTP_SERVER_size
 #define NTP_TIME_ZONE_size	3
 
-#define NTP_REFRESH_DELAY_addr	NTP_TIME_ZONE_addr + NTP_TIME_ZONE_size
+#define TM1637DISPLAY_REFRESH_addr	NTP_TIME_ZONE_addr + NTP_TIME_ZONE_size
+#define TM1637DISPLAY_REFRESH_size	6
+
+#define NTP_REFRESH_DELAY_addr	TM1637DISPLAY_REFRESH_addr + TM1637DISPLAY_REFRESH_size
 #define NTP_REFRESH_DELAY_size	5
 
 #define ENABLE_NTP_addr	NTP_REFRESH_DELAY_addr + NTP_REFRESH_DELAY_size
@@ -138,6 +141,20 @@ typedef struct sensorDataCollection
 #ifdef AMS2320_ENABLE
 	int ams_temp;
 	byte ams_humidity;
+#endif
+
+#ifdef HTU21D_ENABLE
+	int htu21d_temp;
+	int htu21d_humidity;
+#endif
+
+#ifdef DS18B20_ENABLE
+	int ds1820_temp;
+#endif
+
+#ifdef DHT_ENABLE
+	int dht_temp;
+	byte dht_humidity;
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
