@@ -14,33 +14,27 @@ GPIO 13		 A7 - analog in
 /* Untested feature:
  - set pwm output
  - select interrupt mode (FALLING/RISING/CHANGE)
- - set_time=yyyy.mm.dd hh:mm:ss
- - event action:
-	conditions:
-		input?=on,off,x,c
-		output?=on,off,x,c
-		counter>x
-		adc<>x
-		temperature<>x
-		humidity<>x
-		co2<>x
-	actions:
-		set_output?=on,off,x
-		send_telegram=* / user#;message
-		send_PushingBox=message
-		send_mail=address;message
-		send_GScript
-		save_log;
+ - set_time=
+ - events
+ - schedule
 */
 
 /*
 Planned features:
- - TELEGRAM/PushingBox/E-Mail message limit management
- - schedule
+ - event action:
+	conditions:
+		value<=>x,
+	actions:
+		set_output?=x
+		send_mail=address;message
+		send_telegram=* / user#;message
+		send_GScript,
+		send_PushingBox = message
+		save_log;
  - GoogleDocs service
- - don't keep events/schedules in RAM
- - efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
- - compile time pin arrangement control
+ - ? ? ? don't keep events/schedules in RAM
+ - ? ? ? efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
+ - ? ? ? compile time pin arrangement control
 * /
 
 /*
@@ -50,50 +44,47 @@ Sensors to be supported:
  - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
 */
 
-//#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
-#define NTP_TIME_ENABLE
-#define HTTP_SERVER_ENABLE
+#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
 #define EVENTS_ENABLE
-//#define SCHEDULER_ENABLE
-
-//#define AMS2320_ENABLE
-//#define HTU21D_ENABLE
+#define SCHEDULER_ENABLE
+#define AMS2320_ENABLE
+#define HTU21D_ENABLE
 #define DS18B20_ENABLE
-//#define DHT_ENABLE
-//#define MH_Z19_UART_ENABLE
-//#define MH_Z19_PPM_ENABLE
-//#define TM1637DISPLAY_ENABLE
-
+#define DHT_ENABLE
+#define MH_Z19_UART_ENABLE
+#define MH_Z19_PPM_ENABLE
+#define TM1637DISPLAY_ENABLE
+#define HTTP_SERVER_ENABLE
+#define EMAIL_ENABLE
 #define TELEGRAM_ENABLE
+#define GSCRIPT
 #define PUSHINGBOX
-//#define EMAIL_ENABLE
-//#define GSCRIPT
-
+#define NTP_TIME_ENABLE
 #define ADC_ENABLE
 
-//#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
-//#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
-//#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
-//#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
-//#define INTERRUPT_COUNTER6_ENABLE 12	//~D6 - SoftUART_RX
-//#define INTERRUPT_COUNTER7_ENABLE 13	// D7
-//#define INTERRUPT_COUNTER8_ENABLE 15	//~D8 - keep LOW on boot
+#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
+#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
+#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
+#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
+#define INTERRUPT_COUNTER6_ENABLE 12	//~D6 - SoftUART_RX
+#define INTERRUPT_COUNTER7_ENABLE 13	// D7
+#define INTERRUPT_COUNTER8_ENABLE 15	//~D8 - keep LOW on boot
 
-//#define INPUT1_ENABLE 5					// D1 - I2C_SCL
-//#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
-//#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
-//#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INPUT5_ENABLE 14				//~D5 - SoftUART_TX
-//#define INPUT6_ENABLE 12				//~D6 - SoftUART_RX
-//#define INPUT7_ENABLE 13				// D7
-//#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
+#define INPUT1_ENABLE 5					// D1 - I2C_SCL
+#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
+#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
+#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define INPUT6_ENABLE 12				//~D6 - SoftUART_RX
+#define INPUT7_ENABLE 13				// D7
+#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
-//#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
-//#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
-//#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
-//#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
+#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
+#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
+#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
 #define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
 #define OUTPUT7_ENABLE 13				// D7
 #define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
@@ -103,17 +94,18 @@ Sensors to be supported:
 #include <TimeLib.h>
 #include "datastructures.h"
 
-// WiFi settings
+			// WiFi settings
 #define MAX_SRV_CLIENTS 5 //how many clients should be able to telnet to this ESP8266
 String ssid;
 String WiFiPass;
 unsigned int telnetPort = 23;
 String netInput[MAX_SRV_CLIENTS];
 byte WiFiIntendedStatus = WIFI_STOP;
+unsigned long reconnectTimeOut = 5000;
 WiFiServer telnetServer(telnetPort);
 WiFiClient serverClient[MAX_SRV_CLIENTS];
-bool wifiEnable = true;
 bool telnetEnable = true;
+bool wifiEnable = true;
 String deviceName = "";
 
 unsigned long checkSensorLastTime = 0;
@@ -133,17 +125,10 @@ sensorDataCollection sensor;
 bool isTimeSet = false;
 bool autoReport = false;
 
-// not implemented yet
-#ifdef SLEEP_ENABLE
-unsigned long reconnectTimeOut = 5000;
-bool SleepEnable = false;
-#endif
 
-// not implemented yet
-const byte schedulesNumber = 10;
-#ifdef SCHEDULER_ENABLE
-String schedulesActions[schedulesNumber];
-bool SchedulerEnable = false;
+// not tested
+#ifdef SLEEP_ENABLE
+bool SleepEnable = false;
 #endif
 
 // not tested
@@ -152,6 +137,13 @@ const byte eventsNumber = 10;
 String eventsActions[eventsNumber];
 bool eventsFlags[eventsNumber];
 bool EventsEnable = false;
+#endif
+
+// not implemented yet
+const byte schedulesNumber = 10;
+#ifdef SCHEDULER_ENABLE
+String schedulesActions[schedulesNumber];
+bool SchedulerEnable = false;
 #endif
 
 // E-mail config
@@ -325,7 +317,6 @@ uint64_t StringToUint64(String value)
 }
 #endif
 
-// not implemented yet
 // Google script config
 // Need token
 #ifdef GSCRIPT
@@ -538,10 +529,9 @@ void sendNTPpacket(IPAddress &address)
 /*
 AM2320 I2C temperature + humidity sensor
 PINS: D1 - SCL, D2 - SDA
-pin 1 of the sensor to +3.3V/+5V
-pin 2 of the sensor to SDA
-pin 3 of the sensor to GND
-pin 4 of the sensor to SCL
+pin 1 (on the left) of the sensor to +3.3V/+5V
+pin 2 of the sensor to whatever your DHTPIN is
+pin 4 (on the right) of the sensor to GROUND
 5-10K pullup resistor from pin 2 (SDA) to pin 1 (power) of the sensor
 5-10K pullup resistor from pin 4 (SCL) to pin 1 (power) of the sensor
 */
@@ -570,7 +560,7 @@ pin 3 to GROUND
 #ifdef DS18B20_ENABLE
 #include <OneWire.h>
 #include "DallasTemperature.h"
-#define ONE_WIRE_PIN 5 //D1
+#define ONE_WIRE_PIN 0 //D3
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature ds1820(&oneWire);
 #endif
@@ -578,9 +568,9 @@ DallasTemperature ds1820(&oneWire);
 /*
 DHT11/DHT21(AM2301)/DHT22(AM2302, AM2321) temperature + humidity sensor
 PINS: D3 - DATA
-pin 1 of the sensor to +3.3V/+5V
+pin 1 (on the left) of the sensor to +3.3V/+5V
 pin 2 of the sensor to whatever your DHTPIN is
-pin 4 of the sensor to GROUND
+pin 4 (on the right) of the sensor to GROUND
 5-10K pullup resistor from pin 2 (data) to pin 1 (power) of the sensor
 */
 #ifdef DHT_ENABLE
@@ -590,8 +580,8 @@ pin 4 of the sensor to GROUND
 DHT dht(DHTPIN, DHTTYPE);
 #endif
 
-// MH-Z19 CO2 sensor via UART
-// PINS: D5 - TX, D6 - RX
+// MH-Z19 CO2 sensor via UART. PIN D5 - TX, D6- RX
+// PINS: TX, RX
 #ifdef MH_Z19_UART_ENABLE
 #include <SoftwareSerial.h>;
 #define MHZ19_TX 14 //D5
@@ -632,7 +622,7 @@ unsigned int co2SerialRead()
 #endif
 
 // MH-Z19 CO2 sensor via PPM signal
-// PINS: D7 - PPM
+// PINS: PPM
 #ifdef MH_Z19_PPM_ENABLE
 #define MHZ19_PPM 13 //D7
 unsigned int co2_ppm_avg[3] = { 0, 0, 0 };
@@ -666,7 +656,7 @@ TM1637 display leds layout:
 	  -g
 	e|_|c
 	  d
-PINS: D3 - CLK, D4 - DIO
+PINS: CLK, DIO
 */
 #ifdef TM1637DISPLAY_ENABLE
 #include <TM1637Display.h>
@@ -1150,11 +1140,23 @@ void loop()
 	if (millis() - logLastTime > logPeriod)
 	{
 		logLastTime = millis();
-		saveLog(collectData());
+		history_log[history_record_number] = collectData();
+		history_record_number++;
 
-#ifdef EMAIL_ENABLE
+		//if log is full - shift data back
+		if (history_record_number >= LOG_SIZE)
+		{
+			history_record_number--;
+			for (int i = 0; i < LOG_SIZE - 2; i++)
+			{
+				history_log[i] = history_log[i + 1];
+				yield();
+			}
+		}
+
 		if (history_record_number >= (int)(LOG_SIZE * 0.7))
 		{
+#ifdef EMAIL_ENABLE
 			if (EMailEnable && WiFi.status() == WL_CONNECTED && history_record_number > 0)
 			{
 				bool sendOk = true;
@@ -1187,8 +1189,8 @@ void loop()
 					else Serial.println("Error sending log to EMail " + String(history_record_number) + " records.");
 				}
 			}
-		}
 #endif
+		}
 	}
 
 	//check UART for data
@@ -1292,17 +1294,15 @@ void loop()
 		//show CO2
 		if (sw == 0)
 		{
-			int co2_avg = getCo2();
-			if (co2_avg > 0) display.showNumberDec(co2_avg, false);
+			if (co2_avg > 0) display.showNumberDec(getCo2(), false);
 			else sw++;
 		}
 		//show Temperature
 		if (sw == 1)
 		{
-			int temp = getTemperature();
 			if (temp > -200)
 			{
-				display.showNumberDec(temp, false, 3, 0);
+				display.showNumberDec(getTemperature(), false, 3, 0);
 				display.setSegments(SEG_DEGREE, 1, 3);
 			}
 			else sw++;
@@ -1310,10 +1310,9 @@ void loop()
 		//show Humidity
 		if (sw == 2)
 		{
-			int humidity = getHumidity();
-			if (humidity > -200)
+			if (temp > -200)
 			{
-				display.showNumberDec(humidity, false, 3, 0);
+				display.showNumberDec(getHumidity(), false, 3, 0);
 				display.setSegments(SEG_HUMIDITY, 1, 3);
 			}
 			else sw++;
@@ -1456,16 +1455,13 @@ String printConfig()
 	str += "Telnet port: " + readConfigString(TELNET_PORT_addr, TELNET_PORT_size) + "\r\n";
 	str += "Sensor read period: " + readConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size) + "\r\n";
 	str += "Telnet clients limit: " + String(MAX_SRV_CLIENTS) + "\r\n";
+	str += "WiFi reconnect timeout for SLEEP mode: " + String(reconnectTimeOut) + "\r\n";
 
 	//Log settings
 	str += "Device log size: " + String(LOG_SIZE) + "\r\n";
 	str += "Log record period: " + String(logPeriod) + "\r\n";
-
-#ifdef SLEEP_ENABLE
-	str += "WiFi reconnect timeout for SLEEP mode: " + String(reconnectTimeOut) + "\r\n";
-#endif
-
 	int m;
+
 #ifdef HTTP_SERVER_ENABLE
 	str += "HTTP port: " + readConfigString(HTTP_PORT_addr, HTTP_PORT_size) + "\r\n";
 	str += "HTTP service enabled: " + readConfigString(ENABLE_HTTP_addr, ENABLE_HTTP_size) + "\r\n";
@@ -1482,6 +1478,7 @@ String printConfig()
 
 #ifdef TELEGRAM_ENABLE
 	str += "TELEGRAM token: " + readConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size) + "\r\n";
+	str += "TELEGRAM users number: " + String(telegramUsersNumber) + "\r\n";
 	str += "Admin: " + uint64ToString(telegramUsers[0]) + "\r\n";
 	m = TELEGRAM_USERS_TABLE_size / telegramUsersNumber;
 	for (int i = 1; i < telegramUsersNumber; i++)
@@ -1767,10 +1764,10 @@ String printHelp()
 	tmp += "[ADMIN][FLASH] ntp_refresh_delay=n\r\n";
 	tmp += "[ADMIN][FLASH] ntp_enable=1/0\r\n";
 
-	tmp += "[ADMIN][FLASH] set_event?=condition:action1;action2\r\n";
+	tmp += "[ADMIN][FLASH] set_event?=condition:action\r\n";
 	tmp += "[ADMIN][FLASH] events_enable=1/0\r\n";
 
-	tmp += "[ADMIN][FLASH] set_schedule?=time:action1;action2\r\n";
+	tmp += "[ADMIN][FLASH] set_schedule?=time:action\r\n";
 	tmp += "[ADMIN][FLASH] scheduler_enable=1/0\r\n";
 
 	tmp += "[ADMIN][FLASH] display_refresh=n\r\n";
@@ -2252,7 +2249,6 @@ String processCommand(String command, byte channel, bool isAdmin)
 		else if (tmp == "reset")
 		{
 			Serial.println("Resetting...");
-			Serial.flush();
 			ESP.restart();
 		}
 
@@ -2271,6 +2267,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			}
 			else str = "Incorrect value: " + String(ar) + "\r\n";
 		}
+
 
 #ifdef SLEEP_ENABLE
 		else if (tmp.startsWith("sleep_enable="))
@@ -2682,9 +2679,9 @@ String processEvent(String event, byte eventNum)
 	//	input?=0/1/c;
 	//	output?=0/1/c;
 	//	counter?>x;
-	String condition = event.substring(0, event.indexOf(':') - 1);
+	String condition = event.substring(0, event.indexOf(';') - 1);
 	condition.toLowerCase();
-	event = event.substring(event.indexOf(':') + 1);
+	event = event.substring(event.indexOf(';') + 1);
 	String str = "";
 	if (condition.startsWith("input"))
 	{
@@ -2693,14 +2690,16 @@ String processEvent(String event, byte eventNum)
 		{
 			byte outNum = condition.substring(5, t).toInt();
 			String outStateStr = condition.substring(t + 1);
-			bool outState = OUT_OFF;
+			int outState = OUT_OFF;
 			if (outStateStr != "c")
 			{
+				outState = outStateStr.toInt();
+				bool pwm_mode = false;
 				if (outStateStr == "on") outState = OUT_ON;
 				else if (outStateStr == "off") outState = OUT_OFF;
-				else outState = outStateStr.toInt();
+				else pwm_mode = true;
 			}
-#ifdef INPUT1_ENABLE
+#ifdef INTPUT1_ENABLE
 			if (outNum == 1)
 			{
 				if (outStateStr == "c")
@@ -2711,7 +2710,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT1_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT1_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT2_ENABLE
@@ -2725,7 +2724,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT2_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT2_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT3_ENABLE
@@ -2739,7 +2738,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT3_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT3_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT4_ENABLE
@@ -2753,7 +2752,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT4_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT4_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT5_ENABLE
@@ -2767,7 +2766,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT5_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT5_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT6_ENABLE
@@ -2781,7 +2780,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT6_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT6_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT7_ENABLE
@@ -2795,7 +2794,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT7_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT7_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef INPUT8_ENABLE
@@ -2809,7 +2808,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(INPUT8_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(INPUT8_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
@@ -2822,12 +2821,14 @@ String processEvent(String event, byte eventNum)
 		{
 			byte outNum = condition.substring(6, t).toInt();
 			String outStateStr = condition.substring(t + 1);
-			bool outState = OUT_OFF;
+			int outState = OUT_OFF;
 			if (outStateStr != "c")
 			{
+				outState = outStateStr.toInt();
+				bool pwm_mode = false;
 				if (outStateStr == "on") outState = OUT_ON;
 				else if (outStateStr == "off") outState = OUT_OFF;
-				else outState = outStateStr.toInt();
+				else pwm_mode = true;
 			}
 #ifdef OUTPUT1_ENABLE
 			if (outNum == 1)
@@ -2839,7 +2840,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT1_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT1_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT2_ENABLE
@@ -2852,7 +2853,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT2_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT2_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT3_ENABLE
@@ -2865,7 +2866,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT3_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT3_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT4_ENABLE
@@ -2878,7 +2879,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT4_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT4_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT5_ENABLE
@@ -2891,7 +2892,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT5_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT5_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT6_ENABLE
@@ -2904,7 +2905,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT6_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT6_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT7_ENABLE
@@ -2917,7 +2918,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT7_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT7_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 #ifdef OUTPUT8_ENABLE
@@ -2930,7 +2931,7 @@ String processEvent(String event, byte eventNum)
 						str = ProcessAction(event, eventNum);
 					}
 				}
-				else if (outState == digitalRead(OUTPUT8_ENABLE)) str = ProcessAction(event, eventNum);
+				else if ((bool)outState == digitalRead(OUTPUT8_ENABLE)) str = ProcessAction(event, eventNum);
 			}
 #endif
 			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
@@ -2938,7 +2939,7 @@ String processEvent(String event, byte eventNum)
 	}
 	else if (condition.startsWith("counter"))
 	{
-		int t = condition.indexOf('>');
+		int t = condition.indexOf('=');
 		if (t >= 8 && t < condition.length() - 1)
 		{
 			byte outNum = condition.substring(7, t).toInt();
@@ -2994,7 +2995,6 @@ String processEvent(String event, byte eventNum)
 #endif
 			if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
 		}
-		else str = "Incorrect condition: \"" + condition + "\"\r\n";
 	}
 
 #ifdef ADC_ENABLE
@@ -3112,46 +3112,21 @@ String ProcessAction(String action, byte eventNum)
 		{
 			str = set_output(tmpAction);
 		}
-		//reset_counter?
-		else if (tmpAction.startsWith("reset_counter") && tmpAction.length() > 14)
-		{
-			int n = tmpAction.substring(14).toInt();
-
-#ifdef INTERRUPT_COUNTER1_ENABLE
-			if (n == 1) intCount1 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER2_ENABLE
-			if (n == 2) intCount2 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER3_ENABLE
-			if (n == 3) intCount3 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER4_ENABLE
-			if (n == 4) intCount4 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER5_ENABLE
-			if (n == 5) intCount5 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER6_ENABLE
-			if (n == 6) intCount6 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER7_ENABLE
-			if (n == 7) intCount7 = 0;
-#endif
-#ifdef INTERRUPT_COUNTER8_ENABLE
-			if (n == 8) intCount8 = 0;
-#endif
-		}
 		//reset_flag?
-#ifdef EVENTS_ENABLE
 		else if (tmpAction.startsWith("reset_flag") && tmpAction.length() > 10)
 		{
 			int n = tmpAction.substring(10).toInt();
 			eventsFlags[n] = false;
 		}
-#endif
+		//reset_counter?
+		else if (tmpAction.startsWith("reset_counter") && tmpAction.length() > 14);
+		{
+			int n = tmpAction.substring(14).toInt();
+
+			//?????????????????????????
+
+		}
 		//send_telegram=* / usrer#,message
-#ifdef TELEGRAM_ENABLE
 		else if (tmpAction.startsWith("send_telegram"))
 		{
 			int i = 0;
@@ -3167,7 +3142,7 @@ String ProcessAction(String action, byte eventNum)
 				j = i + 1;
 			}
 			action = action.substring(action.indexOf(',') + 1);
-			for (; i < j; i++)
+			for (; i < j;i++)
 			{
 				if (telegramUsers[i] > 0)
 				{
@@ -3176,35 +3151,24 @@ String ProcessAction(String action, byte eventNum)
 				}
 			}
 		}
-#endif
 		//send_PushingBox=message
-#ifdef PUSHINGBOX
 		else if (tmpAction.startsWith("send_PushingBox"))
 		{
 
 		}
-#endif
 		//send_mail=address,message
-#ifdef EMAIL_ENABLE
 		else if (tmpAction.startsWith("send_mail"))
 		{
 
 			//???????????????????
 
-			//SendEmail e(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
-			//sendOk = e.send(smtpLogin, smtpTo, deviceName + " log", tmpStr);
-
+			SendEmail e(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
+			sendOk = e.send(smtpLogin, smtpTo, deviceName + " log", tmpStr);
 		}
-#endif
-		//send_GScript=
-#ifdef GSCRIPT
-		//else if (tmpAction.startsWith("send_GScript"));
-#endif
 		//save_log
-		else if (tmpAction.startsWith("save_log"))
-		{
-			saveLog(sensor);
-		}
+		else if (tmpAction.startsWith("save_log"));
+		//send_GScript=
+		else if (tmpAction.startsWith("send_GScript"));
 		else
 		{
 			str = "Incorrect action #" + String(i) + " in the event#" + String(eventNum) + ": \"" + tmpAction + "\"\r\n";
@@ -3387,21 +3351,4 @@ int getCo2()
 #endif
 
 	return co2_avg;
-}
-
-void saveLog(sensorDataCollection record)
-{
-	history_log[history_record_number] = record;
-	history_record_number++;
-
-	//if log is full - shift data back
-	if (history_record_number >= LOG_SIZE)
-	{
-		history_record_number--;
-		for (int i = 0; i < LOG_SIZE - 2; i++)
-		{
-			history_log[i] = history_log[i + 1];
-			yield();
-		}
-	}
 }
