@@ -12,6 +12,8 @@ GPIO 13		 A7 - analog in
 */
 
 /* Untested feature:
+ - keep initial output values in FLASH and restore at startup
+ - don't keep events/schedules in RAM
  - set pwm output
  - select interrupt mode (FALLING/RISING/CHANGE)
  - set_time=yyyy.mm.dd hh:mm:ss
@@ -36,12 +38,11 @@ GPIO 13		 A7 - analog in
 /*
 Planned features:
  - TELEGRAM/PushingBox/E-Mail message limit management
- - schedule
+ - SCHEDULE service
  - GoogleDocs service
- - don't keep events/schedules in RAM
  - efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
  - compile time pin arrangement control
-* /
+*/
 
 /*
 Sensors to be supported:
@@ -50,50 +51,50 @@ Sensors to be supported:
  - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
 */
 
-//#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
+#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
 #define NTP_TIME_ENABLE
 #define HTTP_SERVER_ENABLE
 #define EVENTS_ENABLE
-//#define SCHEDULER_ENABLE
+#define SCHEDULER_ENABLE
 
-//#define AMS2320_ENABLE
-//#define HTU21D_ENABLE
+#define AMS2320_ENABLE
+#define HTU21D_ENABLE
 #define DS18B20_ENABLE
-//#define DHT_ENABLE
-//#define MH_Z19_UART_ENABLE
-//#define MH_Z19_PPM_ENABLE
-//#define TM1637DISPLAY_ENABLE
+#define DHT_ENABLE
+#define MH_Z19_UART_ENABLE
+#define MH_Z19_PPM_ENABLE
+#define TM1637DISPLAY_ENABLE
 
 #define TELEGRAM_ENABLE
 #define PUSHINGBOX
-//#define EMAIL_ENABLE
-//#define GSCRIPT
+#define EMAIL_ENABLE
+#define GSCRIPT
 
 #define ADC_ENABLE
 
-//#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
-//#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
-//#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
-//#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
-//#define INTERRUPT_COUNTER6_ENABLE 12	//~D6 - SoftUART_RX
-//#define INTERRUPT_COUNTER7_ENABLE 13	// D7
-//#define INTERRUPT_COUNTER8_ENABLE 15	//~D8 - keep LOW on boot
+#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
+#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
+#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
+#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
+#define INTERRUPT_COUNTER6_ENABLE 12	//~D6 - SoftUART_RX
+#define INTERRUPT_COUNTER7_ENABLE 13	// D7
+#define INTERRUPT_COUNTER8_ENABLE 15	//~D8 - keep LOW on boot
 
-//#define INPUT1_ENABLE 5					// D1 - I2C_SCL
-//#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
-//#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
-//#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define INPUT5_ENABLE 14				//~D5 - SoftUART_TX
-//#define INPUT6_ENABLE 12				//~D6 - SoftUART_RX
-//#define INPUT7_ENABLE 13				// D7
-//#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
+#define INPUT1_ENABLE 5					// D1 - I2C_SCL
+#define INPUT2_ENABLE 4					//~D2 - I2C_SDA
+#define INPUT3_ENABLE 0					// D3 - FLASH, TM1637_CLK
+#define INPUT4_ENABLE 2					// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define INPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define INPUT6_ENABLE 12				//~D6 - SoftUART_RX
+#define INPUT7_ENABLE 13				// D7
+#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
-//#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
-//#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
-//#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
-//#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
-//#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
+#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
+#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
+#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
+#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
+#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
 #define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
 #define OUTPUT7_ENABLE 13				// D7
 #define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
@@ -142,14 +143,15 @@ bool SleepEnable = false;
 // not implemented yet
 const byte schedulesNumber = 10;
 #ifdef SCHEDULER_ENABLE
-String schedulesActions[schedulesNumber];
+//String schedulesActions[schedulesNumber];
+bool schedulesFlags[schedulesNumber];
 bool SchedulerEnable = false;
 #endif
 
 // not tested
 const byte eventsNumber = 10;
 #ifdef EVENTS_ENABLE
-String eventsActions[eventsNumber];
+//String eventsActions[eventsNumber];
 bool eventsFlags[eventsNumber];
 bool EventsEnable = false;
 #endif
@@ -164,6 +166,13 @@ String smtpLogin = "";
 String smtpPassword = "";
 String smtpTo = "";
 bool EMailEnable = false;
+
+bool sendMail(String address, String subject, String message)
+{
+	SendEmail e(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
+	return e.send(smtpLogin, address, subject, message);
+}
+
 #endif
 
 // Telegram config
@@ -183,6 +192,7 @@ typedef struct telegramMessage
 String telegramToken = "";
 int64_t telegramUsers[telegramUsersNumber];
 const byte telegramMessageBufferSize = 10;
+const int telegramMessageMaxSize = 900;
 telegramMessage telegramOutboundBuffer[telegramMessageBufferSize];
 byte telegramOutboundBufferPos = 0;
 int telegramMessageDelay = 2000;
@@ -192,6 +202,13 @@ bool TelegramEnable = false;
 
 void addMessageToTelegramOutboundBuffer(int64_t user, String message, byte retries)
 {
+	// slice message to pieces
+	while (message.length() > telegramMessageMaxSize)
+	{
+		addMessageToTelegramOutboundBuffer(user, message.substring(0, telegramMessageMaxSize - 1), retries);
+		message = message.substring(telegramMessageMaxSize);
+	}
+
 	if (telegramOutboundBufferPos >= telegramMessageBufferSize - 1)
 	{
 		for (int i = 0; i < telegramMessageBufferSize - 1; i++)
@@ -341,7 +358,7 @@ const int httpsPort = 443;
 HTTPSRedirect gScriptClient(httpsPort);
 bool GScriptEnable = false;
 
-void sendValueToGoogle(String value)
+bool sendValueToGoogle(String value)
 {
 	HTTPSRedirect* client = nullptr;
 	client = new HTTPSRedirect(httpsPort);
@@ -366,7 +383,7 @@ void sendValueToGoogle(String value)
 		Serial.print("Could not connect to server: ");
 		Serial.println(host);
 		Serial.println("Exiting...");
-		return;
+		return flag;
 	}
 
 	if (client->setFingerprint(fingerprint))
@@ -379,9 +396,10 @@ void sendValueToGoogle(String value)
 	}
 
 	// Send data to Google Sheets
-	client->POST(url, host, value, false);
+	flag = client->POST(url, host, value, false);
 	delete client;
 	client = nullptr;
+	return flag;
 }
 #endif
 
@@ -390,13 +408,21 @@ void sendValueToGoogle(String value)
 #ifdef PUSHINGBOX
 String pushingBoxId = "";
 String pushingBoxParameter = "";
+const int pushingBoxMessageMaxSize = 900;
 const char* pushingBoxServer = "api.pushingbox.com";
 bool PushingBoxEnable = false;
 
-void sendToPushingBox(String message)
+bool sendToPushingBox(String message)
 {
-	WiFiClient client;
+	// slice message to pieces
+	while (message.length() > pushingBoxMessageMaxSize)
+	{
+		sendToPushingBox(message.substring(0, pushingBoxMessageMaxSize - 1));
+		message = message.substring(pushingBoxMessageMaxSize);
+	}
 
+	WiFiClient client;
+	bool flag = true;
 	//Serial.println("- connecting to pushing server ");
 	if (client.connect(pushingBoxServer, 80))
 	{
@@ -405,7 +431,7 @@ void sendToPushingBox(String message)
 		String postStr = "devid=";
 		postStr += pushingBoxId;
 		postStr += "&" + pushingBoxParameter + "=";
-		postStr += String(message);
+		postStr += message;
 		postStr += "\r\n\r\n";
 
 		//Serial.println("- sending data...");
@@ -419,9 +445,17 @@ void sendToPushingBox(String message)
 		client.print("\n\n");
 		client.print(postStr);
 		//Serial.println(postStr);
+		if (client.available())
+		{
+			String reply = client.readString();
+			Serial.println("PushingBox answer: " + reply);
+			if (reply != "200 OK") flag = false;
+		}
 	}
+	else flag = false;
 	client.stop();
 	//Serial.println("- stopping the client");
+	return flag;
 }
 #endif
 
@@ -841,20 +875,20 @@ void setup()
 #endif
 
 #ifdef EVENTS_ENABLE
-	int a = EVENTS_TABLE_size / eventsNumber;
+	/*int a = EVENTS_TABLE_size / eventsNumber;
 	for (int i = 0; i < eventsNumber; i++)
 	{
 		eventsActions[i] = readConfigString((EVENTS_TABLE_addr + i * a), a);
-	}
+	}*/
 	if (readConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size) == "1") EventsEnable = true;
 #endif
 
 #ifdef SCHEDULER_ENABLE
-	int b = SCHEDULER_TABLE_size / schedulesNumber;
+	/*int b = SCHEDULER_TABLE_size / schedulesNumber;
 	for (int i = 0; i < schedulesNumber; i++)
 	{
 		schedulesActions[i] = readConfigString((TELEGRAM_USERS_TABLE_addr + i * b), b);
-	}
+	}*/
 	if (readConfigString(ENABLE_SCHEDULER_addr, ENABLE_SCHEDULER_size) == "1") SchedulerEnable = true;
 #endif
 
@@ -1032,34 +1066,42 @@ void setup()
 #endif
 
 #ifdef OUTPUT1_ENABLE
+	out1 = readConfigString(OUT1_INIT_addr, OUT1_INIT_size).toInt();
 	pinMode(OUTPUT1_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT1_ENABLE, out1);
 #endif
 #ifdef OUTPUT2_ENABLE
+	out2 = readConfigString(OUT2_INIT_addr, OUT2_INIT_size).toInt();
 	pinMode(OUTPUT2_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT2_ENABLE, out2);
 #endif
 #ifdef OUTPUT3_ENABLE
+	out3 = readConfigString(OUT3_INIT_addr, OUT3_INIT_size).toInt();
 	pinMode(OUTPUT3_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT3_ENABLE, out3);
 #endif
 #ifdef OUTPUT4_ENABLE
+	out4 = readConfigString(OUT4_INIT_addr, OUT4_INIT_size).toInt();
 	pinMode(OUTPUT4_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT4_ENABLE, out4);
 #endif
 #ifdef OUTPUT5_ENABLE
+	out5 = readConfigString(OUT5_INIT_addr, OUT5_INIT_size).toInt();
 	pinMode(OUTPUT5_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT5_ENABLE, out5);
 #endif
 #ifdef OUTPUT6_ENABLE
+	out6 = readConfigString(OUT6_INIT_addr, OUT6_INIT_size).toInt();
 	pinMode(OUTPUT6_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT6_ENABLE, out6);
 #endif
 #ifdef OUTPUT7_ENABLE
+	out7 = readConfigString(OUT7_INIT_addr, OUT7_INIT_size).toInt();
 	pinMode(OUTPUT7_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT7_ENABLE, out7);
 #endif
 #ifdef OUTPUT8_ENABLE
+	out8 = readConfigString(OUT8_INIT_addr, OUT8_INIT_size).toInt();
 	pinMode(OUTPUT8_ENABLE, OUTPUT);
 	digitalWrite(OUTPUT8_ENABLE, out8);
 #endif
@@ -1175,8 +1217,7 @@ void loop()
 						tmpStr += ParseSensorReport(history_log[n], ";") + "\r\n";
 						yield();
 					}
-					SendEmail e(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
-					sendOk = e.send(smtpLogin, smtpTo, deviceName + " log", tmpStr);
+					sendOk = sendMail(smtpTo, deviceName + " log", tmpStr);
 					tmpStr = "";
 					yield();
 					if (sendOk)
@@ -1332,9 +1373,10 @@ void loop()
 #ifdef EVENTS_ENABLE
 	if (EventsEnable)
 	{
+		int a = EVENTS_TABLE_size / eventsNumber;
 		for (int i = 0; i < eventsNumber; i++)
 		{
-			processEvent(eventsActions[i], i);
+			processEvent(readConfigString((EVENTS_TABLE_addr + i * a), a), i);
 		}
 	}
 #endif
@@ -1412,6 +1454,16 @@ int CollectEepromSize()
 	eeprom_size += INT6_MODE_size;
 	eeprom_size += INT7_MODE_size;
 	eeprom_size += INT8_MODE_size;
+
+	eeprom_size += OUT1_INIT_size;
+	eeprom_size += OUT2_INIT_size;
+	eeprom_size += OUT3_INIT_size;
+	eeprom_size += OUT4_INIT_size;
+	eeprom_size += OUT5_INIT_size;
+	eeprom_size += OUT6_INIT_size;
+	eeprom_size += OUT7_INIT_size;
+	eeprom_size += OUT8_INIT_size;
+
 	return eeprom_size;
 }
 
@@ -1727,6 +1779,7 @@ String printHelp()
 	tmp += "[ADMIN] set_output?=0/1\r\n";
 
 	tmp += "[ADMIN][FLASH] set_interrupt_mode?=FALLING/RISING/CHANGE\r\n";
+	tmp += "[ADMIN][FLASH] set_output_init?=on/off/x\r\n";
 
 	//tmp += "[ADMIN] getLog = uart/telnet/email/telegram";
 
@@ -2078,33 +2131,33 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += String(_min) + ":";
 			str += String(_sec) + "\r\n";
 		}
-		else if (tmp.startsWith("check_period="))
+		else if (tmp.startsWith("check_period=") && tmp.length() > 14)
 		{
 			checkSensorPeriod = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New sensor check period = \"" + String(checkSensorPeriod) + "\"\r\n";
 			writeConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size, String(checkSensorPeriod));
 		}
-		else if (tmp.startsWith("device_name="))
+		else if (tmp.startsWith("device_name=") && tmp.length() > 13)
 		{
 			deviceName = command.substring(command.indexOf('=') + 1);
 			str = "New device name = \"" + deviceName + "\"\r\n";
 			writeConfigString(DEVICE_NAME_addr, DEVICE_NAME_size, deviceName);
 		}
-		else if (tmp.startsWith("ssid="))
+		else if (tmp.startsWith("ssid=") && tmp.length() > 6)
 		{
 			ssid = command.substring(command.indexOf('=') + 1);
 			str = "New SSID = \"" + ssid + "\"\r\n";
 			writeConfigString(SSID_addr, SSID_size, ssid);
 			WiFi.begin(ssid.c_str(), WiFiPass.c_str());
 		}
-		else if (tmp.startsWith("wifi_pass="))
+		else if (tmp.startsWith("wifi_pass=") && tmp.length() > 11)
 		{
 			WiFiPass = command.substring(command.indexOf('=') + 1);
 			str = "New password = \"" + WiFiPass + "\"\r\n";
 			writeConfigString(PASS_addr, PASS_size, WiFiPass);
 			WiFi.begin(ssid.c_str(), WiFiPass.c_str());
 		}
-		else if (tmp.startsWith("wifi_enable="))
+		else if (tmp.startsWith("wifi_enable=") && tmp.length() > 13)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2125,14 +2178,14 @@ String processCommand(String command, byte channel, bool isAdmin)
 			else str = "Incorrect value: " + String(ar) + "\r\n";
 		}
 
-		else if (tmp.startsWith("telnet_port="))
+		else if (tmp.startsWith("telnet_port=") && tmp.length() > 13)
 		{
 			telnetPort = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New telnet port = \"" + String(telnetPort) + "\"\r\n";
 			writeConfigString(TELNET_PORT_addr, TELNET_PORT_size, String(telnetPort));
 			WiFiServer server(telnetPort);
 		}
-		else if (tmp.startsWith("telnet_enable="))
+		else if (tmp.startsWith("telnet_enable=") && tmp.length() > 15)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2151,12 +2204,110 @@ String processCommand(String command, byte channel, bool isAdmin)
 			else str = "Incorrect value: " + String(ar) + "\r\n";
 		}
 
-		else if (tmp.startsWith("set_output") && tmp.length() >= 13)
+		else if (tmp == "reset" && tmp.length() == 6)
+		{
+			Serial.println("Resetting...");
+			Serial.flush();
+			ESP.restart();
+		}
+
+		else if (tmp.startsWith("autoreport=") && tmp.length() > 12)
+		{
+			char ar = command.substring(command.indexOf('=') + 1)[0];
+			if (ar == '0')
+			{
+				autoReport = false;
+				str = "autoreport=off\r\n";
+			}
+			else if (ar == '1')
+			{
+				autoReport = true;
+				str = "autoreport=on\r\n";
+			}
+			else str = "Incorrect value: " + String(ar) + "\r\n";
+		}
+
+		else if (tmp.startsWith("set_output") && tmp.length() > 13)
 		{
 			str = set_output(tmp);
 		}
 
-		else if (tmp.startsWith("set_interrupt_mode") && tmp.length() >= 21)
+		else if (tmp.startsWith("set_output_init") && tmp.length() > 18)
+		{
+			int t = command.indexOf('=');
+			if (t >= 17 && t < tmp.length() - 1)
+			{
+				byte outNum = tmp.substring(15, t - 1).toInt();
+				String outStateStr = tmp.substring(t + 1);
+				bool outState = outStateStr.toInt();
+				//Serial.println("Out" + String(outNum) + "=" + String(outState));
+				if (outStateStr == "on") outState = OUT_ON;
+				else if (outStateStr == "off") outState = OUT_OFF;
+				else
+				{
+					outState = outStateStr.toInt();
+				}
+#ifdef OUTPUT1_ENABLE
+				if (outNum == 1)
+				{
+					writeConfigString(OUT1_INIT_addr, OUT1_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT2_ENABLE
+				if (outNum == 2)
+				{
+					writeConfigString(OUT2_INIT_addr, OUT2_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT3_ENABLE
+				if (outNum == 3)
+				{
+					writeConfigString(OUT3_INIT_addr, OUT3_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT4_ENABLE
+				if (outNum == 4)
+				{
+					writeConfigString(OUT4_INIT_addr, OUT4_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT5_ENABLE
+				if (outNum == 5)
+				{
+					writeConfigString(OUT5_INIT_addr, OUT5_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT6_ENABLE
+				if (outNum == 6)
+				{
+					writeConfigString(OUT6_INIT_addr, OUT6_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT7_ENABLE
+				if (outNum == 7)
+				{
+					writeConfigString(OUT7_INIT_addr, OUT7_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+#ifdef OUTPUT8_ENABLE
+				if (outNum == 8)
+				{
+					writeConfigString(OUT8_INIT_addr, OUT8_INIT_size, String((int)outState));
+					str = "Output #" + String(outNum) + " initial state set to " + String(int(outState));
+				}
+#endif
+				if (str == "")	str = "Incorrect output #" + String(outNum) + "\r\n";
+			}
+		}
+
+		else if (tmp.startsWith("set_interrupt_mode") && tmp.length() > 21)
 		{
 			int t = command.indexOf('=');
 			if (t >= 11 && t < tmp.length() - 1)
@@ -2249,41 +2400,20 @@ String processCommand(String command, byte channel, bool isAdmin)
 
 		//getLog=uart/telnet/email/telegram
 
-		else if (tmp == "reset")
-		{
-			Serial.println("Resetting...");
-			Serial.flush();
-			ESP.restart();
-		}
-
-		else if (tmp.startsWith("autoreport="))
-		{
-			char ar = command.substring(command.indexOf('=') + 1)[0];
-			if (ar == '0')
-			{
-				autoReport = false;
-				str = "autoreport=off\r\n";
-			}
-			else if (ar == '1')
-			{
-				autoReport = true;
-				str = "autoreport=on\r\n";
-			}
-			else str = "Incorrect value: " + String(ar) + "\r\n";
-		}
-
 #ifdef SLEEP_ENABLE
-		else if (tmp.startsWith("sleep_enable="))
+		else if (tmp.startsWith("sleep_enable=") && tmp.length() > 14)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
 			{
 				SleepEnable = false;
+				writeConfigString(ENABLE_SLEEP_addr, ENABLE_SLEEP_size, String(ar));
 				str = "SLEEP mode disabled\r\n";
 			}
 			else if (ar == '1')
 			{
 				SleepEnable = true;
+				writeConfigString(ENABLE_SLEEP_addr, ENABLE_SLEEP_size, String(ar));
 				str = "SLEEP mode enabled\r\n";
 			}
 			else str = "Incorrect value: " + String(ar) + "\r\n";
@@ -2291,14 +2421,14 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef HTTP_SERVER_ENABLE
-		else if (tmp.startsWith("http_port="))
+		else if (tmp.startsWith("http_port=") && tmp.length() > 11)
 		{
 			httpPort = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New HTTP port = \"" + String(httpPort) + "\"\r\n";
 			writeConfigString(HTTP_PORT_addr, HTTP_PORT_size, String(httpPort));
 			if (httpServerEnable) http_server.begin(httpPort);
 		}
-		else if (tmp.startsWith("http_enable="))
+		else if (tmp.startsWith("http_enable=") && tmp.length() > 13)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2360,38 +2490,38 @@ String processCommand(String command, byte channel, bool isAdmin)
 				}
 			}
 		}
-		else if (tmp.startsWith("smtp_server="))
+		else if (tmp.startsWith("smtp_server=") && tmp.length() > 13)
 		{
 			smtpServerAddress = command.substring(command.indexOf('=') + 1);
 			str = "New SMTP server IP address = \"" + smtpServerAddress + "\"\r\n";
 			writeConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size, smtpServerAddress);
 		}
-		else if (tmp.startsWith("smtp_port="))
+		else if (tmp.startsWith("smtp_port=") && tmp.length() > 11)
 		{
 			smtpServerPort = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New SMTP port = \"" + String(smtpServerPort) + "\"\r\n";
 			writeConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size, String(smtpServerPort));
 			WiFiServer server(telnetPort);
 		}
-		else if (tmp.startsWith("smtp_login="))
+		else if (tmp.startsWith("smtp_login=") && tmp.length() > 12)
 		{
 			smtpLogin = command.substring(command.indexOf('=') + 1);
 			str = "New SMTP login = \"" + smtpLogin + "\"\r\n";
 			writeConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size, smtpLogin);
 		}
-		else if (tmp.startsWith("smtp_pass="))
+		else if (tmp.startsWith("smtp_pass=") && tmp.length() > 11)
 		{
 			smtpPassword = command.substring(command.indexOf('=') + 1);
 			str = "New SMTP password = \"" + smtpPassword + "\"\r\n";
 			writeConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size, smtpPassword);
 		}
-		else if (tmp.startsWith("smtp_to="))
+		else if (tmp.startsWith("smtp_to=") && tmp.length() > 9)
 		{
 			smtpTo = command.substring(command.indexOf('=') + 1);
 			str = "New SMTP TO address = \"" + smtpTo + "\"\r\n";
 			writeConfigString(SMTP_TO_addr, SMTP_TO_size, smtpTo);
 		}
-		else if (tmp.startsWith("smtp_enable="))
+		else if (tmp.startsWith("smtp_enable=") && tmp.length() > 13)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2411,7 +2541,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef TELEGRAM_ENABLE
-		else if (tmp.startsWith("set_user"))
+		else if (tmp.startsWith("set_user") && tmp.length() > 9)
 		{
 			int t = command.indexOf('=');
 			if (t >= 9 && t < tmp.length() - 1)
@@ -2431,14 +2561,14 @@ String processCommand(String command, byte channel, bool isAdmin)
 				}
 			}
 		}
-		else if (tmp.startsWith("telegram_token="))
+		else if (tmp.startsWith("telegram_token=") && tmp.length() > 16)
 		{
 			telegramToken = command.substring(command.indexOf('=') + 1);
 			str = "New TELEGRAM token = \"" + telegramToken + "\"\r\n";
 			writeConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size, telegramToken);
 			myBot.setTelegramToken(telegramToken);
 		}
-		else if (tmp.startsWith("telegram_enable="))
+		else if (tmp.startsWith("telegram_enable=") && tmp.length() > 17)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2461,13 +2591,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef GSCRIPT
-		else if (tmp.startsWith("gscript_token="))
+		else if (tmp.startsWith("gscript_token=") && tmp.length() > 15)
 		{
 			GScriptId = command.substring(command.indexOf('=') + 1);
 			str = "New GScript token = \"" + GScriptId + "\"\r\n";
 			writeConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size, GScriptId);
 		}
-		else if (tmp.startsWith("gscript_enable="))
+		else if (tmp.startsWith("gscript_enable=") && tmp.length() > 16)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2487,19 +2617,19 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef PUSHINGBOX
-		else if (tmp.startsWith("pushingbox_token="))
+		else if (tmp.startsWith("pushingbox_token=") && tmp.length() > 18)
 		{
 			pushingBoxId = command.substring(command.indexOf('=') + 1);
 			str = "New PushingBox token = \"" + pushingBoxId + "\"\r\n";
 			writeConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size, pushingBoxId);
 		}
-		else if (tmp.startsWith("pushingbox_parameter="))
+		else if (tmp.startsWith("pushingbox_parameter=") && tmp.length() > 22)
 		{
 			pushingBoxParameter = command.substring(command.indexOf('=') + 1);
 			str = "New PUSHINGBOX parameter name = \"" + pushingBoxParameter + "\"\r\n";
 			writeConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size, pushingBoxParameter);
 		}
-		else if (tmp.startsWith("pushingbox_enable="))
+		else if (tmp.startsWith("pushingbox_enable=") && tmp.length() > 19)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2519,7 +2649,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef NTP_TIME_ENABLE
-		else if (tmp.startsWith("ntp_server="))
+		else if (tmp.startsWith("ntp_server=") && tmp.length() > 12)
 		{
 			String tmpSrv = (command.substring(command.indexOf('=') + 1));
 			IPAddress tmpAddr;
@@ -2534,20 +2664,20 @@ String processCommand(String command, byte channel, bool isAdmin)
 				str = "Incorrect NTP server \"" + tmpSrv + "\"\r\n";
 			}
 		}
-		else if (tmp.startsWith("ntp_time_zone="))
+		else if (tmp.startsWith("ntp_time_zone=") && tmp.length() > 15)
 		{
 			timeZone = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New NTP time zone = \"" + String(timeZone) + "\"\r\n";
 			writeConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size, String(timeZone));
 		}
-		else if (tmp.startsWith("ntp_refresh_delay="))
+		else if (tmp.startsWith("ntp_refresh_delay=") && tmp.length() > 19)
 		{
 			ntpRefreshDelay = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New NTP refresh delay = \"" + String(ntpRefreshDelay) + "\"\r\n";
 			writeConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size, String(ntpRefreshDelay));
 			setSyncInterval(ntpRefreshDelay);
 		}
-		else if (tmp.startsWith("ntp_enable="))
+		else if (tmp.startsWith("ntp_enable=") && tmp.length() > 12)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2572,7 +2702,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef EVENTS_ENABLE
-		else if (tmp.startsWith("set_event"))
+		else if (tmp.startsWith("set_event") && tmp.length() > 12)
 		{
 			int t = command.indexOf('=');
 			if (t >= 10 && t < tmp.length() - 1)
@@ -2583,8 +2713,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				{
 					int m = EVENTS_TABLE_size / eventsNumber;
 					writeConfigString(EVENTS_TABLE_addr + eventNum * m, m, newEvent);
-					eventsActions[eventNum] = newEvent;
-					str = "Event #" + String(eventNum) + " is now: " + eventsActions[eventNum] + "\r\n";
+					str = "Event #" + String(eventNum) + " is now: " + newEvent + "\r\n";
 				}
 				else
 				{
@@ -2592,7 +2721,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				}
 			}
 		}
-		else if (tmp.startsWith("events_enable="))
+		else if (tmp.startsWith("events_enable=") && tmp.length() > 15)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2612,7 +2741,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef SCHEDULER_ENABLE
-		else if (tmp.startsWith("set_schedule"))
+		else if (tmp.startsWith("set_schedule") && tmp.length() > 15)
 		{
 			int t = command.indexOf('=');
 			if (t >= 13 && t < tmp.length() - 1)
@@ -2623,8 +2752,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				{
 					int m = SCHEDULER_TABLE_size / schedulesNumber;
 					writeConfigString(SCHEDULER_TABLE_addr + scheduleNum * m, m, newSchedule);
-					schedulesActions[scheduleNum] = newSchedule;
-					str = "Schedule #" + String(scheduleNum) + " is now: " + schedulesActions[scheduleNum] + "\r\n";
+					str = "Schedule #" + String(scheduleNum) + " is now: " + newSchedule + "\r\n";
 				}
 				else
 				{
@@ -2632,7 +2760,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				}
 			}
 		}
-		else if (tmp.startsWith("scheduler_enable="))
+		else if (tmp.startsWith("scheduler_enable=") && tmp.length() > 18)
 		{
 			char ar = command.substring(command.indexOf('=') + 1)[0];
 			if (ar == '0')
@@ -2652,7 +2780,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 #endif
 
 #ifdef TM1637DISPLAY_ENABLE
-		else if (tmp.startsWith("display_refresh="))
+		else if (tmp.startsWith("display_refresh=") && tmp.length() > 17)
 		{
 			displaySwitchPeriod = command.substring(command.indexOf('=') + 1).toInt();
 			str = "New display refresh period = \"" + String(displaySwitchPeriod) + "\"\r\n";
@@ -2674,7 +2802,6 @@ String processCommand(String command, byte channel, bool isAdmin)
 	return str;
 }
 
-//to do: value list and processing
 String processEvent(String event, byte eventNum)
 {
 	//conditions:
@@ -3106,7 +3233,6 @@ String ProcessAction(String action, byte eventNum)
 	{
 		String tmpAction = action.substring(0, action.indexOf(';') - 1);
 		action = action.substring(action.indexOf(';') + 1);
-		//actions:
 		//set_output?=x
 		if (tmpAction.startsWith("set_output") && tmpAction.length() >= 13)
 		{
@@ -3166,13 +3292,12 @@ String ProcessAction(String action, byte eventNum)
 				i = tmpAction.substring(11).toInt();
 				j = i + 1;
 			}
-			action = action.substring(action.indexOf(',') + 1);
+			tmpAction = tmpAction.substring(tmpAction.indexOf(',') + 1);
 			for (; i < j; i++)
 			{
 				if (telegramUsers[i] > 0)
 				{
-					addMessageToTelegramOutboundBuffer(telegramUsers[i], deviceName + ": " + action, telegramRetries);
-					addMessageToTelegramOutboundBuffer(telegramUsers[i], deviceName + ": " + ParseSensorReport(sensor, ";"), telegramRetries);
+					addMessageToTelegramOutboundBuffer(telegramUsers[i], deviceName + ": " + tmpAction + ParseSensorReport(sensor, ";"), telegramRetries);
 				}
 			}
 		}
@@ -3181,24 +3306,44 @@ String ProcessAction(String action, byte eventNum)
 #ifdef PUSHINGBOX
 		else if (tmpAction.startsWith("send_PushingBox"))
 		{
-
+			tmpAction = tmpAction.substring(tmpAction.indexOf('=') + 1);
+			bool sendOk = sendToPushingBox(deviceName + ": " + tmpAction + "\n" + ParseSensorReport(sensor, "\n"));
+			if (!sendOk)
+			{
+#ifdef EVENTS_ENABLE
+				eventsFlags[eventNum] = false;
+#endif
+			}
 		}
 #endif
 		//send_mail=address,message
 #ifdef EMAIL_ENABLE
 		else if (tmpAction.startsWith("send_mail"))
 		{
-
-			//???????????????????
-
-			//SendEmail e(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
-			//sendOk = e.send(smtpLogin, smtpTo, deviceName + " log", tmpStr);
-
+			String address = tmpAction.substring(tmpAction.indexOf('=') + 1, tmpAction.indexOf(',') - 1);
+			tmpAction = tmpAction.substring(tmpAction.indexOf(',') + 1);
+			bool sendOk = sendMail(address, deviceName + " alert", tmpAction);
+			if (!sendOk)
+			{
+#ifdef EVENTS_ENABLE
+				eventsFlags[eventNum] = false;
+#endif
+			}
 		}
 #endif
-		//send_GScript=
+		//send_GScript=message
 #ifdef GSCRIPT
-		//else if (tmpAction.startsWith("send_GScript"));
+		else if (tmpAction.startsWith("send_GScript"))
+		{
+			tmpAction = tmpAction.substring(tmpAction.indexOf('=') + 1);
+			bool sendOk = sendValueToGoogle(deviceName + ": " + tmpAction);
+			if (!sendOk)
+			{
+#ifdef EVENTS_ENABLE
+				eventsFlags[eventNum] = false;
+#endif
+			}
+		}
 #endif
 		//save_log
 		else if (tmpAction.startsWith("save_log"))
@@ -3230,9 +3375,9 @@ String set_output(String tmpAction)
 	String str;
 	if (t >= 11 && t < tmpAction.length() - 1)
 	{
-		byte outNum = tmpAction.substring(10, t).toInt();
+		byte outNum = tmpAction.substring(10, t - 1).toInt();
 		String outStateStr = tmpAction.substring(t + 1);
-		byte outState = outStateStr.toInt();
+		int outState = outStateStr.toInt();
 		bool pwm_mode = false;
 		//Serial.println("Out" + String(outNum) + "=" + String(outState));
 		if (outStateStr == "on") outState = OUT_ON;
