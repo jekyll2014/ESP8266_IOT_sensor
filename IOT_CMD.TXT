@@ -1,15 +1,17 @@
 get_sensor
 get_status
 get_config
+help
 
 //[ADMIN]	getLog=uart/telnet/email/telegram
 
 [ADMIN]		set_time=yyyy.mm.dd hh:mm:ss
 [ADMIN]		autoreport=0/1
-[ADMIN]		set_output?=0/1
+[ADMIN]		set_output?=0/1/x				//empty
+[ADMIN]		reset
 
-[ADMIN][FLASH]  set_output_init?=on/off/x
-[ADMIN][FLASH]	set_interrupt_mode?=falling/rising/change
+[ADMIN][FLASH]	set_init_output?=on/off/x			//empty 
+[ADMIN][FLASH]	set_interrupt_mode?=falling/rising/change	//incorrect value
 
 [ADMIN][FLASH]	check_period=n
 
@@ -43,22 +45,20 @@ get_config
 [ADMIN][FLASH]	pushingbox_parameter=****
 [ADMIN][FLASH]	pushingbox_enable=1/0
 
-[ADMIN][FLASH] ntp_server=***.***.***.***
-[ADMIN][FLASH] ntp_time_zone=n
-[ADMIN][FLASH] ntp_refresh_delay=n
-[ADMIN][FLASH] ntp_enable=1/0
+[ADMIN][FLASH]	ntp_server=***.***.***.***
+[ADMIN][FLASH]	ntp_time_zone=n
+[ADMIN][FLASH]	ntp_refresh_delay=n
+[ADMIN][FLASH]	ntp_enable=1/0
 
-[ADMIN][FLASH] set_event?=condition:action1;action2;...
-[ADMIN][FLASH] events_enable=1/0
+[ADMIN][FLASH]	set_event?=condition:action1;action2;...
+[ADMIN][FLASH]	events_enable=1/0
 
-//[ADMIN][FLASH] set_schedule?=time:action1;action2;...
-//[ADMIN][FLASH] scheduler_enable=1/0
+//[ADMIN][FLASH]	set_schedule?=time:action1;action2;...
+//[ADMIN][FLASH]	scheduler_enable=1/0
 
-[ADMIN][FLASH] display_refresh=n
+[ADMIN][FLASH]	display_refresh=n
 
-//[ADMIN][FLASH] sleep_enable=1/0
-
-[ADMIN] reset
+//[ADMIN][FLASH]	sleep_enable=1/0
 
 
 - event action:
@@ -72,6 +72,8 @@ get_config
 		co2<>x
 	actions:
 		set_output?=on,off,x
+		reset_counter?
+		reset_flag?
 		send_telegram=* / user#;message
 		send_PushingBox=message
 		send_mail=address;message
