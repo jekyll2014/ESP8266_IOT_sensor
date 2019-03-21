@@ -54,7 +54,7 @@ Sensors to be supported:
 //#define HTU21D_ENABLE
 #define DS18B20_ENABLE
 //#define DHT_ENABLE
-//#define MH_Z19_UART_ENABLE
+#define MH_Z19_UART_ENABLE
 //#define MH_Z19_PPM_ENABLE
 //#define TM1637DISPLAY_ENABLE
 
@@ -63,10 +63,10 @@ Sensors to be supported:
 //#define EMAIL_ENABLE
 //#define GSCRIPT
 
-#define ADC_ENABLE
+//#define ADC_ENABLE
 
-//#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
-#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
+#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
+//#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
 //#define INTERRUPT_COUNTER3_ENABLE 0		// D3 - FLASH, TM1637_CLK
 //#define INTERRUPT_COUNTER4_ENABLE 2		// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
 //#define INTERRUPT_COUNTER5_ENABLE 14	//~D5 - SoftUART_TX
@@ -84,13 +84,13 @@ Sensors to be supported:
 //#define INPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
 //#define OUTPUT1_ENABLE 5				// D1 - I2C_SCL
-//#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
+#define OUTPUT2_ENABLE 4				//~D2 - I2C_SDA
 //#define OUTPUT3_ENABLE 0				// D3 - FLASH, TM1637_CLK
 //#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
 //#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
-#define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
-#define OUTPUT7_ENABLE 13				// D7
-#define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
+//#define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
+//#define OUTPUT7_ENABLE 13				// D7
+//#define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
 #include <ESP8266WiFi.h>
 #include <EEPROM.h>
@@ -512,14 +512,14 @@ time_t getNtpTime()
 	if (!NTPenable || WiFi.status() != WL_CONNECTED) return 0;
 
 	while (Udp.parsePacket() > 0) yield(); // discard any previously received packets
-	Serial.println("Transmit NTP Request");
+	Serial.print("NTP Request...");
 	sendNTPpacket(timeServer);
 	uint32_t beginWait = millis();
 	while (millis() - beginWait < 1500)
 	{
 		int size = Udp.parsePacket();
 		if (size >= NTP_PACKET_SIZE) {
-			//Serial.println("Receive NTP Response");
+			Serial.println("OK");
 			Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
 			isTimeSet = true;
 			unsigned long secsSince1900;
@@ -534,7 +534,7 @@ time_t getNtpTime()
 			return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
 		}
 	}
-	Serial.println("No NTP Response");
+	Serial.println("failed");
 	return 0; // return 0 if unable to get the time
 }
 
@@ -588,7 +588,7 @@ Adafruit_HTU21DF htu21d = Adafruit_HTU21DF();
 
 /*
 DS18B20 OneWire temperature sensor
-PINS: D3 - OneWire
+PINS: D7 - OneWire
 pin 1 to +3.3V/+5V
 pin 2 to whatever your OneWire is
 pin 3 to GROUND
@@ -597,7 +597,7 @@ pin 3 to GROUND
 #ifdef DS18B20_ENABLE
 #include <OneWire.h>
 #include "DallasTemperature.h"
-#define ONE_WIRE_PIN 5 //D1
+#define ONE_WIRE_PIN 13 //D7
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature ds1820(&oneWire);
 #endif
@@ -868,11 +868,6 @@ void setup()
 #endif
 
 #ifdef EVENTS_ENABLE
-	/*int a = EVENTS_TABLE_size / eventsNumber;
-	for (int i = 0; i < eventsNumber; i++)
-	{
-		eventsActions[i] = readConfigString((EVENTS_TABLE_addr + i * a), a);
-	}*/
 	if (readConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size) == "1") EventsEnable = true;
 #endif
 
@@ -2269,7 +2264,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				{
 					outState = outStateStr.toInt();
 				}
-				Serial.println("InitOut" + String(outNum) + "=" + String(outState));
+				//Serial.println("InitOut" + String(outNum) + "=" + String(outState));
 #ifdef OUTPUT1_ENABLE
 				if (outNum == 1)
 				{
@@ -2359,7 +2354,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode1 = intModeNum;
 					writeConfigString(INT1_MODE_addr, INT1_MODE_size, String(intMode1));
 					attachInterrupt(INTERRUPT_COUNTER1_ENABLE, int1count, intMode1);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER2_ENABLE
@@ -2368,7 +2363,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode2 = intModeNum;
 					writeConfigString(INT2_MODE_addr, INT2_MODE_size, String(intMode2));
 					attachInterrupt(INTERRUPT_COUNTER2_ENABLE, int2count, intMode2);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER3_ENABLE
@@ -2377,7 +2372,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode3 = intModeNum;
 					writeConfigString(INT3_MODE_addr, INT3_MODE_size, String(intMode3));
 					attachInterrupt(INTERRUPT_COUNTER3_ENABLE, int3count, intMode3);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER4_ENABLE
@@ -2386,7 +2381,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode4 = intModeNum;
 					writeConfigString(INT4_MODE_addr, INT4_MODE_size, String(intMode4));
 					attachInterrupt(INTERRUPT_COUNTER4_ENABLE, int4count, intMode4);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER5_ENABLE
@@ -2395,7 +2390,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode5 = intModeNum;
 					writeConfigString(INT5_MODE_addr, INT5_MODE_size, String(intMode5));
 					attachInterrupt(INTERRUPT_COUNTER5_ENABLE, int5count, intMode5);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER6_ENABLE
@@ -2404,7 +2399,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode6 = intModeNum;
 					writeConfigString(INT6_MODE_addr, INT6_MODE_size, String(intMode6));
 					attachInterrupt(INTERRUPT_COUNTER6_ENABLE, int6count, intMode6);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER7_ENABLE
@@ -2413,7 +2408,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode7 = intModeNum;
 					writeConfigString(INT7_MODE_addr, INT7_MODE_size, String(intMode7));
 					attachInterrupt(INTERRUPT_COUNTER7_ENABLE, int7count, intMode7);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 #ifdef INTERRUPT_COUNTER8_ENABLE
@@ -2422,7 +2417,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					intMode8 = intModeNum;
 					writeConfigString(INT8_MODE_addr, INT8_MODE_size, String(intMode8));
 					attachInterrupt(INTERRUPT_COUNTER8_ENABLE, int8count, intMode8);
-					str = "Output" + String(outNum) + "=" + intMode;
+					str = "Interrupt #" + String(outNum) + " mode: " + intMode;
 				}
 #endif
 				if (str.length() == 0) str = "Incorrect interrupt #" + String(outNum) + "\r\n";
