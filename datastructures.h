@@ -119,28 +119,28 @@
 #define INT8_MODE_size	1
 
 #define OUT1_INIT_addr	INT8_MODE_addr + INT8_MODE_size
-#define OUT1_INIT_size	1
+#define OUT1_INIT_size	4
 
 #define OUT2_INIT_addr	OUT1_INIT_addr + OUT1_INIT_size
-#define OUT2_INIT_size	1
+#define OUT2_INIT_size	4
 
 #define OUT3_INIT_addr	OUT2_INIT_addr + OUT2_INIT_size
-#define OUT3_INIT_size	1
+#define OUT3_INIT_size	4
 
 #define OUT4_INIT_addr	OUT3_INIT_addr + OUT3_INIT_size
-#define OUT4_INIT_size	1
+#define OUT4_INIT_size	4
 
 #define OUT5_INIT_addr	OUT4_INIT_addr + OUT4_INIT_size
-#define OUT5_INIT_size	1
+#define OUT5_INIT_size	4
 
 #define OUT6_INIT_addr	OUT5_INIT_addr + OUT5_INIT_size
-#define OUT6_INIT_size	1
+#define OUT6_INIT_size	4
 
 #define OUT7_INIT_addr	OUT6_INIT_addr + OUT6_INIT_size
-#define OUT7_INIT_size	1
+#define OUT7_INIT_size	4
 
 #define OUT8_INIT_addr	OUT7_INIT_addr + OUT7_INIT_size
-#define OUT8_INIT_size	1
+#define OUT8_INIT_size	4
 
 #define UART_CHANNEL 0
 #define TELNET_CHANNEL 1

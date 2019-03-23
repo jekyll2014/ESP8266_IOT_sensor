@@ -3,12 +3,12 @@ get_status
 get_config
 help
 
-[ADMIN]			getLog=[uart, telnet, email, telegram]
+[ADMIN]		getLog=[uart, telnet, email, telegram]
 
-[ADMIN]			set_time=yyyy.mm.dd hh:mm:ss
-[ADMIN]			autoreport=[0, 1]
-[ADMIN]			set_output?=[0..1023]
-[ADMIN]			reset
+[ADMIN]		set_time=yyyy.mm.dd hh:mm:ss
+[ADMIN]		autoreport=[0, 1]
+[ADMIN]		set_output?=[0..1023]
+[ADMIN]		reset
 
 [ADMIN][FLASH]	set_init_output?=[off, on]
 [ADMIN][FLASH]	set_interrupt_mode?=[change, falling, rising]
@@ -42,7 +42,7 @@ help
 [ADMIN][FLASH]	gscript_enable=[0, 1]
 
 [ADMIN][FLASH]	pushingbox_token=token
-[ADMIN][FLASH]	pushingbox_parameter=parameter_name
+[ADMIN][FLASH]	pushingbox_parameter=message_body
 [ADMIN][FLASH]	pushingbox_enable=[0, 1]
 
 [ADMIN][FLASH]	ntp_server=***.***.***.***
@@ -74,7 +74,7 @@ help
 		set_output?=[on, off, 0..1023]
 		reset_counter?
 		reset_flag?
-		send_telegram=[*, user#];message
+		send_telegram=[*, user#],message
 		send_PushingBox=message
 		send_mail=address;message
 		send_GScript
