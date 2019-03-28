@@ -62,25 +62,26 @@ help
 
 
 - event conditions:
-		input?=[on, off, c]
-		output?=[on, off, c]
-		counter>n
-		adc<>n
-		temperature<>n
-		humidity<>n
-		co2<>n
-- schedule conditions:
-		daily@hh:mm;action1;action2;...
-		weekly@week_day.hh:mm;action1;action2;...
-		monthly@month_day.hh:mm;action1;action2;...
-		date@yyyy.mm.dd;action1;action2;...
+	input?=[on, off, c]
+	output?=[on, off, c]
+	counter>n
+	adc<>n
+	temperature<>n
+	humidity<>n
+	co2<>n
 
-	actions:
-		set_output?=[on, off, 0..1023]
-		reset_counter?
-		reset_flag?
-		send_telegram=[*, user#],message
-		send_PushingBox=message
-		send_mail=address;message
-		send_GScript
-		save_log
+- schedule conditions:
+	daily@hh:mm;action1;action2;...
+	weekly@week_day.hh:mm;action1;action2;...
+	monthly@month_day.hh:mm;action1;action2;...
+	date@yyyy.mm.dd;action1;action2;...
+
+- actions:
+	set_output?=[on, off, 0..1023]
+	reset_counter?
+	reset_flag?
+	send_telegram=[*, user#],message
+	send_PushingBox=message
+	send_mail=address;message
+	send_GScript
+	save_log
