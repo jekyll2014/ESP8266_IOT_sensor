@@ -12,7 +12,7 @@ GPIO 13		 A7 - analog in
 */
 
 /* Untested feature:
- - 0.96" 128*64 SSD1306 OLED display (I2C)
+ - SCHEDULE service
  - generalize index ranges (start all from 0)
  - generalize switches behavior (accept on/off as bool and 0..1023 for pwm)
  - save pwm outputs values at EEPROM
@@ -33,10 +33,9 @@ GPIO 13		 A7 - analog in
 
 /*
 Planned features:
- - reduce RAM usage F(""), unnecessary String
- - SCHEDULE service
+ - reduce RAM usage (unnecessary String)
  - GoogleDocs service
- - input mode (pullup/down)
+ - input mode setup (pullup/down)
  - efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
  - compile time pin arrangement control
 */
@@ -146,20 +145,6 @@ bool autoReport = false;
 #ifdef SLEEP_ENABLE
 unsigned long reconnectTimeOut = 5000;
 bool SleepEnable = false;
-#endif
-
-// not implemented yet
-const byte schedulesNumber = 10;
-#ifdef SCHEDULER_ENABLE
-bool schedulesFlags[schedulesNumber];
-bool SchedulerEnable = false;
-#endif
-
-// not tested
-const byte eventsNumber = 10;
-#ifdef EVENTS_ENABLE
-bool eventsFlags[eventsNumber];
-bool EventsEnable = false;
 #endif
 
 // E-mail config
@@ -804,8 +789,10 @@ byte sw = 0;
 #define RST_PIN -1
 const uint8_t* font = fixed_bold10x15;
 SSD1306AsciiWire oled;
+#ifndef TM1637DISPLAY_ENABLE
 unsigned long displaySwitchedLastTime = 0;
 unsigned long displaySwitchPeriod = 3000;
+#endif
 #endif
 
 #ifdef ADC_ENABLE
@@ -938,6 +925,626 @@ int out7 = OUT_OFF;
 #endif
 #ifdef OUTPUT8_ENABLE
 int out8 = OUT_OFF;
+#endif
+
+// not tested
+const byte schedulesNumber = 10;
+#ifdef SCHEDULER_ENABLE
+bool schedulesFlags[schedulesNumber];
+bool SchedulerEnable = false;
+void processSchedule(String event, byte eventNum)
+{
+	if (schedulesFlags[eventNum]) return;
+	//conditions:
+	//	daily - daily@hh:mm;action1;action2;...
+	//	weekly - weekly@week_day.hh:mm;action1;action2;...
+	//	monthly - monthly@month_day.hh:mm;action1;action2;...
+	//	date - date@yyyy.mm.dd.hh:mm;action1;action2;...
+	int t = event.indexOf('@');
+	int t1 = event.indexOf(';');
+	if (t <= 4 || t1 < 11 || t1 < t) return;
+	String condition = event.substring(0, t);
+	condition.trim();
+	condition.toLowerCase();
+	String time = event.substring(t + 1, t1);
+	time.trim();
+	time.toLowerCase();
+	event = event.substring(t1 + 1);
+	if (condition.startsWith(F("daily@")) && t == 5)
+	{
+		if (time.length() == 5)
+		{
+			int _hr = time.substring(0, 2).toInt();
+			int _min = time.substring(3, 5).toInt();
+			if (_hr >= 0 && _hr < 24 && _min >= 0 && _min < 60)
+			{
+				Serial.print(F("Schedule #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (hour() >= _hr && minute() >= _min) ProcessAction(event, eventNum);
+			}
+		}
+	}
+	else if (condition.startsWith(F("weekly@")) && t == 6)
+	{
+		if (time.length() == 7)
+		{
+			int _weekDay = time.substring(0, 1).toInt();
+			int _hr = time.substring(2, 4).toInt();
+			int _min = time.substring(5, 7).toInt();
+			if (_weekDay > 0 && _weekDay < 8 && _hr >= 0 && _hr < 24 && _min >= 0 && _min < 60)
+			{
+				Serial.print(F("Schedule #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (weekday() == _weekDay && hour() >= _hr && minute() >= _min) ProcessAction(event, eventNum);
+			}
+		}
+	}
+	else if (condition.startsWith(F("monthly@")) && t == 7)
+	{
+		if (time.length() == 8)
+		{
+			int _monthDay = time.substring(0, 2).toInt();
+			int _hr = time.substring(3, 5).toInt();
+			int _min = time.substring(6, 8).toInt();
+			if (_hr >= 0 && _hr < 24 && _min >= 0 && _min < 60)
+			{
+				Serial.print(F("Schedule #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (day() == _monthDay && hour() >= _hr && minute() >= _min) ProcessAction(event, eventNum);
+			}
+		}
+	}
+	else if (condition.startsWith(F("date@")) && t == 4)
+	{
+		if (time.length() == 16)
+		{
+			int _yr = time.substring(0, 4).toInt();
+			int _month = time.substring(5, 7).toInt();
+			int _day = time.substring(8, 10).toInt();
+			int _hr = time.substring(11, 13).toInt();
+			int _min = time.substring(14, 16).toInt();
+			if (_hr >= 0 && _hr < 24 && _min >= 0 && _min < 60)
+			{
+				Serial.print(F("Schedule #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (year() == _yr && month() == _month && day() == _day && hour() >= _hr && minute() >= _min) ProcessAction(event, eventNum);
+			}
+		}
+	}
+}
+#endif
+
+const byte eventsNumber = 10;
+#ifdef EVENTS_ENABLE
+bool eventsFlags[eventsNumber];
+bool EventsEnable = false;
+void processEvent(String event, byte eventNum)
+{
+	if (eventsFlags[eventNum]) return;
+	//conditions:
+	//	value<=>x; adc, temp, hum, co2,
+	//	input?=0/1/c;
+	//	output?=0/1/c;
+	//	counter?>x;
+	String condition = event.substring(0, event.indexOf(':'));
+	condition.trim();
+	if (condition.length() <= 0) return;
+	condition.toLowerCase();
+	event = event.substring(event.indexOf(':') + 1);
+	if (condition.startsWith(F("input")))
+	{
+		int t = condition.indexOf('=');
+		if (t >= 6 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(5, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			bool outState = OUT_OFF;
+			if (outStateStr != F("c"))
+			{
+				if (outStateStr == switchOn) outState = OUT_ON;
+				else if (outStateStr == switchOff) outState = OUT_OFF;
+				else outState = outStateStr.toInt();
+			}
+			//Serial.println("CheckIn" + String(outNum) + "=" + String(outState));
+			const String cTxt = F("c");
+#ifdef INPUT1_ENABLE
+			if (outNum == 1)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in1 != digitalRead(INPUT1_ENABLE))
+					{
+						in1 = digitalRead(INPUT1_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT1_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT2_ENABLE
+			if (outNum == 2)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in2 != digitalRead(INPUT2_ENABLE))
+					{
+						in2 = digitalRead(INPUT2_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT2_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT3_ENABLE
+			if (outNum == 3)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in3 != digitalRead(INPUT3_ENABLE))
+					{
+						in3 = digitalRead(INPUT3_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT3_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT4_ENABLE
+			if (outNum == 4)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in4 != digitalRead(INPUT4_ENABLE))
+					{
+						in4 = digitalRead(INPUT4_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT4_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT5_ENABLE
+			if (outNum == 5)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in5 != digitalRead(INPUT5_ENABLE))
+					{
+						in5 = digitalRead(INPUT5_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT5_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT6_ENABLE
+			if (outNum == 6)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in6 != digitalRead(INPUT6_ENABLE))
+					{
+						in6 = digitalRead(INPUT6_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT6_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT7_ENABLE
+			if (outNum == 7)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in7 != digitalRead(INPUT7_ENABLE))
+					{
+						in7 = digitalRead(INPUT7_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT7_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INPUT8_ENABLE
+			if (outNum == 8)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (in8 != digitalRead(INPUT8_ENABLE))
+					{
+						in8 = digitalRead(INPUT8_ENABLE);
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(INPUT8_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+		}
+	}
+	else if (condition.startsWith(F("output")))
+	{
+		int t = condition.indexOf('=');
+		if (t >= 7 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(6, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			int outState = OUT_OFF;
+			if (outStateStr != "c")
+			{
+				if (outStateStr == switchOn) outState = OUT_ON;
+				else if (outStateStr == switchOff) outState = OUT_OFF;
+				else outState = outStateStr.toInt();
+			}
+			//Serial.println("CheckOut" + String(outNum) + "=" + String(outState));
+			const String cTxt = F("c");
+#ifdef OUTPUT1_ENABLE
+			if (outNum == 1)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out1 != digitalRead(OUTPUT1_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT1_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT2_ENABLE
+			if (outNum == 2)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out2 != digitalRead(OUTPUT2_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT2_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT3_ENABLE
+			if (outNum == 3)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out3 != digitalRead(OUTPUT3_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT3_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT4_ENABLE
+			if (outNum == 4)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out4 != digitalRead(OUTPUT4_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT4_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT5_ENABLE
+			if (outNum == 5)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out5 != digitalRead(OUTPUT5_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT5_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT6_ENABLE
+			if (outNum == 6)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out6 != digitalRead(OUTPUT6_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT6_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT7_ENABLE
+			if (outNum == 7)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out7 != digitalRead(OUTPUT7_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT7_ENABLE))  ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef OUTPUT8_ENABLE
+			if (outNum == 8)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (outStateStr == cTxt)
+				{
+					if (out8 != digitalRead(OUTPUT8_ENABLE))
+					{
+						ProcessAction(event, eventNum);
+					}
+				}
+				else if (outState == digitalRead(OUTPUT8_ENABLE)) ProcessAction(event, eventNum);
+			}
+#endif
+		}
+	}
+	else if (condition.startsWith(F("counter")))
+	{
+		int t = condition.indexOf('>');
+		if (t >= 8 && t < condition.length() - 1)
+		{
+			byte outNum = condition.substring(7, t).toInt();
+			String outStateStr = condition.substring(t + 1);
+			int outState = outStateStr.toInt();
+			//Serial.println("Counter" + String(outNum) + "=" + String(outState));
+#ifdef INTERRUPT_COUNTER1_ENABLE
+			if (outNum == 1)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount1 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER2_ENABLE
+			if (outNum == 2)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount2 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER3_ENABLE
+			if (outNum == 3)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount3 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER4_ENABLE
+			if (outNum == 4)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount4 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER5_ENABLE
+			if (outNum == 5)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount5 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER6_ENABLE
+			if (outNum == 6)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount6 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER7_ENABLE
+			if (outNum == 7)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount7 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+#ifdef INTERRUPT_COUNTER8_ENABLE
+			if (outNum == 8)
+			{
+				Serial.print(F("Event #"));
+				Serial.print(String(eventNum));
+				Serial.print(F(" started: \""));
+				Serial.println(condition);
+				if (intCount8 > outState) ProcessAction(event, eventNum);
+			}
+#endif
+		}
+	}
+
+#ifdef ADC_ENABLE
+	else if (condition.startsWith(F("adc")) && condition.length() > 4)
+	{
+		int adcValue = getAdc();
+		char operation = condition[3];
+		int value = condition.substring(4).toInt();
+		//Serial.println("Evaluating: " + String(adcValue) + operation + String(value));
+		if (operation == '>' && adcValue > value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+		else if (operation == '<' && adcValue < value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+	}
+#endif
+
+#if defined(DS18B20_ENABLE) || defined(MH_Z19_UART_ENABLE) || defined(MH_Z19_PPM_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
+	else if (condition.startsWith(F("temperature")) && condition.length() > 12)
+	{
+		char oreration = condition[11];
+		int value = condition.substring(12).toInt();
+		if (oreration == '>' && getTemperature() > value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+		else if (oreration == '<' && getTemperature() < value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+	}
+#endif
+
+#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
+	else if (condition.startsWith(F("humidity")) && condition.length() > 9)
+	{
+		char oreration = condition[8];
+		int value = condition.substring(9).toInt();
+		if (oreration == '>' && getHumidity() > value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+		else if (oreration == '<' && getHumidity() < value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+	}
+#endif
+
+#if defined(MH_Z19_UART_ENABLE)|| defined(MH_Z19_PPM_ENABLE)
+	else if (condition.startsWith(F("co2")) && condition.length() > 4)
+	{
+		char oreration = condition[3];
+		int value = condition.substring(4).toInt();
+		if (oreration == '>' && getCo2() > value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+		else if (oreration == '<' && getCo2() < value)
+		{
+			Serial.print(F("Event #"));
+			Serial.print(String(eventNum));
+			Serial.print(F(" started: \""));
+			Serial.println(condition);
+			ProcessAction(event, eventNum);
+		}
+	}
+#endif
+}
 #endif
 
 void setup()
@@ -3669,826 +4276,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 	return str;
 }
 
-void processEvent(String event, byte eventNum)
-{
-#ifdef EVENTS_ENABLE
-	if (eventsFlags[eventNum]) return;
-#endif
-	//conditions:
-	//	value<=>x; adc, temp, hum, co2,
-	//	input?=0/1/c;
-	//	output?=0/1/c;
-	//	counter?>x;
-	String condition = event.substring(0, event.indexOf(':'));
-	condition.toLowerCase();
-	event = event.substring(event.indexOf(':') + 1);
-	if (condition.startsWith(F("input")))
-	{
-		int t = condition.indexOf('=');
-		if (t >= 6 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(5, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			bool outState = OUT_OFF;
-			if (outStateStr != F("c"))
-			{
-				if (outStateStr == switchOn) outState = OUT_ON;
-				else if (outStateStr == switchOff) outState = OUT_OFF;
-				else outState = outStateStr.toInt();
-			}
-			//Serial.println("CheckIn" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-			const String cTxt = F("c");
-#ifdef INPUT1_ENABLE
-			if (outNum == 1)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in1 != digitalRead(INPUT1_ENABLE))
-					{
-						in1 = digitalRead(INPUT1_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT1_ENABLE)) ProcessAction(event, eventNum);
-		}
-#endif
-#ifdef INPUT2_ENABLE
-			if (outNum == 2)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in2 != digitalRead(INPUT2_ENABLE))
-					{
-						in2 = digitalRead(INPUT2_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT2_ENABLE)) ProcessAction(event, eventNum);
-	}
-#endif
-#ifdef INPUT3_ENABLE
-			if (outNum == 3)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in3 != digitalRead(INPUT3_ENABLE))
-					{
-						in3 = digitalRead(INPUT3_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT3_ENABLE)) ProcessAction(event, eventNum);
-}
-#endif
-#ifdef INPUT4_ENABLE
-			if (outNum == 4)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in4 != digitalRead(INPUT4_ENABLE))
-					{
-						in4 = digitalRead(INPUT4_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT4_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT5_ENABLE
-			if (outNum == 5)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in5 != digitalRead(INPUT5_ENABLE))
-					{
-						in5 = digitalRead(INPUT5_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT5_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT6_ENABLE
-			if (outNum == 6)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in6 != digitalRead(INPUT6_ENABLE))
-					{
-						in6 = digitalRead(INPUT6_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT6_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT7_ENABLE
-			if (outNum == 7)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in7 != digitalRead(INPUT7_ENABLE))
-					{
-						in7 = digitalRead(INPUT7_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT7_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT8_ENABLE
-			if (outNum == 8)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in8 != digitalRead(INPUT8_ENABLE))
-					{
-						in8 = digitalRead(INPUT8_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT8_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.print(F("Incorrect input #"));
-				Serial.println(String(outNum));
-			}
-		}
-	}
-	else if (condition.startsWith(F("output")))
-	{
-		int t = condition.indexOf('=');
-		if (t >= 7 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(6, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			int outState = OUT_OFF;
-			if (outStateStr != "c")
-			{
-				if (outStateStr == switchOn) outState = OUT_ON;
-				else if (outStateStr == switchOff) outState = OUT_OFF;
-				else outState = outStateStr.toInt();
-			}
-			//Serial.println("CheckOut" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-			const String cTxt = F("c");
-#ifdef OUTPUT1_ENABLE
-			if (outNum == 1)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out1 != digitalRead(OUTPUT1_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT1_ENABLE)) ProcessAction(event, eventNum);
-		}
-#endif
-#ifdef OUTPUT2_ENABLE
-			if (outNum == 2)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out2 != digitalRead(OUTPUT2_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT2_ENABLE)) ProcessAction(event, eventNum);
-	}
-#endif
-#ifdef OUTPUT3_ENABLE
-			if (outNum == 3)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out3 != digitalRead(OUTPUT3_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT3_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT4_ENABLE
-			if (outNum == 4)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out4 != digitalRead(OUTPUT4_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT4_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT5_ENABLE
-			if (outNum == 5)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out5 != digitalRead(OUTPUT5_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT5_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT6_ENABLE
-			if (outNum == 6)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out6 != digitalRead(OUTPUT6_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT6_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT7_ENABLE
-			if (outNum == 7)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out7 != digitalRead(OUTPUT7_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT7_ENABLE))  ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT8_ENABLE
-			if (outNum == 8)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out8 != digitalRead(OUTPUT8_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT8_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.println(F("Incorrect output #"));
-				Serial.println(String(outNum));
-			}
-		}
-	}
-	else if (condition.startsWith(F("counter")))
-	{
-		int t = condition.indexOf('>');
-		if (t >= 8 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(7, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			int outState = outStateStr.toInt();
-			//Serial.println("Counter" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-#ifdef INTERRUPT_COUNTER1_ENABLE
-			if (outNum == 1)
-			{
-				if (intCount1 > outState) ProcessAction(event, eventNum);
-		}
-#endif
-#ifdef INTERRUPT_COUNTER2_ENABLE
-			if (outNum == 2)
-			{
-				if (intCount2 > outState) ProcessAction(event, eventNum);
-	}
-#endif
-#ifdef INTERRUPT_COUNTER3_ENABLE
-			if (outNum == 3)
-			{
-				if (intCount3 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER4_ENABLE
-			if (outNum == 4)
-			{
-				if (intCount4 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER5_ENABLE
-			if (outNum == 5)
-			{
-				if (intCount5 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER6_ENABLE
-			if (outNum == 6)
-			{
-				if (intCount6 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER7_ENABLE
-			if (outNum == 7)
-			{
-				if (intCount7 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER8_ENABLE
-			if (outNum == 8)
-			{
-				if (intCount8 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.print(F("Incorrect counter #"));
-				Serial.println(String(outNum));
-			}
-		}
-		else
-		{
-			Serial.print(F("Incorrect condition: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-		}
-	}
-
-#ifdef ADC_ENABLE
-	else if (condition.startsWith(F("adc")) && condition.length() > 4)
-	{
-		int adcValue = getAdc();
-		char operation = condition[3];
-		int value = condition.substring(4).toInt();
-		//Serial.println("Evaluating: " + String(adcValue) + operation + String(value));
-		if (operation == '>' && adcValue > value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-		else if (operation == '<' && adcValue < value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-	}
-#endif
-
-#if defined(DS18B20_ENABLE) || defined(MH_Z19_UART_ENABLE) || defined(MH_Z19_PPM_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
-	else if (condition.startsWith(F("temperature")) && condition.length() > 12)
-	{
-		char oreration = condition[11];
-		int value = condition.substring(12).toInt();
-		if (oreration == '>' && getTemperature() > value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-		else if (oreration == '<' && getTemperature() < value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-	}
-#endif
-
-#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
-	else if (condition.startsWith(F("humidity")) && condition.length() > 9)
-	{
-		char oreration = condition[8];
-		int value = condition.substring(9).toInt();
-		if (oreration == '>' && getHumidity() > value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-		else if (oreration == '<' && getHumidity() < value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.println(condition + quote);
-			ProcessAction(event, eventNum);
-		}
-	}
-#endif
-
-#if defined(MH_Z19_UART_ENABLE)|| defined(MH_Z19_PPM_ENABLE)
-	else if (condition.startsWith(F("co2")) && condition.length() > 4)
-	{
-		char oreration = condition[3];
-		int value = condition.substring(4).toInt();
-		if (oreration == '>' && getCo2() > value)
-		{
-			Serial.print(F("Event started: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-		else if (oreration == '<' && getCo2() < value)
-		{
-			Serial.println(F("Event started: \""));
-			Serial.println(condition);
-			Serial.println(quote);
-			ProcessAction(event, eventNum);
-		}
-	}
-#endif
-	else
-	{
-		/*Serial.print(F("Incorrect event#"));
-		Serial.print(String(eventNum));
-		Serial.print(F(" condition: \""));
-		Serial.print(condition);
-		Serial.println(quote);*/
-	}
-}
-
-void processSchedule(String event, byte eventNum)
-{
-#ifdef SCHEDULER_ENABLE
-	if (schedulesFlags[eventNum]) return;
-#endif
-	//conditions:
-	//	d.hh:mm
-	//	w.week_day.hh:mm
-	//	m.month_day.hh:mm
-	String condition = event.substring(0, event.indexOf(':'));
-	condition.toLowerCase();
-	event = event.substring(event.indexOf(':') + 1);
-	if (condition.startsWith(F("d.")))
-	{
-		int t = condition.indexOf('=');
-		if (t >= 6 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(5, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			bool outState = OUT_OFF;
-			if (outStateStr != F("c"))
-			{
-				if (outStateStr == switchOn) outState = OUT_ON;
-				else if (outStateStr == switchOff) outState = OUT_OFF;
-				else outState = outStateStr.toInt();
-			}
-			//Serial.println("CheckIn" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-			const String cTxt = F("c");
-#ifdef INPUT1_ENABLE
-			if (outNum == 1)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in1 != digitalRead(INPUT1_ENABLE))
-					{
-						in1 = digitalRead(INPUT1_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT1_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT2_ENABLE
-			if (outNum == 2)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in2 != digitalRead(INPUT2_ENABLE))
-					{
-						in2 = digitalRead(INPUT2_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT2_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT3_ENABLE
-			if (outNum == 3)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in3 != digitalRead(INPUT3_ENABLE))
-					{
-						in3 = digitalRead(INPUT3_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT3_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT4_ENABLE
-			if (outNum == 4)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in4 != digitalRead(INPUT4_ENABLE))
-					{
-						in4 = digitalRead(INPUT4_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT4_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT5_ENABLE
-			if (outNum == 5)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in5 != digitalRead(INPUT5_ENABLE))
-					{
-						in5 = digitalRead(INPUT5_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT5_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT6_ENABLE
-			if (outNum == 6)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in6 != digitalRead(INPUT6_ENABLE))
-					{
-						in6 = digitalRead(INPUT6_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT6_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT7_ENABLE
-			if (outNum == 7)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in7 != digitalRead(INPUT7_ENABLE))
-					{
-						in7 = digitalRead(INPUT7_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT7_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INPUT8_ENABLE
-			if (outNum == 8)
-			{
-				flag = true;
-				if (outStateStr == cTxt)
-				{
-					if (in8 != digitalRead(INPUT8_ENABLE))
-					{
-						in8 = digitalRead(INPUT8_ENABLE);
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(INPUT8_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.print(F("Incorrect input #"));
-				Serial.println(String(outNum));
-			}
-		}
-	}
-	else if (condition.startsWith(F("w.")))
-	{
-		int t = condition.indexOf('=');
-		if (t >= 7 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(6, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			int outState = OUT_OFF;
-			if (outStateStr != "c")
-			{
-				if (outStateStr == switchOn) outState = OUT_ON;
-				else if (outStateStr == switchOff) outState = OUT_OFF;
-				else outState = outStateStr.toInt();
-			}
-			//Serial.println("CheckOut" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-			const String cTxt = F("c");
-#ifdef OUTPUT1_ENABLE
-			if (outNum == 1)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out1 != digitalRead(OUTPUT1_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT1_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT2_ENABLE
-			if (outNum == 2)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out2 != digitalRead(OUTPUT2_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT2_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT3_ENABLE
-			if (outNum == 3)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out3 != digitalRead(OUTPUT3_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT3_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT4_ENABLE
-			if (outNum == 4)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out4 != digitalRead(OUTPUT4_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT4_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT5_ENABLE
-			if (outNum == 5)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out5 != digitalRead(OUTPUT5_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT5_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT6_ENABLE
-			if (outNum == 6)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out6 != digitalRead(OUTPUT6_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT6_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT7_ENABLE
-			if (outNum == 7)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out7 != digitalRead(OUTPUT7_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT7_ENABLE))  ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef OUTPUT8_ENABLE
-			if (outNum == 8)
-			{
-				if (outStateStr == cTxt)
-				{
-					if (out8 != digitalRead(OUTPUT8_ENABLE))
-					{
-						ProcessAction(event, eventNum);
-					}
-				}
-				else if (outState == digitalRead(OUTPUT8_ENABLE)) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.println(F("Incorrect output #"));
-				Serial.println(String(outNum));
-			}
-		}
-	}
-	else if (condition.startsWith(F("m.")))
-	{
-		int t = condition.indexOf('>');
-		if (t >= 8 && t < condition.length() - 1)
-		{
-			byte outNum = condition.substring(7, t).toInt();
-			String outStateStr = condition.substring(t + 1);
-			int outState = outStateStr.toInt();
-			//Serial.println("Counter" + String(outNum) + "=" + String(outState));
-			bool flag = false;
-#ifdef INTERRUPT_COUNTER1_ENABLE
-			if (outNum == 1)
-			{
-				if (intCount1 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER2_ENABLE
-			if (outNum == 2)
-			{
-				if (intCount2 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER3_ENABLE
-			if (outNum == 3)
-			{
-				if (intCount3 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER4_ENABLE
-			if (outNum == 4)
-			{
-				if (intCount4 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER5_ENABLE
-			if (outNum == 5)
-			{
-				if (intCount5 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER6_ENABLE
-			if (outNum == 6)
-			{
-				if (intCount6 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER7_ENABLE
-			if (outNum == 7)
-			{
-				if (intCount7 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-#ifdef INTERRUPT_COUNTER8_ENABLE
-			if (outNum == 8)
-			{
-				if (intCount8 > outState) ProcessAction(event, eventNum);
-			}
-#endif
-			if (!flag)
-			{
-				Serial.print(F("Incorrect counter #"));
-				Serial.println(String(outNum));
-			}
-		}
-		else
-		{
-			Serial.print(F("Incorrect condition: \""));
-			Serial.print(condition);
-			Serial.println(quote);
-		}
-	}
-	else
-	{
-		/*Serial.print(F("Incorrect schedule#"));
-		Serial.print(String(eventNum));
-		Serial.print(F(" condition: \""));
-		Serial.print(condition);
-		Serial.println(quote);*/
-	}
-}
-
+#if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
 void ProcessAction(String action, byte eventNum)
 {
 #ifdef EVENTS_ENABLE
@@ -4624,7 +4412,7 @@ void ProcessAction(String action, byte eventNum)
 				//eventsFlags[eventNum] = false;
 #endif
 			}
-	}
+		}
 #endif
 		//send_GScript=message
 #ifdef GSCRIPT
@@ -4644,7 +4432,7 @@ void ProcessAction(String action, byte eventNum)
 				//eventsFlags[eventNum] = false;
 #endif
 			}
-}
+		}
 #endif
 		//save_log
 		else if (tmpAction.startsWith(F("save_log")))
@@ -4659,6 +4447,7 @@ void ProcessAction(String action, byte eventNum)
 		}
 	} while (action.length() > 0);
 }
+#endif
 
 String set_output(String outStr)
 {
@@ -4691,7 +4480,7 @@ String set_output(String outStr)
 			str += String(outNum);
 			str += equalTxt;
 			str += String((outState));
-	}
+		}
 #endif
 #ifdef OUTPUT2_ENABLE
 		if (outNum == 2)
@@ -4703,7 +4492,7 @@ String set_output(String outStr)
 			str += String(outNum);
 			str += equalTxt;
 			str += String((outState));
-}
+		}
 #endif
 #ifdef OUTPUT3_ENABLE
 		if (outNum == 3)
@@ -4843,7 +4632,7 @@ int getCo2()
 		co2_ppm_avg[1] = co2_ppm_avg[2];
 		co2_ppm_avg[2] = sensor.mh_ppm_co2;
 		co2_avg = (co2_ppm_avg[0] + co2_ppm_avg[1] + co2_ppm_avg[2]) / 3;
-}
+	}
 #endif
 
 #ifdef MH_Z19_UART_ENABLE

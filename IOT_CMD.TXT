@@ -50,10 +50,10 @@ help
 [ADMIN][FLASH]	ntp_refresh_delay=n
 [ADMIN][FLASH]	ntp_enable=[0, 1]
 
-[ADMIN][FLASH]	set_event?=condition:action1;action2;...
+[ADMIN][FLASH]	set_event?=condition;action1;action2;...
 [ADMIN][FLASH]	events_enable=[0, 1]
 
-[ADMIN][FLASH]	set_schedule?=time:action1;action2;...
+[ADMIN][FLASH]	set_schedule?=time_condition;action1;action2;...
 [ADMIN][FLASH]	scheduler_enable=[0, 1]
 
 [ADMIN][FLASH]	display_refresh=n
@@ -61,8 +61,7 @@ help
 [ADMIN][FLASH]	sleep_enable=[0, 1]
 
 
-- event action:
-	conditions:
+- event conditions:
 		input?=[on, off, c]
 		output?=[on, off, c]
 		counter>n
@@ -70,6 +69,12 @@ help
 		temperature<>n
 		humidity<>n
 		co2<>n
+- schedule conditions:
+		daily@hh:mm;action1;action2;...
+		weekly@week_day.hh:mm;action1;action2;...
+		monthly@month_day.hh:mm;action1;action2;...
+		date@yyyy.mm.dd;action1;action2;...
+
 	actions:
 		set_output?=[on, off, 0..1023]
 		reset_counter?
