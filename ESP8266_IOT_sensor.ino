@@ -33,9 +33,10 @@ GPIO 13		 A7 - analog in
 
 /*
 Planned features:
- - SCHEDULE service - restore flags at the start of the day
+ - SCHEDULE service - restore flags at the start of the day or set the appropriate time region to activate schedule event.
+ - GoogleScript service - memory allocation problem
+ - DEBUG mode verbose serial output
  - reduce RAM usage (unnecessary String)
- - GoogleDocs service
  - input mode setup (pullup/down)
  - efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
  - compile time pin arrangement control
@@ -49,25 +50,27 @@ Sensors to be supported:
  - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
 */
 
+#define DEBUG_MODE
+
 //#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
 #define NTP_TIME_ENABLE
 #define HTTP_SERVER_ENABLE
 #define EVENTS_ENABLE
 #define SCHEDULER_ENABLE
 //
-#define AMS2320_ENABLE
+//#define AMS2320_ENABLE
 //#define HTU21D_ENABLE
 //#define DS18B20_ENABLE
 //#define DHT_ENABLE
 #define MH_Z19_UART_ENABLE
 //#define MH_Z19_PPM_ENABLE
-#define TM1637DISPLAY_ENABLE
-//#define SSD1306DISPLAY_ENABLE
+//#define TM1637DISPLAY_ENABLE
+#define SSD1306DISPLAY_ENABLE
 //
 #define TELEGRAM_ENABLE
 #define PUSHINGBOX
 //#define EMAIL_ENABLE
-//#define GSCRIPT
+#define GSCRIPT
 //
 //#define ADC_ENABLE
 //
@@ -385,12 +388,10 @@ void sendBufferToTelegram()
 #include <HTTPSRedirect.h>
 String gScriptId = "";
 const char* host = "script.google.com";
-const char* googleRedirHost = "script.googleusercontent.com";
-const char* fingerprint = "F0 5C 74 77 3F 6B 25 D7 3B 66 4D 43 2F 7E BC 5B E9 28 86 AD";
+//const char* googleRedirHost = "script.googleusercontent.com";
+//const char* fingerprint = "C2 00 62 1D F7 ED AF 8B D1 D5 1D 24 D6 F0 A1 3A EB F1 B4 92";
 //String[] valuesNames = {"?tag", "?value="};
-
 const int httpsPort = 443;
-HTTPSRedirect gScriptClient(httpsPort);
 bool gScriptEnable = false;
 
 bool sendValueToGoogle(String value)
@@ -398,47 +399,39 @@ bool sendValueToGoogle(String value)
 	bool flag = false;
 	if (gScriptEnable && WiFi.status() == WL_CONNECTED)
 	{
-		HTTPSRedirect* client = nullptr;
-		client = new HTTPSRedirect(httpsPort);
-		client->setInsecure();
-		client->setPrintResponseBody(true);
-		client->setContentTypeHeader("application/json");
+		HTTPSRedirect* gScriptClient = nullptr;
+		gScriptClient = new HTTPSRedirect(httpsPort);
+		gScriptClient->setInsecure();
+		gScriptClient->setPrintResponseBody(true);
 
 		for (int i = 0; i < 5; i++)
 		{
-			int retval = client->connect(host, httpsPort);
+			int retval = gScriptClient->connect(host, httpsPort);
 			if (retval == 1)
 			{
 				flag = true;
 				break;
 			}
-			else Serial.println(F("Connection failed. Retrying..."));
+			else
+			{
+				Serial.println("Connection failed. Retrying...");
+			}
 		}
-
-		if (!flag)
-		{
-			Serial.print(F("Could not connect to server: "));
-			Serial.println(host);
-			Serial.println(F("Exiting..."));
-			return flag;
-		}
-
-		if (client->setFingerprint(fingerprint))
-		{
-			Serial.println(F("Certificate match."));
-		}
-		else
-		{
-			Serial.println(F("Certificate mis-match"));
-		}
-
-		// Send data to Google Sheets
-		String url = F("/macros/s/");
-		url += gScriptId;
-		url += F("/exec");
-		flag = client->POST(url, host, value, false);
-		delete client;
-		client = nullptr;
+		if (!flag) Serial.println("Connection failed.");
+		String urlFinal = F("/macros/s/");
+		urlFinal += gScriptId;
+		urlFinal += F("/exec");
+		urlFinal += F("?value=");
+		urlFinal += value;
+		Serial.print(F("GScript sending: "));
+		Serial.println(urlFinal);
+		Serial.print(F("free heap: "));
+		Serial.println(String(system_get_free_heap_size()));
+		system_print_meminfo();
+		flag = gScriptClient->GET(urlFinal, host, true);
+		gScriptClient->stopAll;
+		gScriptClient->~HTTPSRedirect();
+		if (!flag) Serial.println("Sending failed.");
 	}
 	return flag;
 }
@@ -490,6 +483,8 @@ bool sendToPushingBoxServer(String message)
 			client.print(F("\n\n"));
 			client.print(postStr);
 			//Serial.println(postStr);
+			// check server reply
+			flag = true;
 		}
 		client.stop();
 		//Serial.println("- stopping the client");
@@ -768,11 +763,11 @@ PINS: D3 - CLK, D4 - DIO
 const uint8_t SEG_DEGREE[] = { SEG_A | SEG_B | SEG_F | SEG_G };
 const uint8_t SEG_HUMIDITY[] = { SEG_C | SEG_E | SEG_F | SEG_G };
 TM1637Display display(TM1637_CLK, TM1637_DIO);
-unsigned long displaySwitchedLastTime = 0;
-unsigned long displaySwitchPeriod = 3000;
 byte displayState = 0;
 #endif
 
+// SSD1306 I2C display
+// PINS: D1 - SCL, D2 - SDA
 #ifdef SSD1306DISPLAY_ENABLE
 #include <Wire.h>
 #include "SSD1306Ascii.h"
@@ -783,10 +778,11 @@ const uint8_t* font = fixed_bold10x15;  // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
 //const uint8_t* font = Adafruit5x7;  // 5*7 pix
 SSD1306AsciiWire oled;
-#ifndef TM1637DISPLAY_ENABLE
+#endif
+
+#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
 unsigned long displaySwitchedLastTime = 0;
 unsigned long displaySwitchPeriod = 3000;
-#endif
 #endif
 
 #ifdef ADC_ENABLE
@@ -1634,7 +1630,7 @@ void setup()
 #endif
 
 #ifdef GSCRIPT
-	String gScriptId = readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
+	gScriptId = readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
 	if (readConfigString(ENABLE_GSCRIPT_addr, ENABLE_GSCRIPT_size) == SWITCH_ON_NUMBER) gScriptEnable = true;
 #endif
 
@@ -1701,8 +1697,11 @@ void setup()
 	co2_ppm_avg[0] = co2_ppm_avg[1] = co2_ppm_avg[2] = co2PPMRead(MHZ19_PPM);
 #endif
 
+#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
+	displaySwitchPeriod = readConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size).toInt();
+#endif
+
 #ifdef TM1637DISPLAY_ENABLE
-	displaySwitchPeriod = readConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size).toInt();
 	display.setBrightness(1);
 	display.showNumberDec(0, false);
 #endif
@@ -2047,7 +2046,7 @@ void loop()
 #endif
 
 #ifdef GSCRIPT
-				if (gScriptEnable) sendValueToGoogle(str);
+				if (gScriptEnable) sendValueToGoogle("test_gscript");
 #endif
 			}
 		}
@@ -2407,7 +2406,7 @@ int CollectEepromSize()
 	eeprom_size += NTP_REFRESH_DELAY_size;
 	eeprom_size += ENABLE_NTP_size;
 
-	eeprom_size += TM1637DISPLAY_REFRESH_size;
+	eeprom_size += DISPLAY_REFRESH_size;
 
 	eeprom_size += INT1_MODE_size;
 	eeprom_size += INT2_MODE_size;
@@ -2630,15 +2629,22 @@ String printConfig()
 	str += eol;
 #endif
 
-#ifdef TM1637DISPLAY_ENABLE
-	str += F("TM1637 display refresh delay:");
-	str += readConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size);
-	str += eol;
+#ifdef TM1637DISPLAY_ENABLE	
 	str += F("TM1637_CLK on pin ");
 	str += String(TM1637_CLK);
 	str += eol;
 	str += F("TM1637_DIO on pin ");
 	str += String(TM1637_DIO);
+	str += eol;
+#endif
+
+#ifdef SSD1306DISPLAY_ENABLE
+	str += F("SSD1306 display on i2c\r\n");
+#endif
+
+#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
+	str += F("display refresh delay:");
+	str += readConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size);
 	str += eol;
 #endif
 
@@ -4289,7 +4295,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += String(displaySwitchPeriod);
 			str += quote;
 			str += eol;
-			writeConfigString(TM1637DISPLAY_REFRESH_addr, TM1637DISPLAY_REFRESH_size, String(displaySwitchPeriod));
+			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(displaySwitchPeriod));
 		}
 #endif
 
@@ -4414,7 +4420,14 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 					tmpStr += tmpAction;
 					tmpStr += eol;
 					tmpStr += ParseSensorReport(sensor, eol);
-					sendToTelegram(telegramUsers[i], tmpStr, telegramRetries);
+					//sendToTelegram(telegramUsers[i], tmpStr, telegramRetries);
+					bool sendOk = sendToTelegramServer(telegramUsers[i], tmpStr);
+					if (!sendOk)
+					{
+#ifdef EVENTS_ENABLE
+						eventsFlags[eventNum] = false;
+#endif
+					}
 				}
 			}
 		}
@@ -4434,7 +4447,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 			if (!sendOk)
 			{
 #ifdef EVENTS_ENABLE
-				//eventsFlags[eventNum] = false;
+				eventsFlags[eventNum] = false;
 #endif
 			}
 		}
@@ -4453,7 +4466,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 			if (!sendOk)
 			{
 #ifdef EVENTS_ENABLE
-				//eventsFlags[eventNum] = false;
+				eventsFlags[eventNum] = false;
 #endif
 			}
 		}
@@ -4473,7 +4486,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 			if (!sendOk)
 			{
 #ifdef EVENTS_ENABLE
-				//eventsFlags[eventNum] = false;
+				eventsFlags[eventNum] = false;
 #endif
 			}
 		}
