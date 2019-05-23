@@ -37,8 +37,8 @@ Planned features:
  - GoogleScript service - memory allocation problem
  - DEBUG mode verbose serial output
  - reduce RAM usage (unnecessary String)
- - input mode setup (pullup/down)
- - efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
+ - ? input mode setup (pullup/down)
+ - ? efficient sleep till next event planned with network connectivity restoration after wake up and parameter / timers restore to fire.
  - compile time pin arrangement control
 */
 
@@ -50,29 +50,29 @@ Sensors to be supported:
  - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
 */
 
-#define DEBUG_MODE
+//#define DEBUG_MODE
 
 //#define SLEEP_ENABLE //connect D0 and EN pins to start contoller after sleep
 #define NTP_TIME_ENABLE
 #define HTTP_SERVER_ENABLE
 #define EVENTS_ENABLE
-#define SCHEDULER_ENABLE
+//#define SCHEDULER_ENABLE
 //
 //#define AMS2320_ENABLE
 //#define HTU21D_ENABLE
-//#define DS18B20_ENABLE
+#define DS18B20_ENABLE
 //#define DHT_ENABLE
-#define MH_Z19_UART_ENABLE
+//#define MH_Z19_UART_ENABLE
 //#define MH_Z19_PPM_ENABLE
 //#define TM1637DISPLAY_ENABLE
-#define SSD1306DISPLAY_ENABLE
+//#define SSD1306DISPLAY_ENABLE
 //
 #define TELEGRAM_ENABLE
-#define PUSHINGBOX
+//#define PUSHINGBOX
 //#define EMAIL_ENABLE
-#define GSCRIPT
+//#define GSCRIPT
 //
-//#define ADC_ENABLE
+#define ADC_ENABLE
 //
 //#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
 //#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
@@ -98,7 +98,7 @@ Sensors to be supported:
 //#define OUTPUT4_ENABLE 2				// D4 - Serial1_TX, TM1637_DIO, keep HIGH on boot
 //#define OUTPUT5_ENABLE 14				//~D5 - SoftUART_TX
 //#define OUTPUT6_ENABLE 12				//~D6 - SoftUART_RX
-//#define OUTPUT7_ENABLE 13				// D7
+#define OUTPUT7_ENABLE 13				// D7
 //#define OUTPUT8_ENABLE 15				//~D8 - keep LOW on boot
 
 #include <ESP8266WiFi.h>
@@ -650,7 +650,7 @@ Adafruit_HTU21DF htu21d = Adafruit_HTU21DF();
 
 /*
 DS18B20 OneWire temperature sensor
-PINS: D7 - OneWire
+PINS: D4 - OneWire
 pin 1 to +3.3V/+5V
 pin 2 to whatever your OneWire is
 pin 3 to GROUND
@@ -4279,7 +4279,6 @@ String processCommand(String command, byte channel, bool isAdmin)
 				str = F("Scheduler enabled\r\n");
 			}
 			else
-			{
 				str = F("Incorrect value: ");
 				str += stateStr;
 				str += eol;
