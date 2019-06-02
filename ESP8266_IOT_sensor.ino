@@ -59,20 +59,20 @@ Sensors to be supported:
 //#define SCHEDULER_ENABLE
 //
 //#define AMS2320_ENABLE
-//#define HTU21D_ENABLE
-#define DS18B20_ENABLE
+#define HTU21D_ENABLE
+//#define DS18B20_ENABLE
 //#define DHT_ENABLE
-//#define MH_Z19_UART_ENABLE
+#define MH_Z19_UART_ENABLE
 //#define MH_Z19_PPM_ENABLE
 //#define TM1637DISPLAY_ENABLE
-//#define SSD1306DISPLAY_ENABLE
+#define SSD1306DISPLAY_ENABLE
 //
 #define TELEGRAM_ENABLE
-//#define PUSHINGBOX
+#define PUSHINGBOX
 //#define EMAIL_ENABLE
 //#define GSCRIPT
 //
-#define ADC_ENABLE
+//#define ADC_ENABLE
 //
 //#define INTERRUPT_COUNTER1_ENABLE 5		// D1 - I2C_SCL
 //#define INTERRUPT_COUNTER2_ENABLE 4		//~D2 - I2C_SDA
@@ -567,7 +567,7 @@ int ntpRefreshDelay = 180;
 bool NTPenable = false;
 
 // send an NTP request to the time server at the given address
-void sendNTPpacket(IPAddress &address)
+void sendNTPpacket(IPAddress& address)
 {
 	byte packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 	// set all bytes in the buffer to 0
@@ -697,6 +697,7 @@ unsigned int co2SerialRead()
 	unsigned int ppm = 0;
 	mhtemp_s = 0;
 
+	co2sensor.flush();
 	co2sensor.write(cmd, 9);
 	memset(response, 0, 9);
 	co2sensor.readBytes(response, 9);
@@ -774,7 +775,7 @@ byte displayState = 0;
 #include "SSD1306AsciiWire.h"
 #define I2C_ADDRESS 0x3C
 #define RST_PIN -1
-const uint8_t* font = fixed_bold10x15;  // 10x15 pix
+const uint8_t * font = fixed_bold10x15;  // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
 //const uint8_t* font = Adafruit5x7;  // 5*7 pix
 SSD1306AsciiWire oled;
@@ -975,7 +976,7 @@ void processEvent(String event, byte eventNum)
 					}
 				}
 				else if (outState == digitalRead(INPUT1_ENABLE)) ProcessAction(event, eventNum, true);
-			}
+		}
 #endif
 #ifdef INPUT2_ENABLE
 			if (outNum == 2)
@@ -993,7 +994,7 @@ void processEvent(String event, byte eventNum)
 					}
 				}
 				else if (outState == digitalRead(INPUT2_ENABLE)) ProcessAction(event, eventNum, true);
-			}
+	}
 #endif
 #ifdef INPUT3_ENABLE
 			if (outNum == 3)
@@ -1011,7 +1012,7 @@ void processEvent(String event, byte eventNum)
 					}
 				}
 				else if (outState == digitalRead(INPUT3_ENABLE)) ProcessAction(event, eventNum, true);
-			}
+}
 #endif
 #ifdef INPUT4_ENABLE
 			if (outNum == 4)
@@ -1136,7 +1137,7 @@ void processEvent(String event, byte eventNum)
 					}
 				}
 				else if (outState == digitalRead(OUTPUT1_ENABLE)) ProcessAction(event, eventNum, true);
-			}
+		}
 #endif
 #ifdef OUTPUT2_ENABLE
 			if (outNum == 2)
@@ -1153,7 +1154,7 @@ void processEvent(String event, byte eventNum)
 					}
 				}
 				else if (outState == digitalRead(OUTPUT2_ENABLE)) ProcessAction(event, eventNum, true);
-			}
+	}
 #endif
 #ifdef OUTPUT3_ENABLE
 			if (outNum == 3)
@@ -1276,7 +1277,7 @@ void processEvent(String event, byte eventNum)
 				Serial.print(F(" started: \""));
 				Serial.println(condition);
 				if (intCount1 > outState) ProcessAction(event, eventNum, true);
-			}
+		}
 #endif
 #ifdef INTERRUPT_COUNTER2_ENABLE
 			if (outNum == 2)
@@ -1286,7 +1287,7 @@ void processEvent(String event, byte eventNum)
 				Serial.print(F(" started: \""));
 				Serial.println(condition);
 				if (intCount2 > outState) ProcessAction(event, eventNum, true);
-			}
+	}
 #endif
 #ifdef INTERRUPT_COUNTER3_ENABLE
 			if (outNum == 3)
@@ -1669,7 +1670,7 @@ void setup()
 	if (!am2320.begin())
 	{
 		Serial.println(F("Couldn't find AMS2320 sensor!"));
-	}
+}
 #endif
 
 #ifdef HTU21D_ENABLE
@@ -2006,9 +2007,9 @@ void loop()
 				if (WiFi.status() == WL_CONNECTED) wiFiIntendedStatus = WIFI_CONNECTED;
 				yield();
 			}
-		}
-#endif
 	}
+#endif
+}
 
 	//check if it's time to get sensors value
 	if (millis() - checkSensorLastTime > checkSensorPeriod)
@@ -2102,7 +2103,7 @@ void loop()
 					}
 				}
 			}
-		}
+	}
 #endif
 	}
 
@@ -3560,7 +3561,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += String(outState);
-				}
+			}
 #endif
 #ifdef OUTPUT2_ENABLE
 				if (outNum == 2)
@@ -3570,7 +3571,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += String(outState);
-				}
+		}
 #endif
 #ifdef OUTPUT3_ENABLE
 				if (outNum == 3)
@@ -3580,7 +3581,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += String(outState);
-				}
+	}
 #endif
 #ifdef OUTPUT4_ENABLE
 				if (outNum == 4)
@@ -3590,7 +3591,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += String(outState);
-				}
+}
 #endif
 #ifdef OUTPUT5_ENABLE
 				if (outNum == 5)
@@ -3683,7 +3684,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += intMode;
-				}
+			}
 #endif
 #ifdef INTERRUPT_COUNTER2_ENABLE
 				if (outNum == 2)
@@ -3695,7 +3696,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 					str += String(outNum);
 					str += outTxt2;
 					str += intMode;
-				}
+		}
 #endif
 #ifdef INTERRUPT_COUNTER3_ENABLE
 				if (outNum == 3)
@@ -4280,38 +4281,38 @@ String processCommand(String command, byte channel, bool isAdmin)
 			}
 			else
 				str = F("Incorrect value: ");
-				str += stateStr;
-				str += eol;
-			}
-		}
-#endif
-
-#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
-		else if (tmp.startsWith(F("display_refresh=")) && command.length() > 16)
-		{
-			displaySwitchPeriod = command.substring(command.indexOf('=') + 1).toInt();
-			str = F("New display refresh period = \"");
-			str += String(displaySwitchPeriod);
-			str += quote;
-			str += eol;
-			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(displaySwitchPeriod));
-		}
-#endif
-
-		else
-		{
-			str = F("Incorrect command: \"");
-			str += command;
-			str += quote;
+			str += stateStr;
 			str += eol;
 		}
 	}
+#endif
+
+#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
+	else if (tmp.startsWith(F("display_refresh=")) && command.length() > 16)
+	{
+		displaySwitchPeriod = command.substring(command.indexOf('=') + 1).toInt();
+		str = F("New display refresh period = \"");
+		str += String(displaySwitchPeriod);
+		str += quote;
+		str += eol;
+		writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(displaySwitchPeriod));
+	}
+#endif
+
 	else
 	{
 		str = F("Incorrect command: \"");
 		str += command;
 		str += quote;
 		str += eol;
+	}
+	}
+	else
+	{
+	str = F("Incorrect command: \"");
+	str += command;
+	str += quote;
+	str += eol;
 	}
 	return str;
 }
@@ -4330,7 +4331,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 #ifdef SCHEDULER_ENABLE
 		schedulesFlags[eventNum] = true;
 #endif
-	}
+}
 
 	do
 	{
@@ -4468,7 +4469,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 				eventsFlags[eventNum] = false;
 #endif
 			}
-		}
+	}
 #endif
 		//send_GScript=message
 #ifdef GSCRIPT
@@ -4536,7 +4537,7 @@ String set_output(String outStr)
 			str += String(outNum);
 			str += equalTxt;
 			str += String((outState));
-		}
+	}
 #endif
 #ifdef OUTPUT2_ENABLE
 		if (outNum == 2)
@@ -4548,7 +4549,7 @@ String set_output(String outStr)
 			str += String(outNum);
 			str += equalTxt;
 			str += String((outState));
-		}
+}
 #endif
 #ifdef OUTPUT3_ENABLE
 		if (outNum == 3)
@@ -4649,7 +4650,7 @@ int getTemperature()
 #endif
 
 #ifdef HTU21D_ENABLE
-	temp = sensor.htu21d_humidity;
+	temp = sensor.htu21d_temp;
 #endif
 
 #ifdef DS18B20_ENABLE
@@ -4671,7 +4672,7 @@ int getHumidity()
 #endif
 
 #ifdef HTU21D_ENABLE
-	humidity = sensor.htu21d_temp;
+	humidity = sensor.htu21d_humidity;
 #endif
 
 	return humidity;
@@ -4688,7 +4689,7 @@ int getCo2()
 		co2_ppm_avg[1] = co2_ppm_avg[2];
 		co2_ppm_avg[2] = sensor.mh_ppm_co2;
 		co2_avg = (co2_ppm_avg[0] + co2_ppm_avg[1] + co2_ppm_avg[2]) / 3;
-	}
+}
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
