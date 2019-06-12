@@ -27,6 +27,9 @@
     <ClInclude Include="__vm\.ESP8266_IOT_sensor.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="configuration.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="ESP8266_IOT_sensor.ino" />

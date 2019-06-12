@@ -1,5 +1,3 @@
-#include <Arduino.h>
-
 // EEPROM config strings size
 #define SSID_addr	0
 #define SSID_size	32
@@ -155,30 +153,36 @@
 
 typedef struct sensorDataCollection
 {
-	int logyear;
-	byte logmonth;
-	byte logday;
-	byte loghour;
-	byte logminute;
-	byte logsecond;
+	int year;
+	byte month;
+	byte day;
+	byte hour;
+	byte minute;
+	byte second;
 
 #ifdef AMS2320_ENABLE
-	int ams_temp;
-	byte ams_humidity;
+	float ams_temp;
+	float ams_humidity;
 #endif
 
 #ifdef HTU21D_ENABLE
-	int htu21d_temp;
-	int htu21d_humidity;
+	float htu21d_temp;
+	float htu21d_humidity;
+#endif
+
+#ifdef BME280_ENABLE
+	float bme280_temp;
+	float bme280_humidity;
+	float bme280_pressure;
 #endif
 
 #ifdef DS18B20_ENABLE
-	int ds1820_temp;
+	float ds1820_temp;
 #endif
 
 #ifdef DHT_ENABLE
-	int dht_temp;
-	byte dht_humidity;
+	float dht_temp;
+	float dht_humidity;
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
@@ -269,3 +273,53 @@ typedef struct sensorDataCollection
 	bool output8;
 #endif
 };
+
+#ifdef INPUT1_ENABLE
+bool in1;
+#endif
+#ifdef INPUT2_ENABLE
+bool in2;
+#endif
+#ifdef INPUT3_ENABLE
+bool in3;
+#endif
+#ifdef INPUT4_ENABLE
+bool in4;
+#endif
+#ifdef INPUT5_ENABLE
+bool in5;
+#endif
+#ifdef INPUT6_ENABLE
+bool in6;
+#endif
+#ifdef INPUT7_ENABLE
+bool in7;
+#endif
+#ifdef INPUT8_ENABLE
+bool in8;
+#endif
+
+#ifdef OUTPUT1_ENABLE
+int out1 = OUT_OFF;
+#endif
+#ifdef OUTPUT2_ENABLE
+int out2 = OUT_OFF;
+#endif
+#ifdef OUTPUT3_ENABLE
+int out3 = OUT_OFF;
+#endif
+#ifdef OUTPUT4_ENABLE
+int out4 = OUT_OFF;
+#endif
+#ifdef OUTPUT5_ENABLE
+int out5 = OUT_OFF;
+#endif
+#ifdef OUTPUT6_ENABLE
+int out6 = OUT_OFF;
+#endif
+#ifdef OUTPUT7_ENABLE
+int out7 = OUT_OFF;
+#endif
+#ifdef OUTPUT8_ENABLE
+int out8 = OUT_OFF;
+#endif

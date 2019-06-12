@@ -80,6 +80,7 @@ help
 	set_output?=[on, off, 0..1023]
 	reset_counter?
 	reset_flag?
+	set_flag?
 	send_telegram=[*, user#],message
 	send_PushingBox=message
 	send_mail=address;message
