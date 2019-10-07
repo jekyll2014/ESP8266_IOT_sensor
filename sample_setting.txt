@@ -1,65 +1,64 @@
+help
+get_sensor
+get_status
+get_config
+set_time=yyyy.mm.dd hh:mm:ss
+autoreport=1
 
+check_period=10000
+device_name=Esp8266-3
+ssid=jekyll
+wifi_pass=abnbkm090780
+wifi_enable=1
+
+telnet_port=23
+telnet_enable=1
+
+http_port=80
+http_enable=1
+
+smtp_server=****
+smtp_port=n
+smtp_login=****
+smtp_pass=****
+smtp_to=jekyll2006@gmail.com
+smtp_enable=1
+
+mqtt_server=192.168.202.10
+mqtt_port=1883
+mqtt_login= 
+mqtt_pass= 
+mqtt_topic_in=commands
+mqtt_topic_out=sensors
+mqtt_enable=1
+
+set_user0=630930497
+telegram_token=768346607:AAFL1dqnIOr-KmFfrtvEDF3RW7sK-dGML_4
+1) 737771352:AAGmYwbO9pwRpP3tN3Rxbv-VCCcJcdNFqXM
+2) 768346607:AAFL1dqnIOr-KmFfrtvEDF3RW7sK-dGML_4
+3) 774091342:AAE9ZlgsFCCy0PjUAPOdr5eJ90VUfZWZ1Zk
+4) 788582329:AAHLdnDhCvSOUW5uNfr5mjF0aS7_y7-WryU
+
+telegram_enable=1
+
+gscript_token=****
+gscript_enable=1
+
+pushingbox_token=v2201AA87EB1A7E9
+pushingbox_parameter=message_body
+pushingbox_enable=1
+
+ntp_server=129.6.15.28
+ntp_time_zone=+3
+ntp_refresh_delay=180
+ntp_enable=1
 
 set_event0=adc>30:set_output8=off;send_telegram=0,It's dark;reset_flag1;
 set_event1=adc<20:set_output8=on;send_telegram=0,It's light;reset_flag0;
+events_enable=1
 
-Device name: "Esp8266-2"
-WiFi AP: "jekyll"
-WiFi Password: "abnbkm090780"
-Telnet port: 23
-Sensor read period: 300000
-Telnet clients limit: 5
-Device log size: 192
-Log record period: 120000
-HTTP port: 80
-HTTP service enabled: 1
-TELEGRAM token: "768346607:AAFL1dqnIOr-KmFfrtvEDF3RW7sK-dGML_4"
-Admin #0: 630930497
-	User #1: 0
-	User #2: 0
-	User #3: 0
-	User #4: 0
-	User #5: 0
-	User #6: 0
-	User #7: 0
-	User #8: 0
-	User #9: 0
-TELEGRAM service enabled: 1
-PUSHINGBOX token: "v2201AA87EB1A7E9"
-PUSHINGBOX parameter name: "message_body"
-PUSHINGBOX service enabled: 1
-NTP server: 129.6.15.28
-NTP time zone: 3
-NTP refresh delay: 180
-NTP service enabled: 1
-	EVENT #0: "adc>40:set_output8=off;send_telegram=0,It's dark;reset_flag1;"
-	EVENT #1: "adc<30:set_output8=on;send_telegram=0,It's light;reset_flag0;"
-	EVENT #2: ""
-	EVENT #3: ""
-	EVENT #4: ""
-	EVENT #5: ""
-	EVENT #6: ""
-	EVENT #7: ""
-	EVENT #8: ""
-	EVENT #9: ""
-EVENTS service enabled: 0
-	SCHEDULE #0: ""
-	SCHEDULE #1: ""
-	SCHEDULE #2: ""
-	SCHEDULE #3: ""
-	SCHEDULE #4: ""
-	SCHEDULE #5: ""
-	SCHEDULE #6: ""
-	SCHEDULE #7: ""
-	SCHEDULE #8: ""
-	SCHEDULE #9: ""
-SCHEDULER service enabled: 1
-BME280 on i2c
-ADC input: A0
-Input5 on pin 14
-Output6 on pin 12
-	initial state: 0
-Output7 on pin 13
-	initial state: 0
-Output8 on pin 15
-	initial state: 0
+set_schedule?=time:action1;action2
+scheduler_enable=1
+
+display_refresh=5000
+reset

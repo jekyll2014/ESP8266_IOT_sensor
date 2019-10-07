@@ -33,6 +33,15 @@ GPIO 13		 A7 - analog in
 
 /*
 Planned features:
+ - telegram	
+	- set TELEGRAM_URL "api.telegram.org"
+	- set TELEGRAM_IP "149.154.167.198"
+	- set TELEGRAM_PORT 443\
+	- setFingerprint
+	- use SSL
+ - temperature/humidity offset setting
+ - Amazon Alexa integration
+ - AP mode and http settings page
  - EVENT service - option to check action successful execution.
  - SCHEDULE service - restore flags at the start of the day or set the appropriate time region to activate schedule event.
  - GoogleScript service - memory allocation problem
@@ -46,7 +55,7 @@ Planned features:
 
 /*
 Sensors to be supported:
- - BME280 (I2C)
+ - BMP280
  - ACS712 (A0)
  - GPRS module via UART/SoftUART(TX_pin, RX_pin, baud_rate); send SMS, make call
 */
@@ -62,11 +71,12 @@ Sensors to be supported:
 #define SWITCH_ON F("on")
 #define SWITCH_OFF F("off")
 #define eol F("\r\n")
-#define divider F(";")
+#define csv_divider F(";")
 #define quote F("\"")
 
 // WiFi settings
 #define MAX_SRV_CLIENTS 5 //how many clients should be able to telnet to this ESP8266
+#define RECONNECT_TIME 5000 //time for connection await
 String ssid = "";
 String wiFiPassword = "";
 unsigned int telnetPort = 23;
@@ -74,6 +84,7 @@ String netInput[MAX_SRV_CLIENTS];
 byte wiFiIntendedStatus = WIFI_STOP;
 WiFiServer telnetServer(telnetPort);
 WiFiClient serverClient[MAX_SRV_CLIENTS];
+unsigned long wifiReconnectLastTime = 0;
 bool wifiEnable = true;
 bool telnetEnable = true;
 String deviceName = "";
@@ -99,6 +110,71 @@ bool autoReport = false;
 #ifdef SLEEP_ENABLE
 unsigned long reconnectTimeOut = 5000;
 bool sleepEnable = false;
+#endif
+
+#ifdef INTERRUPT_COUNTER1_ENABLE
+unsigned long int intCount1 = 0;
+byte intMode1 = FALLING;
+void int1count()
+{
+	intCount1++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER2_ENABLE
+unsigned long int intCount2 = 0;
+byte intMode2 = FALLING;
+void int2count()
+{
+	intCount2++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER3_ENABLE
+unsigned long int intCount3 = 0;
+byte intMode3 = FALLING;
+void int3count()
+{
+	intCount3++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER4_ENABLE
+unsigned long int intCount4 = 0;
+byte intMode4 = FALLING;
+void int4count()
+{
+	intCount4++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER5_ENABLE
+unsigned long int intCount5 = 0;
+byte intMode5 = FALLING;
+void int5count()
+{
+	intCount5++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER6_ENABLE
+unsigned long int intCount6 = 0;
+byte intMode6 = FALLING;
+void int6count()
+{
+	intCount6++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER7_ENABLE
+unsigned long int intCount7 = 0;
+byte intMode7 = FALLING;
+void int7count()
+{
+	intCount7++;
+}
+#endif
+#ifdef INTERRUPT_COUNTER8_ENABLE
+unsigned long int intCount8 = 0;
+byte intMode8 = FALLING;
+void int8count()
+{
+	intCount8++;
+}
 #endif
 
 const byte eventsNumber = 10;
@@ -755,6 +831,106 @@ bool sendMail(String address, String subject, String message)
 
 #endif
 
+#ifdef MQTT_ENABLE
+#include <PubSubClient.h>
+String mqtt_server = "";
+IPAddress mqtt_ip_server(192, 168, 202, 10); //129.6.15.28 = time-a.nist.gov
+int mqtt_port = 1883;
+String mqtt_User = "";
+String mqtt_Password = "";
+//String mqtt_device_name = "";
+String mqtt_topic_in = "";
+String mqtt_topic_out = "";
+WiFiClient espClient;
+PubSubClient mqtt_client(espClient);
+String mqttCommand = "";
+int mqtt_max_packet = 100;
+bool mqttEnable = false;
+
+bool mqtt_connect()
+{
+	bool ret = false;
+	if (mqttEnable && WiFi.status() == WL_CONNECTED)
+	{
+		Serial.print(F("\r\nStarting MQTT... "));
+		if (mqtt_server.length() == 0)
+		{
+			mqtt_client.setServer(mqtt_ip_server, mqtt_port);
+		}
+		else
+		{
+			mqtt_client.setServer(mqtt_server.c_str(), mqtt_port);
+		}
+		mqtt_client.setCallback(mqtt_callback);
+		mqtt_User.trim();
+		mqtt_Password.trim();
+		if (mqtt_User.length() == 0)
+		{
+			ret = mqtt_client.connect(deviceName.c_str(), mqtt_User.c_str(), mqtt_Password.c_str());
+		}
+		else
+		{
+			ret = mqtt_client.connect(deviceName.c_str());
+		}
+		if (ret) Serial.println(F("connected"));
+		else
+		{
+			Serial.print(F("failed, rc="));
+			Serial.println(mqtt_client.state());
+			return ret;
+		}
+		Serial.print(F("Subscribing to: "));
+		Serial.print(mqtt_topic_in);
+		if (mqtt_client.subscribe(mqtt_topic_in.c_str()))
+		{
+			Serial.println(F(": OK"));
+		}
+		else
+		{
+			Serial.println(F(": FAIL"));
+		}
+	}
+	return ret;
+}
+
+bool mqtt_send(char* topic, char* data, int dataLength)
+{
+	bool res = false;
+	if (mqttEnable && WiFi.status() == WL_CONNECTED)
+	{
+		if (dataLength > mqtt_max_packet)
+		{
+			//res = mqtt_client.publish(topic, data, mqtt_max_packet);
+			int n = 0;
+			res = mqtt_client.beginPublish(topic, dataLength, false);
+			for (int i = 0; i < dataLength; i++)
+			{
+				mqtt_client.write(data[i]);
+			}
+			res = mqtt_client.endPublish();
+		}
+		else
+		{
+			res = mqtt_client.publish(topic, data, dataLength);
+		}
+		if (!res) Serial.println(F("Publish failed!!!"));
+	}
+	return res;
+}
+
+void mqtt_callback(char* topic, byte* payload, unsigned int length)
+{
+	Serial.print(F("Message arrived ["));
+	Serial.print(topic);
+	Serial.print(F("]: "));
+	for (int i = 0; i < length; i++)
+	{
+		mqttCommand += (char)payload[i];
+	}
+	Serial.println(mqttCommand);
+}
+#endif
+
 // Telegram config
 // Need token
 const byte telegramUsersNumber = 10;
@@ -1003,10 +1179,10 @@ bool sendValueToGoogle(String value)
 			}
 			else
 			{
-				Serial.println("Connection failed. Retrying...");
+				Serial.println(F("Connection failed. Retrying..."));
 			}
 		}
-		if (!flag) Serial.println("Connection failed.");
+		if (!flag) Serial.println(F("Connection failed."));
 		String urlFinal = F("/macros/s/");
 		urlFinal += gScriptId;
 		urlFinal += F("/exec");
@@ -1020,7 +1196,7 @@ bool sendValueToGoogle(String value)
 		flag = gScriptClient->GET(urlFinal, host, true);
 		gScriptClient->stopAll;
 		gScriptClient->~HTTPSRedirect();
-		if (!flag) Serial.println("Sending failed.");
+		if (!flag) Serial.println(F("Sending failed."));
 	}
 	return flag;
 }
@@ -1043,10 +1219,10 @@ bool sendToPushingBoxServer(String message)
 	{
 		WiFiClient client;
 
-		//Serial.println("- connecting to pushing server ");
+		//Serial.println(F("- connecting to pushing server "));
 		if (client.connect(pushingBoxServer, 80))
 		{
-			//Serial.println("- succesfully connected");
+			//Serial.println(F("- succesfully connected"));
 
 			String postStr = F("devid=");
 			postStr += pushingBoxId;
@@ -1060,7 +1236,7 @@ bool sendToPushingBoxServer(String message)
 			postStr += String(message);
 			postStr += F("\r\n\r\n");
 
-			//Serial.println("- sending data...");
+			//Serial.println(F("- sending data..."));
 
 			client.print(F("POST /pushingbox HTTP/1.1\n"));
 			client.print(F("Host: "));
@@ -1076,7 +1252,7 @@ bool sendToPushingBoxServer(String message)
 			flag = true;
 		}
 		client.stop();
-		//Serial.println("- stopping the client");
+		//Serial.println(F("- stopping the client"));
 	}
 	return flag;
 }
@@ -1141,6 +1317,11 @@ void handleNotFound()
 	}
 	http_server.send(404, F("text/plain"), message);
 }
+#endif
+
+#ifdef AMAZON_ALEXA
+#include <fauxmoESP.h>
+fauxmoESP fauxmo;
 #endif
 
 // NTP Server
@@ -1347,12 +1528,12 @@ int co2PPMRead(byte pin)
 
 /* TM1637 display.
 TM1637 display leds layout:
-	  a
-	  _
+		a
+		_
 	f| |b
-	  -g
+		-g
 	e|_|c
-	  d
+		d
 PINS: D3 - CLK, D4 - DIO
 */
 #ifdef TM1637DISPLAY_ENABLE
@@ -1398,71 +1579,6 @@ int getAdc()
 	}
 	averageValue /= measurementsToAverage;
 	return int(averageValue);
-}
-#endif
-
-#ifdef INTERRUPT_COUNTER1_ENABLE
-unsigned long int intCount1 = 0;
-byte intMode1 = FALLING;
-void int1count()
-{
-	intCount1++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER2_ENABLE
-unsigned long int intCount2 = 0;
-byte intMode2 = FALLING;
-void int2count()
-{
-	intCount2++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER3_ENABLE
-unsigned long int intCount3 = 0;
-byte intMode3 = FALLING;
-void int3count()
-{
-	intCount3++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER4_ENABLE
-unsigned long int intCount4 = 0;
-byte intMode4 = FALLING;
-void int4count()
-{
-	intCount4++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER5_ENABLE
-unsigned long int intCount5 = 0;
-byte intMode5 = FALLING;
-void int5count()
-{
-	intCount5++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER6_ENABLE
-unsigned long int intCount6 = 0;
-byte intMode6 = FALLING;
-void int6count()
-{
-	intCount6++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER7_ENABLE
-unsigned long int intCount7 = 0;
-byte intMode7 = FALLING;
-void int7count()
-{
-	intCount7++;
-}
-#endif
-#ifdef INTERRUPT_COUNTER8_ENABLE
-unsigned long int intCount8 = 0;
-byte intMode8 = FALLING;
-void int8count()
-{
-	intCount8++;
 }
 #endif
 
@@ -1515,6 +1631,31 @@ void setup()
 	if (readConfigString(ENABLE_SCHEDULER_addr, ENABLE_SCHEDULER_size) == SWITCH_ON_NUMBER) schedulerEnable = true;
 #endif
 
+#ifdef MQTT_ENABLE
+	//mqtt_server = readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
+	String s = readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
+	if (mqtt_ip_server.fromString(s))
+	{
+		mqtt_server = "";
+		writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, mqtt_ip_server.toString());
+	}
+	else
+	{
+		mqtt_server = s;
+		writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, mqtt_server);
+	}
+
+	mqtt_port = readConfigString(MQTT_PORT_addr, MQTT_PORT_size).toInt();
+	mqtt_User = readConfigString(MQTT_USER_addr, MQTT_USER_size);
+	mqtt_Password = readConfigString(MQTT_PASS_addr, MQTT_PASS_size);
+	//mqtt_device_name = readConfigString(MQTT_NAME_addr, MQTT_NAME_size);
+	mqtt_topic_in = readConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size);
+	mqtt_topic_out = readConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size);
+	if (readConfigString(ENABLE_MQTT_addr, ENABLE_MQTT_size) == SWITCH_ON_NUMBER) mqttEnable = true;
+
+	mqtt_connect();
+#endif
+
 #ifdef EMAIL_ENABLE
 	smtpServerAddress = readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	smtpServerPort = readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size).toInt();
@@ -1554,13 +1695,24 @@ void setup()
 #ifdef HTTP_SERVER_ENABLE
 	httpPort = readConfigString(HTTP_PORT_addr, HTTP_PORT_size).toInt();
 	if (readConfigString(ENABLE_HTTP_addr, ENABLE_HTTP_size) == SWITCH_ON_NUMBER) httpServerEnable = true;
-	http_server.on("/", handleRoot);
-	/*http_server.on("/inline", []()
-	  {
-	  http_server.send(200, "text/plain", "this works as well");
-	  });*/
+	http_server.on(F("/"), handleRoot);
+	/*http_server.on(F("/inline"), []()
+		{
+		http_server.send(200, F("text/plain"), F("this works as well"));
+		});*/
 	http_server.onNotFound(handleNotFound);
 	if (httpServerEnable) http_server.begin(httpPort);
+#endif
+
+#ifdef AMAZON_ALEXA
+	fauxmo.enable(true);
+	fauxmo.addDevice("light 1");
+	fauxmo.addDevice("light 2");
+
+	fauxmo.onSetState([](unsigned char device_id, const char* device_name, bool state, unsigned char value)
+		{
+		Serial.printf("[MAIN] Device #%d (%s) state: %s value: %d\n", device_id, device_name, state ? "ON" : "OFF", value);		
+		});
 #endif
 
 #ifdef NTP_TIME_ENABLE
@@ -1932,12 +2084,27 @@ void loop()
 	if (millis() - checkSensorLastTime > checkSensorPeriod)
 	{
 		checkSensorLastTime = millis();
-		String str = deviceName;
-		str += F(": ");
 		sensor = collectData();
+#ifdef MQTT_ENABLE
+		if (mqttEnable && WiFi.status() == WL_CONNECTED)
+		{
+			if (!mqtt_client.connected())
+			{
+				mqtt_connect();
+			}
+			if (mqtt_client.connected())
+			{
+				String str = ParseSensorReport(sensor, csv_divider);
+				Serial.print(F("Publishing to "));
+				Serial.println(mqtt_topic_out);
+				Serial.println(str.c_str());
+				mqtt_send((char*)mqtt_topic_out.c_str(), (char*)str.c_str(), str.length());
+			}
+		}
+#endif
 		if (autoReport)
 		{
-			str += ParseSensorReport(sensor, eol);
+			String str = ParseSensorReport(sensor, eol);
 			Serial.println(str);
 			if (WiFi.status() == WL_CONNECTED)
 			{
@@ -1949,6 +2116,7 @@ void loop()
 						yield();
 					}
 				}
+
 
 #ifdef TELEGRAM_ENABLE
 				if (telegramEnable)
@@ -1964,7 +2132,7 @@ void loop()
 #endif
 
 #ifdef GSCRIPT
-				if (gScriptEnable) sendValueToGoogle("test_gscript");
+				if (gScriptEnable) sendValueToGoogle(F("test_gscript"));
 #endif
 			}
 		}
@@ -1983,7 +2151,7 @@ void loop()
 			{
 				bool sendOk = true;
 				int n = 0;
-				String tmpStr = ParseSensorReport(history_log[n], divider);
+				String tmpStr = ParseSensorReport(history_log[n], csv_divider);
 				tmpStr += eol;
 				n++;
 				while (n < history_record_number)
@@ -2000,7 +2168,7 @@ void loop()
 						Serial.print(F("n="));
 						Serial.println(String(n));
 
-						tmpStr += ParseSensorReport(history_log[n], divider);
+						tmpStr += ParseSensorReport(history_log[n], csv_divider);
 						tmpStr += eol;
 						yield();
 					}
@@ -2047,10 +2215,6 @@ void loop()
 	//process data from HTTP/Telnet/TELEGRAM if available
 	if (WiFi.status() == WL_CONNECTED)
 	{
-#ifdef HTTP_SERVER_ENABLE
-		if (httpServerEnable) http_server.handleClient();
-#endif
-
 		if (telnetEnable)
 		{
 			//check if there are any new clients
@@ -2108,13 +2272,43 @@ void loop()
 			}
 		}
 
+#ifdef HTTP_SERVER_ENABLE
+		if (httpServerEnable) http_server.handleClient();
+#endif
+
+#ifdef MQTT_ENABLE
+		if (mqttEnable)
+		{
+			if (!mqtt_client.connected())
+			{
+				mqtt_connect();
+			}
+			mqtt_client.loop();
+
+			if (mqttCommand.length() > 0)
+			{
+				String str = processCommand(mqttCommand, MQTT_CHANNEL, true);
+				Serial.print(F("Publishing to "));
+				Serial.println(mqtt_topic_out);
+				Serial.println(str.c_str());
+				mqtt_send((char*)mqtt_topic_out.c_str(), (char*)str.c_str(), str.length());
+				mqttCommand = "";
+			}
+			yield();
+		}
+#endif
+
 #ifdef TELEGRAM_ENABLE
 		//check TELEGRAM for data
-		if (telegramEnable && millis() - telegramLastTime > telegramMessageDelay && WiFi.status() == WL_CONNECTED)
+		if (telegramEnable && millis() - telegramLastTime > telegramMessageDelay)
 		{
 			sendBufferToTelegram();
 			telegramLastTime = millis();
 		}
+#endif
+
+#ifdef AMAZON_ALEXA
+		fauxmo.handle();
 #endif
 	}
 
@@ -2221,7 +2415,7 @@ void loop()
 		{
 			tmpStr += F("CO2: ");
 			tmpStr += String(co2_avg);
-			tmpStr += "\r\n";
+			tmpStr += F("\r\n");
 			n++;
 		}
 
@@ -2344,6 +2538,15 @@ int CollectEepromSize()
 	eeprom_size += OUT7_INIT_size;
 	eeprom_size += OUT8_INIT_size;
 
+	eeprom_size += MQTT_SERVER_size;
+	eeprom_size += MQTT_PORT_size;
+	eeprom_size += MQTT_USER_size;
+	eeprom_size += MQTT_PASS_size;
+	eeprom_size += MQTT_NAME_size;
+	eeprom_size += MQTT_TOPIC_IN_size;
+	eeprom_size += MQTT_TOPIC_OUT_size;
+	eeprom_size += ENABLE_MQTT_size;
+
 	return eeprom_size;
 }
 
@@ -2424,6 +2627,35 @@ String printConfig()
 	str += eol;
 	str += F("HTTP service enabled: ");
 	str += readConfigString(ENABLE_HTTP_addr, ENABLE_HTTP_size);
+	str += eol;
+#endif
+
+#ifdef MQTT_ENABLE
+	str += F("MQTT server: \"");
+	str += readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
+	str += quote;
+	str += eol;
+	str += F("MQTT port: ");
+	str += readConfigString(MQTT_PORT_addr, MQTT_PORT_size);
+	str += eol;
+	str += F("MQTT login: \"");
+	str += readConfigString(MQTT_USER_addr, MQTT_USER_size);
+	str += quote;
+	str += eol;
+	str += F("MQTT password: \"");
+	str += readConfigString(MQTT_PASS_addr, MQTT_PASS_size);
+	str += quote;
+	str += eol;
+	str += F("MQTT receive topic: \"");
+	str += readConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size);
+	str += quote;
+	str += eol;
+	str += F("MQTT post topic: \"");
+	str += readConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size);
+	str += quote;
+	str += eol;
+	str += F("MQTT service enabled: ");
+	str += readConfigString(ENABLE_MQTT_addr, ENABLE_MQTT_size);
 	str += eol;
 #endif
 
@@ -2894,6 +3126,14 @@ String printHelp()
 		"[ADMIN][FLASH] smtp_to=****@***.***\r\n"
 		"[ADMIN][FLASH] smtp_enable=1/0\r\n"
 
+		"[ADMIN][FLASH] mqtt_server=****\r\n"
+		"[ADMIN][FLASH] mqtt_port=n\r\n"
+		"[ADMIN][FLASH] mqtt_login=****\r\n"
+		"[ADMIN][FLASH] mqtt_pass=****\r\n"
+		"[ADMIN][FLASH] mqtt_topic_in=****\r\n"
+		"[ADMIN][FLASH] mqtt_topic_out=****\r\n"
+		"[ADMIN][FLASH] mqtt_enable=1/0\r\n"
+
 		"[ADMIN][FLASH] set_user?=n\r\n"
 		"[ADMIN][FLASH] telegram_token=****\r\n"
 		"[ADMIN][FLASH] telegram_enable=1/0\r\n"
@@ -3068,7 +3308,9 @@ sensorDataCollection collectData()
 
 String ParseSensorReport(sensorDataCollection data, String delimiter)
 {
-	String str = String(data.hour);
+	String str = deviceName;
+	str += delimiter;
+	str += String(data.hour);
 	str += F(":");
 	str += String(data.minute);
 	str += F(":");
@@ -3270,6 +3512,7 @@ String ParseSensorReport(sensorDataCollection data, String delimiter)
 	str += F("OUT8=");
 	str += String(data.output8);
 #endif
+	str += delimiter;
 	return str;
 }
 
@@ -3305,6 +3548,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 		str += printHelp();
 		str += eol;
 	}
+	//getLog=uart/telnet/email/telegram
 	else if (isAdmin)
 	{
 		if (tmp.startsWith(F("set_time=")) && command.length() == 28)
@@ -3363,7 +3607,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(SSID_addr, SSID_size, ssid);
-			WiFi.begin(ssid.c_str(), wiFiPassword.c_str());
+			//WiFi.begin(ssid.c_str(), wiFiPassword.c_str());
 		}
 		else if (tmp.startsWith(F("wifi_pass=")) && command.length() > 10)
 		{
@@ -3373,7 +3617,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(PASS_addr, PASS_size, wiFiPassword);
-			WiFi.begin(ssid.c_str(), wiFiPassword.c_str());
+			//WiFi.begin(ssid.c_str(), wiFiPassword.c_str());
 		}
 		else if (tmp.startsWith(F("wifi_enable=")) && command.length() > 12)
 		{
@@ -3409,7 +3653,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(TELNET_PORT_addr, TELNET_PORT_size, String(telnetPort));
-			WiFiServer server(telnetPort);
+			//WiFiServer server(telnetPort);
 		}
 		else if (tmp.startsWith(F("telnet_enable=")) && command.length() > 14)
 		{
@@ -3476,6 +3720,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			}
 		}
 
+#if defined(OUTPUT1_ENABLE) || defined(OUTPUT2_ENABLE) || defined(OUTPUT3_ENABLE) || defined(OUTPUT4_ENABLE) || defined(OUTPUT5_ENABLE) || defined(OUTPUT6_ENABLE) || defined(OUTPUT7_ENABLE) || defined(OUTPUT8_ENABLE)
 		else if (tmp.startsWith(F("set_init_output")) && command.length() > 17)
 		{
 			int t = command.indexOf('=');
@@ -3593,7 +3838,9 @@ String processCommand(String command, byte channel, bool isAdmin)
 		{
 			str = set_output(command);
 		}
+#endif
 
+#if defined(INTERRUPT_COUNTER1_ENABLE) || defined(INTERRUPT_COUNTER2_ENABLE) || defined(INTERRUPT_COUNTER3_ENABLE) || defined(INTERRUPT_COUNTER4_ENABLE) || defined(INTERRUPT_COUNTER5_ENABLE) || defined(INTERRUPT_COUNTER6_ENABLE) || defined(INTERRUPT_COUNTER7_ENABLE) || defined(INTERRUPT_COUNTER8_ENABLE)
 		else if (tmp.startsWith(F("set_interrupt_mode")) && command.length() > 20)
 		{
 			int t = command.indexOf('=');
@@ -3725,8 +3972,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 				str += eol;
 			}
 		}
-
-		//getLog=uart/telnet/email/telegram
+#endif
 
 #ifdef SLEEP_ENABLE
 		else if (tmp.startsWith(F("sleep_enable=")) && command.length() > 13)
@@ -3734,13 +3980,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			String stateStr = command.substring(command.indexOf('=') + 1);
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
-				sleepEnable = false;
+				//sleepEnable = false;
 				writeConfigString(ENABLE_SLEEP_addr, ENABLE_SLEEP_size, SWITCH_OFF_NUMBER);
 				str = F("SLEEP mode disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
-				sleepEnable = true;
+				//sleepEnable = true;
 				writeConfigString(ENABLE_SLEEP_addr, ENABLE_SLEEP_size, SWITCH_ON_NUMBER);
 				str = F("SLEEP mode enabled\r\n");
 			}
@@ -3762,7 +4008,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(HTTP_PORT_addr, HTTP_PORT_size, String(httpPort));
-			if (httpServerEnable) http_server.begin(httpPort);
+			//if (httpServerEnable) http_server.begin(httpPort);
 		}
 		else if (tmp.startsWith(F("http_enable=")) && command.length() > 12)
 		{
@@ -3770,18 +4016,115 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_HTTP_addr, ENABLE_HTTP_size, SWITCH_OFF_NUMBER);
-				httpServerEnable = false;
-				if (httpServerEnable) http_server.stop();
+				//httpServerEnable = false;
+				//if (httpServerEnable) http_server.stop();
 				str = F("HTTP server disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_HTTP_addr, ENABLE_HTTP_size, SWITCH_ON_NUMBER);
-				httpServerEnable = true;
+				/*httpServerEnable = true;
 				http_server.on("/", handleRoot);
 				http_server.onNotFound(handleNotFound);
-				http_server.begin(httpPort);
+				http_server.begin(httpPort);*/
 				str = F("HTTP server enabled\r\n");
+			}
+			else
+			{
+				str = F("Incorrect value: ");
+				str += stateStr;
+				str += eol;
+			}
+		}
+#endif
+
+#ifdef MQTT_ENABLE
+		else if (tmp.startsWith(F("mqtt_server=")) && command.length() > 12)
+		{
+			String tmpSrv = (command.substring(command.indexOf('=') + 1));
+			IPAddress tmpAddr;
+			if (tmpAddr.fromString(tmpSrv))
+			{
+				mqtt_ip_server = tmpAddr;
+				mqtt_server = "";
+				str = F("New MQTT server = \"");
+				str += mqtt_ip_server.toString();
+				str += quote;
+				str += eol;
+				writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, mqtt_ip_server.toString());
+			}
+			else
+			{
+				mqtt_server = tmpSrv;
+				str = F("New MQTT server = \"");
+				str += mqtt_server;
+				str += quote;
+				str += eol;
+				writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, mqtt_server);
+			}
+		}
+		else if (tmp.startsWith(F("mqtt_port=")) && command.length() > 10)
+		{
+			mqtt_port = command.substring(command.indexOf('=') + 1).toInt();
+			str = F("New MQTT port = \"");
+			str += String(mqtt_port);
+			str += quote;
+			str += eol;
+			writeConfigString(MQTT_PORT_addr, MQTT_PORT_size, String(mqtt_port));
+			//mqtt_client.setServer(mqtt_ip_server, mqtt_port);
+		}
+		else if (tmp.startsWith(F("mqtt_login=")) && command.length() > 11)
+		{
+			mqtt_User = command.substring(command.indexOf('=') + 1);
+			str = F("New MQTT login = \"");
+			str += mqtt_User;
+			str += quote;
+			str += eol;
+			writeConfigString(MQTT_USER_addr, MQTT_USER_size, mqtt_User);
+		}
+		else if (tmp.startsWith(F("mqtt_pass=")) && command.length() > 10)
+		{
+			mqtt_Password = command.substring(command.indexOf('=') + 1);
+			str = F("New MQTT password = \"");
+			str += mqtt_Password;
+			str += quote;
+			str += eol;
+			writeConfigString(MQTT_PASS_addr, MQTT_PASS_size, mqtt_Password);
+		}
+		else if (tmp.startsWith(F("mqtt_topic_in=")) && command.length() > 8)
+		{
+			mqtt_topic_in = command.substring(command.indexOf('=') + 1);
+			str = F("New MQTT receive topic = \"");
+			str += mqtt_topic_in;
+			str += quote;
+			str += eol;
+			writeConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size, mqtt_topic_in);
+		}
+		else if (tmp.startsWith(F("mqtt_topic_out=")) && command.length() > 8)
+		{
+			mqtt_topic_out = command.substring(command.indexOf('=') + 1);
+			str = F("New MQTT post topic = \"");
+			str += mqtt_topic_out;
+			str += quote;
+			str += eol;
+			writeConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size, mqtt_topic_out);
+		}
+		else if (tmp.startsWith(F("mqtt_enable=")) && command.length() > 12)
+		{
+			String stateStr = command.substring(command.indexOf('=') + 1);
+			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
+			{
+				writeConfigString(ENABLE_MQTT_addr, ENABLE_MQTT_size, SWITCH_OFF_NUMBER);
+				//mqttEnable = false;
+				str = F("MQTT disabled\r\n");
+				//mqtt_client.disconnect();
+			}
+			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
+			{
+				writeConfigString(ENABLE_MQTT_addr, ENABLE_MQTT_size, SWITCH_ON_NUMBER);
+				//mqttEnable = true;
+				str = F("MQTT enabled\r\n");
+				//mqtt_connect();
 			}
 			else
 			{
@@ -3798,16 +4141,16 @@ String processCommand(String command, byte channel, bool isAdmin)
 		{
 			if (eMailEnable && WiFi.status() == WL_CONNECTED)
 			{
-				if (history_record_number < 1) str = "No log records";
+				if (history_record_number < 1) str = F("No log records");
 				bool sendOk = true;
 				int n = 0;
-				String tmpStr = ParseSensorReport(history_log[n], divider);
+				String tmpStr = ParseSensorReport(history_log[n], csv_divider);
 				tmpStr += eol;
 				n++;
 				while (n < history_record_number)
 				{
 					int freeMem = ESP.getFreeHeap() / 3;
-					//Serial.println("***");
+					//Serial.println(F("***"));
 					for (; n < (freeMem / tmpStr.length()) - 1; n++)
 					{
 						if (n >= history_record_number) break;
@@ -3815,9 +4158,9 @@ String processCommand(String command, byte channel, bool isAdmin)
 						Serial.println("history_record_number=" + String(history_record_number));
 						Serial.println("freeMem=" + String(freeMem));
 						Serial.println("n=" + String(n));
-						//Serial.println("***");
+						//Serial.println(F("***"));
 
-						tmpStr += ParseSensorReport(history_log[n], divider);
+						tmpStr += ParseSensorReport(history_log[n], csv_divider);
 						tmpStr += eol;
 						yield();
 					}
@@ -3827,10 +4170,15 @@ String processCommand(String command, byte channel, bool isAdmin)
 					yield();
 					if (sendOk)
 					{
-						str = "Log sent to EMail";
+						str = F("Log sent to EMail");
 						history_record_number = 0;
 					}
-					else str = "Error sending log to EMail " + String(history_record_number) + " records.";
+					else
+		{
+		str = F("Error sending log to EMail ");
+		str += String(history_record_number)
+		str += F(" records.");
+		}
 				}
 			}
 		}*/
@@ -3851,7 +4199,6 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size, String(smtpServerPort));
-			WiFiServer server(telnetPort);
 		}
 		else if (tmp.startsWith(F("smtp_login=")) && command.length() > 11)
 		{
@@ -3886,13 +4233,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_EMAIL_addr, ENABLE_EMAIL_size, SWITCH_OFF_NUMBER);
-				eMailEnable = false;
+				//eMailEnable = false;
 				str = F("EMail reporting disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_EMAIL_addr, ENABLE_EMAIL_size, SWITCH_ON_NUMBER);
-				eMailEnable = true;
+				//eMailEnable = true;
 				str = F("EMail reporting enabled\r\n");
 			}
 			else
@@ -3941,7 +4288,7 @@ String processCommand(String command, byte channel, bool isAdmin)
 			str += quote;
 			str += eol;
 			writeConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size, telegramToken);
-			myBot.setTelegramToken(telegramToken);
+			//myBot.setTelegramToken(telegramToken);
 		}
 		else if (tmp.startsWith(F("telegram_enable=")) && command.length() > 16)
 		{
@@ -3949,15 +4296,15 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_TELEGRAM_addr, ENABLE_TELEGRAM_size, SWITCH_OFF_NUMBER);
-				telegramEnable = false;
+				//telegramEnable = false;
 				str = F("Telegram disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_TELEGRAM_addr, ENABLE_TELEGRAM_size, SWITCH_ON_NUMBER);
-				telegramEnable = true;
+				//telegramEnable = true;
 				//myBot.wifiConnect(ssid, wiFiPassword);
-				myBot.setTelegramToken(telegramToken);
+				//myBot.setTelegramToken(telegramToken);
 				//myBot.testConnection();
 				str = F("Telegram enabled\r\n");
 			}
@@ -3986,13 +4333,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_GSCRIPT_addr, ENABLE_GSCRIPT_size, SWITCH_OFF_NUMBER);
-				gScriptEnable = false;
+				//gScriptEnable = false;
 				str = F("GScript disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_GSCRIPT_addr, ENABLE_GSCRIPT_size, SWITCH_ON_NUMBER);
-				gScriptEnable = true;
+				//gScriptEnable = true;
 				str = F("GScript enabled\r\n");
 			}
 			else
@@ -4037,13 +4384,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_PUSHINGBOX_addr, ENABLE_PUSHINGBOX_size, SWITCH_OFF_NUMBER);
-				pushingBoxEnable = false;
+				//pushingBoxEnable = false;
 				str = F("PushingBox disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_PUSHINGBOX_addr, ENABLE_PUSHINGBOX_size, SWITCH_ON_NUMBER);
-				pushingBoxEnable = true;
+				//pushingBoxEnable = true;
 				str = F("PushingBox enabled\r\n");
 			}
 			else
@@ -4159,13 +4506,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size, SWITCH_OFF_NUMBER);
-				eventsEnable = false;
+				//eventsEnable = false;
 				str = F("Events disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_EVENTS_addr, ENABLE_EVENTS_size, SWITCH_ON_NUMBER);
-				eventsEnable = true;
+				//eventsEnable = true;
 				str = F("Events enabled\r\n");
 			}
 			else
@@ -4211,13 +4558,13 @@ String processCommand(String command, byte channel, bool isAdmin)
 			if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
 			{
 				writeConfigString(ENABLE_SCHEDULER_addr, ENABLE_SCHEDULER_size, SWITCH_OFF_NUMBER);
-				schedulerEnable = false;
+				//schedulerEnable = false;
 				str = F("Scheduler disabled\r\n");
 			}
 			else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 			{
 				writeConfigString(ENABLE_SCHEDULER_addr, ENABLE_SCHEDULER_size, SWITCH_ON_NUMBER);
-				schedulerEnable = true;
+				//schedulerEnable = true;
 				str = F("Scheduler enabled\r\n");
 			}
 			else
@@ -4275,7 +4622,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 
 	do
 	{
-		int t = action.indexOf(divider);
+		int t = action.indexOf(csv_divider);
 		String tmpAction;
 		if (t > 0)
 		{
@@ -4289,12 +4636,20 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 		}
 		Serial.print(F("Processing action: "));
 		Serial.println(tmpAction);
+		//save_log
+		if (tmpAction.startsWith(F("save_log")))
+		{
+			saveLog(sensor);
+		}
 		//set_output?=x
-		if (tmpAction.startsWith(F("set_output")) && tmpAction.length() >= 12)
+#if defined(OUTPUT1_ENABLE) || defined(OUTPUT2_ENABLE) || defined(OUTPUT3_ENABLE) || defined(OUTPUT4_ENABLE) || defined(OUTPUT5_ENABLE) || defined(OUTPUT6_ENABLE) || defined(OUTPUT7_ENABLE) || defined(OUTPUT8_ENABLE)
+		else if (tmpAction.startsWith(F("set_output")) && tmpAction.length() >= 12)
 		{
 			Serial.println(set_output(tmpAction));
 		}
+#endif
 		//reset_counter?
+#if defined(INTERRUPT_COUNTER1_ENABLE) || defined(INTERRUPT_COUNTER2_ENABLE) || defined(INTERRUPT_COUNTER3_ENABLE) || defined(INTERRUPT_COUNTER4_ENABLE) || defined(INTERRUPT_COUNTER5_ENABLE) || defined(INTERRUPT_COUNTER6_ENABLE) || defined(INTERRUPT_COUNTER7_ENABLE) || defined(INTERRUPT_COUNTER8_ENABLE)
 		else if (tmpAction.startsWith(F("reset_counter")) && tmpAction.length() > 13)
 		{
 			int n = tmpAction.substring(13).toInt();
@@ -4324,6 +4679,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 			if (n == 8) intCount8 = 0;
 #endif
 		}
+#endif
 		//reset_flag?
 #ifdef EVENTS_ENABLE
 		else if (tmpAction.startsWith(F("reset_flag")) && tmpAction.length() > 10)
@@ -4361,7 +4717,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 				{
 					String tmpStr = deviceName;
 					tmpStr += F(":");
-					tmpStr += divider;
+					tmpStr += csv_divider;
 					tmpStr += tmpAction;
 					tmpStr += eol;
 					tmpStr += ParseSensorReport(sensor, eol);
@@ -4436,11 +4792,6 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 			}
 		}
 #endif
-		//save_log
-		else if (tmpAction.startsWith(F("save_log")))
-		{
-			saveLog(sensor);
-		}
 		else
 		{
 			Serial.print(F("Incorrect action: \""));
@@ -4451,6 +4802,7 @@ void ProcessAction(String action, byte eventNum, bool eventOrSchedule)
 }
 #endif
 
+#if defined(OUTPUT1_ENABLE) || defined(OUTPUT2_ENABLE) || defined(OUTPUT3_ENABLE) || defined(OUTPUT4_ENABLE) || defined(OUTPUT5_ENABLE) || defined(OUTPUT6_ENABLE) || defined(OUTPUT7_ENABLE) || defined(OUTPUT8_ENABLE)
 String set_output(String outStr)
 {
 	//Serial.println("SetOut:" + outStr);
@@ -4577,7 +4929,9 @@ String set_output(String outStr)
 	}
 	return str;
 }
+#endif
 
+#if defined(MH_Z19_UART_ENABLE) || defined(DHT_ENABLE) || defined(BME280_ENABLE) || defined(HTU21D_ENABLE) || defined(AMS2320_ENABLE) || defined(DS18B20_ENABLE)
 float getTemperature()
 {
 	float temp = -1000;
@@ -4607,7 +4961,9 @@ float getTemperature()
 #endif
 	return temp;
 }
+#endif
 
+#if defined(DHT_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE)
 float getHumidity()
 {
 	float humidity = -1000;
@@ -4630,7 +4986,9 @@ float getHumidity()
 
 	return humidity;
 }
+#endif
 
+#if defined(MH_Z19_PPM_ENABLE) || defined(MH_Z19_UART_ENABLE)
 int getCo2()
 {
 	int co2_avg = -1000;
@@ -4659,6 +5017,7 @@ int getCo2()
 
 	return co2_avg;
 }
+#endif
 
 void saveLog(sensorDataCollection record)
 {
@@ -4677,8 +5036,33 @@ void saveLog(sensorDataCollection record)
 	}
 }
 
-#ifdef TELEGRAM_ENABLE
-#endif
+bool wifiConnect()
+{
+	WiFi.disconnect(true);
+	WiFi.persistent(false);
+	WiFi.setPhyMode(WIFI_PHY_MODE_11B); //WIFI_PHY_MODE_11B = 1 (60-215mA); WIFI_PHY_MODE_11G = 2 (145mA); WIFI_PHY_MODE_11N = 3 (135mA)
+	WiFi.setOutputPower(20.5); //[0 - 20.5]dBm
+	wiFiIntendedStatus = WIFI_CONNECTING;
+	WiFi.begin(ssid.c_str(), wiFiPassword.c_str());
+	unsigned long reconnectTimeStart = millis();
+	while (WiFi.status() != WL_CONNECTED && millis() - reconnectTimeStart < RECONNECT_TIME)
+	{
+		delay(50);
+		if (WiFi.status() == WL_CONNECTED) break;
+		Serial.print(F("."));
+		yield();
+	}
+}
+
+/*void StartAPMode()
+{
+	WiFi.softAPdisconnect(true);
+	WiFi.mode(WIFI_OFF);
+	delay(1000);
+	WiFi.mode(WIFI_AP_STA);
+	WiFi.softAP("ESP","12345678");//без пароля
+	//WiFi.softAPConfig(apIP, apIPgate, IPAddress(192, 168, 4, 1));//для кастомного ip, работало почему-то не всегда
+}*/
 
 /*int countOf(String str, char c)
 {

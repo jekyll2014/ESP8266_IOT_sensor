@@ -140,9 +140,34 @@
 #define OUT8_INIT_addr	OUT7_INIT_addr + OUT7_INIT_size
 #define OUT8_INIT_size	4
 
+#define MQTT_SERVER_addr  OUT8_INIT_addr + OUT8_INIT_size
+#define MQTT_SERVER_size  100
+
+#define MQTT_PORT_addr  MQTT_SERVER_addr + MQTT_SERVER_size
+#define MQTT_PORT_size  5
+
+#define MQTT_USER_addr  MQTT_PORT_addr + MQTT_PORT_size
+#define MQTT_USER_size  100
+
+#define MQTT_PASS_addr  MQTT_USER_addr + MQTT_USER_size
+#define MQTT_PASS_size  100
+
+#define MQTT_NAME_addr  MQTT_PASS_addr + MQTT_PASS_size
+#define MQTT_NAME_size  100
+
+#define MQTT_TOPIC_IN_addr  MQTT_NAME_addr + MQTT_NAME_size
+#define MQTT_TOPIC_IN_size  100
+
+#define MQTT_TOPIC_OUT_addr  MQTT_TOPIC_IN_addr + MQTT_TOPIC_IN_size
+#define MQTT_TOPIC_OUT_size  100
+
+#define ENABLE_MQTT_addr  MQTT_TOPIC_OUT_addr + MQTT_TOPIC_OUT_size
+#define ENABLE_MQTT_size  1
+
 #define UART_CHANNEL 0
 #define TELNET_CHANNEL 1
 #define TELEGRAM_CHANNEL 2
+#define MQTT_CHANNEL 2
 
 #define WIFI_STOP 0
 #define WIFI_CONNECTING 1

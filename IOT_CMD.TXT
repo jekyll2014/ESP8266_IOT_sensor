@@ -1,67 +1,67 @@
+help
 get_sensor
 get_status
 get_config
-help
+[ADMIN] set_time=yyyy.mm.dd hh:mm:ss
+[ADMIN] autoreport=0/1
+[ADMIN] set_output?=0/1
 
-[ADMIN]		getLog=[uart, telnet, email, telegram]
+[ADMIN][FLASH] set_interrupt_mode?=FALLING/RISING/CHANGE
+[ADMIN][FLASH] set_init_output?=on/off/x
 
-[ADMIN]		set_time=yyyy.mm.dd hh:mm:ss
-[ADMIN]		autoreport=[0, 1]
-[ADMIN]		set_output?=[0..1023]
-[ADMIN]		reset
+[ADMIN] getLog = uart/telnet/email/telegram
 
-[ADMIN][FLASH]	set_init_output?=[off, on]
-[ADMIN][FLASH]	set_interrupt_mode?=[change, falling, rising]
+[ADMIN][FLASH] check_period=n
 
-[ADMIN][FLASH]	check_period=x
+[ADMIN][FLASH] device_name=****
 
-[ADMIN][FLASH]	device_name=name
+[ADMIN][FLASH] ssid=****
+[ADMIN][FLASH] wifi_pass=****
+[ADMIN] wifi_enable=1/0
 
-[ADMIN][FLASH]	ssid=network_name
-[ADMIN][FLASH]	wifi_pass=password
-[ADMIN]			wifi_enable=[0, 1]
+[ADMIN][FLASH] telnet_port=n
+[ADMIN][FLASH] telnet_enable=1/0
 
-[ADMIN][FLASH]	telnet_port=n
-[ADMIN][FLASH]	telnet_enable=[0, 1]
+[ADMIN][FLASH] http_port=n
+[ADMIN][FLASH] http_enable=1/0
 
-[ADMIN][FLASH]	http_port=n
-[ADMIN][FLASH]	http_enable=[0, 1]
+[ADMIN][FLASH] smtp_server=****
+[ADMIN][FLASH] smtp_port=n
+[ADMIN][FLASH] smtp_login=****
+[ADMIN][FLASH] smtp_pass=****
+[ADMIN][FLASH] smtp_to=****@***.***
+[ADMIN][FLASH] smtp_enable=1/0
 
-[ADMIN][FLASH]	smtp_server=smtp_server_name
-[ADMIN][FLASH]	smtp_port=n
-[ADMIN][FLASH]	smtp_login=login
-[ADMIN][FLASH]	smtp_pass=password
-[ADMIN][FLASH]	smtp_to=email_to_address
-[ADMIN][FLASH]	smtp_enable=[0, 1]
+[ADMIN][FLASH] set_user?=n
+[ADMIN][FLASH] telegram_token=****
+[ADMIN][FLASH] telegram_enable=1/0
 
-[ADMIN][FLASH]	set_user?=n
-[ADMIN][FLASH]	telegram_token=token
-[ADMIN][FLASH]	telegram_enable=[0, 1]
+[ADMIN][FLASH] gscript_token=****
+[ADMIN][FLASH] gscript_enable=1/0
 
-[ADMIN][FLASH]	gscript_token=token
-[ADMIN][FLASH]	gscript_enable=[0, 1]
+[ADMIN][FLASH] pushingbox_token=****
+[ADMIN][FLASH] pushingbox_parameter=****
+[ADMIN][FLASH] pushingbox_enable=1/0
 
-[ADMIN][FLASH]	pushingbox_token=token
-[ADMIN][FLASH]	pushingbox_parameter=message_body
-[ADMIN][FLASH]	pushingbox_enable=[0, 1]
+[ADMIN][FLASH] ntp_server=***.***.***.***
+[ADMIN][FLASH] ntp_time_zone=n
+[ADMIN][FLASH] ntp_refresh_delay=n
+[ADMIN][FLASH] ntp_enable=1/0
 
-[ADMIN][FLASH]	ntp_server=***.***.***.***
-[ADMIN][FLASH]	ntp_time_zone=n
-[ADMIN][FLASH]	ntp_refresh_delay=n
-[ADMIN][FLASH]	ntp_enable=[0, 1]
+[ADMIN][FLASH] set_event?=condition:action1;action2
+[ADMIN][FLASH] events_enable=1/0
 
-[ADMIN][FLASH]	set_event?=condition;action1;action2;...
-[ADMIN][FLASH]	events_enable=[0, 1]
+[ADMIN][FLASH] set_schedule?=time:action1;action2
+[ADMIN][FLASH] scheduler_enable=1/0
 
-[ADMIN][FLASH]	set_schedule?=time_condition;action1;action2;...
-[ADMIN][FLASH]	scheduler_enable=[0, 1]
+[ADMIN][FLASH] display_refresh=n
 
-[ADMIN][FLASH]	display_refresh=n
+[ADMIN][FLASH] sleep_enable=1/0
 
-[ADMIN][FLASH]	sleep_enable=[0, 1]
+[ADMIN] reset
 
 
-- event conditions:
+- EVENT conditions:
 	input?=[on, off, c]
 	output?=[on, off, c]
 	counter>n
@@ -70,13 +70,13 @@ help
 	humidity<>n
 	co2<>n
 
-- schedule conditions:
+- SCHEDULE conditions:
 	daily@hh:mm;action1;action2;...
 	weekly@week_day.hh:mm;action1;action2;...
 	monthly@month_day.hh:mm;action1;action2;...
 	date@yyyy.mm.dd.hh:mm;action1;action2;...
 
-- actions:
+- ACTIONS:
 	set_output?=[on, off, 0..1023]
 	reset_counter?
 	reset_flag?
