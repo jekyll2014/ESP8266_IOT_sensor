@@ -43,3 +43,6 @@ Event/Schedule actions:
 	send_GScript=message
 	send_mqtt=message
 	send_sms=[*/user#],message
+
+Easy compile-time configuration to keep only desired sensors/modules.
+Easy pin-out configuration on run-time.
