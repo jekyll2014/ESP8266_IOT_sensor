@@ -15,8 +15,11 @@ get_config
 
 [ADMIN][FLASH] device_name=****
 
-[ADMIN][FLASH] ssid=****
-[ADMIN][FLASH] wifi_pass=****
+[ADMIN][FLASH] sta_ssid=****
+[ADMIN][FLASH] sta_pass=****
+[ADMIN][FLASH] ap_ssid=****
+[ADMIN][FLASH] ap_pass=****
+[ADMIN][FLASH] wifi_mode=0/1/2/3
 [ADMIN] wifi_enable=1/0
 
 [ADMIN][FLASH] telnet_port=n
@@ -32,8 +35,21 @@ get_config
 [ADMIN][FLASH] smtp_to=****@***.***
 [ADMIN][FLASH] smtp_enable=1/0
 
-[ADMIN][FLASH] set_user?=n
+[ADMIN][FLASH] mqtt_server=****
+[ADMIN][FLASH] mqtt_port=n
+[ADMIN][FLASH] mqtt_login=****
+[ADMIN][FLASH] mqtt_pass=****
+[ADMIN][FLASH] mqtt_id=****
+[ADMIN][FLASH] mqtt_topic_in=****
+[ADMIN][FLASH] mqtt_topic_out=****
+[ADMIN][FLASH] mqtt_clean=0/1
+[ADMIN][FLASH] mqtt_enable=1/0
+
+[ADMIN][FLASH] gsm_user?=n
+[ADMIN][FLASH] gsm_enable=1/0 (on/off)
+
 [ADMIN][FLASH] telegram_token=****
+[ADMIN][FLASH] telegram_user?=n
 [ADMIN][FLASH] telegram_enable=1/0
 
 [ADMIN][FLASH] gscript_token=****
@@ -72,17 +88,30 @@ get_config
 
 - SCHEDULE conditions:
 	daily@hh:mm;action1;action2;...
-	weekly@week_day.hh:mm;action1;action2;...
-	monthly@month_day.hh:mm;action1;action2;...
-	date@yyyy.mm.dd.hh:mm;action1;action2;...
+	weekly@wd.hh:mm;action1;action2;...
+	monthly@md.hh:mm;action1;action2;...
+	once@yyyy.mm.dd.hh:mm;action1;action2;...
 
 - ACTIONS:
+	command=[any command]
 	set_output?=[on, off, 0..1023]
 	reset_counter?
+	set_event_flag?=0/1
 	reset_flag?
 	set_flag?
 	send_telegram=[*, user#],message
 	send_PushingBox=message
-	send_mail=address;message
-	send_GScript
+	send_mail=address,message
+	send_GScript=message
+	send_mqtt=message
+	send_sms=[*, user#],message
 	save_log
+
+Add:
+- check schedule last run time from EEPROM. set to 0 on add from command. Set to current time on run.
+
+- GSM_MODEM send_sms("phone","message")
+- GSM_MODEM status (connection state, network name)
+- get commands from SMS messages (security like in TELEGRAM).
+
+- TIMER service to run actions each n seconds to be started from event or command or schedule

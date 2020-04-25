@@ -18,16 +18,10 @@
     <ClInclude Include="datastructures.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="__vm\ESP8266_IOT_sensor.vsarduino.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="__vm\.CO2Telnet-http-display_an2320.vsarduino.h">
+    <ClInclude Include="configuration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="__vm\.ESP8266_IOT_sensor.vsarduino.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="configuration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

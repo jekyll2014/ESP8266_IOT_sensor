@@ -1,35 +1,156 @@
-// EEPROM config strings size
-#define SSID_addr	0
-#define SSID_size	32
+#pragma once
 
-#define PASS_addr	SSID_addr + SSID_size
-#define PASS_size	32
+#define schedulesNumber  10
+#define eventsNumber  10
+#define telegramUsersNumber  10
+#define gsmUsersNumber  10
 
-#define TELNET_PORT_addr	PASS_addr + PASS_size
-#define TELNET_PORT_size	5
-
-#define SENSOR_READ_DELAY_addr	TELNET_PORT_addr + TELNET_PORT_size
-#define SENSOR_READ_DELAY_size	6
-
-#define DEVICE_NAME_addr	SENSOR_READ_DELAY_addr + SENSOR_READ_DELAY_size
+// EEPROM config string position and size
+#define DEVICE_NAME_addr	0
 #define DEVICE_NAME_size	20
 
-#define ENABLE_SLEEP_addr	DEVICE_NAME_addr + DEVICE_NAME_size
-#define ENABLE_SLEEP_size	1
+#define STA_SSID_addr	DEVICE_NAME_addr + DEVICE_NAME_size
+#define STA_SSID_size	32
 
-#define EVENTS_TABLE_addr	ENABLE_SLEEP_addr + ENABLE_SLEEP_size
+#define STA_PASS_addr	STA_SSID_addr + STA_SSID_size
+#define STA_PASS_size	32
+
+#define AP_SSID_addr	STA_PASS_addr + STA_PASS_size
+#define AP_SSID_size	32
+
+#define AP_PASS_addr	AP_SSID_addr + AP_SSID_size
+#define AP_PASS_size	32
+
+#define WIFI_STANDART_addr	AP_PASS_addr + AP_PASS_size
+#define WIFI_STANDART_size	1
+
+#define WIFI_POWER_addr	WIFI_STANDART_addr + WIFI_STANDART_size
+#define WIFI_POWER_size	4
+
+#define WIFI_MODE_addr	WIFI_POWER_addr + WIFI_POWER_size
+#define WIFI_MODE_size	1
+
+#define CONNECT_TIME_addr	WIFI_MODE_addr + WIFI_MODE_size
+#define CONNECT_TIME_size	5
+
+#define CONNECT_PERIOD_addr	CONNECT_TIME_addr + CONNECT_TIME_size
+#define CONNECT_PERIOD_size	5
+
+#define SENSOR_READ_DELAY_addr	CONNECT_PERIOD_addr + CONNECT_PERIOD_size
+#define SENSOR_READ_DELAY_size	5
+
+#define LOG_PERIOD_addr	SENSOR_READ_DELAY_addr + SENSOR_READ_DELAY_size
+#define LOG_PERIOD_size	5
+
+#define DISPLAY_REFRESH_addr	LOG_PERIOD_addr + LOG_PERIOD_size
+#define DISPLAY_REFRESH_size	5
+
+#define AUTOREPORT_addr  DISPLAY_REFRESH_addr + DISPLAY_REFRESH_size
+#define AUTOREPORT_size  3
+
+#define PIN_MODE_addr	AUTOREPORT_addr + AUTOREPORT_size
+#define PIN_MODE_size	1 * PIN_NUMBER
+
+#define OUTPUT_INIT_addr	PIN_MODE_addr + PIN_MODE_size
+#define OUTPUT_INIT_size	4 * PIN_NUMBER
+
+#define INTERRUPT_MODE_addr	OUTPUT_INIT_addr + OUTPUT_INIT_size
+#define INTERRUPT_MODE_size	1 * PIN_NUMBER
+
+#define SLEEP_ON_addr	INTERRUPT_MODE_addr + INTERRUPT_MODE_size
+#define SLEEP_ON_size	5
+
+#define SLEEP_OFF_addr	SLEEP_ON_addr + SLEEP_ON_size
+#define SLEEP_OFF_size	5
+
+#define SLEEP_ENABLE_addr	SLEEP_OFF_addr + SLEEP_OFF_size
+#define SLEEP_ENABLE_size	1
+
+#define EVENTS_TABLE_addr	SLEEP_ENABLE_addr + SLEEP_ENABLE_size
 #define EVENTS_TABLE_size	100 * eventsNumber
 
-#define ENABLE_EVENTS_addr	EVENTS_TABLE_addr + EVENTS_TABLE_size
-#define ENABLE_EVENTS_size	1
+#define EVENTS_ENABLE_addr	EVENTS_TABLE_addr + EVENTS_TABLE_size
+#define EVENTS_ENABLE_size	1
 
-#define SCHEDULER_TABLE_addr	ENABLE_EVENTS_addr + ENABLE_EVENTS_size
+#define SCHEDULER_TABLE_addr	EVENTS_ENABLE_addr + EVENTS_ENABLE_size
 #define SCHEDULER_TABLE_size	100 * schedulesNumber
 
-#define ENABLE_SCHEDULER_addr	SCHEDULER_TABLE_addr + SCHEDULER_TABLE_size
-#define ENABLE_SCHEDULER_size	1
+#define SCHEDULER_LASTRUN_TABLE_addr	SCHEDULER_TABLE_addr + SCHEDULER_TABLE_size
+#define SCHEDULER_LASTRUN_TABLE_size	schedulesNumber * 4
 
-#define SMTP_SERVER_ADDRESS_addr	ENABLE_SCHEDULER_addr + ENABLE_SCHEDULER_size
+#define SCHEDULER_ENABLE_addr	SCHEDULER_LASTRUN_TABLE_addr + SCHEDULER_LASTRUN_TABLE_size
+#define SCHEDULER_ENABLE_size	1
+
+#define NTP_SERVER_addr	SCHEDULER_ENABLE_addr + SCHEDULER_ENABLE_size
+#define NTP_SERVER_size	100
+
+#define NTP_TIME_ZONE_addr	NTP_SERVER_addr + NTP_SERVER_size
+#define NTP_TIME_ZONE_size	2
+
+#define NTP_REFRESH_DELAY_addr	NTP_TIME_ZONE_addr + NTP_TIME_ZONE_size
+#define NTP_REFRESH_DELAY_size	5
+
+#define NTP_ENABLE_addr	NTP_REFRESH_DELAY_addr + NTP_REFRESH_DELAY_size
+#define NTP_ENABLE_size	1
+
+#define TELNET_PORT_addr	NTP_ENABLE_addr + NTP_ENABLE_size
+#define TELNET_PORT_size	5
+
+#define TELNET_ENABLE_addr	TELNET_PORT_addr + TELNET_PORT_size
+#define TELNET_ENABLE_size	1
+
+#define HTTP_PORT_addr	TELNET_ENABLE_addr + TELNET_ENABLE_size
+#define HTTP_PORT_size	5
+
+#define HTTP_ENABLE_addr	HTTP_PORT_addr + HTTP_PORT_size
+#define HTTP_ENABLE_size	1
+
+#define MQTT_SERVER_addr  HTTP_ENABLE_addr + HTTP_ENABLE_size
+#define MQTT_SERVER_size  100
+
+#define MQTT_PORT_addr  MQTT_SERVER_addr + MQTT_SERVER_size
+#define MQTT_PORT_size  5
+
+#define MQTT_USER_addr  MQTT_PORT_addr + MQTT_PORT_size
+#define MQTT_USER_size  100
+
+#define MQTT_PASS_addr  MQTT_USER_addr + MQTT_USER_size
+#define MQTT_PASS_size  100
+
+#define MQTT_ID_addr  MQTT_PASS_addr + MQTT_PASS_size
+#define MQTT_ID_size  100
+
+#define MQTT_TOPIC_IN_addr  MQTT_ID_addr + MQTT_ID_size
+#define MQTT_TOPIC_IN_size  100
+
+#define MQTT_TOPIC_OUT_addr  MQTT_TOPIC_IN_addr + MQTT_TOPIC_IN_size
+#define MQTT_TOPIC_OUT_size  100
+
+#define MQTT_CLEAN_addr  MQTT_TOPIC_OUT_addr + MQTT_TOPIC_OUT_size
+#define MQTT_CLEAN_size  1
+
+#define MQTT_ENABLE_addr  MQTT_CLEAN_addr + MQTT_CLEAN_size
+#define MQTT_ENABLE_size  1
+
+#define TELEGRAM_TOKEN_addr	MQTT_ENABLE_addr + MQTT_ENABLE_size
+#define TELEGRAM_TOKEN_size	50
+
+#define TELEGRAM_USERS_TABLE_addr	TELEGRAM_TOKEN_addr + TELEGRAM_TOKEN_size
+#define TELEGRAM_USERS_TABLE_size	telegramUsersNumber * 20
+
+#define TELEGRAM_ENABLE_addr	TELEGRAM_USERS_TABLE_addr + TELEGRAM_USERS_TABLE_size
+#define TELEGRAM_ENABLE_size	1
+
+#define PUSHINGBOX_ID_addr	TELEGRAM_ENABLE_addr + TELEGRAM_ENABLE_size
+#define PUSHINGBOX_ID_size	100
+
+#define PUSHINGBOX_PARAM_addr	PUSHINGBOX_ID_addr + PUSHINGBOX_ID_size
+#define PUSHINGBOX_PARAM_size	50
+
+#define PUSHINGBOX_ENABLE_addr	PUSHINGBOX_PARAM_addr + PUSHINGBOX_PARAM_size
+#define PUSHINGBOX_ENABLE_size	1
+
+#define SMTP_SERVER_ADDRESS_addr	PUSHINGBOX_ENABLE_addr + PUSHINGBOX_ENABLE_size
 #define SMTP_SERVER_ADDRESS_size	100
 
 #define SMTP_SERVER_PORT_addr	SMTP_SERVER_ADDRESS_addr + SMTP_SERVER_ADDRESS_size
@@ -44,146 +165,64 @@
 #define SMTP_TO_addr	SMTP_PASSWORD_addr + SMTP_PASSWORD_size
 #define SMTP_TO_size	100
 
-#define ENABLE_EMAIL_addr  SMTP_TO_addr + SMTP_TO_size
-#define ENABLE_EMAIL_size  1
+#define SMTP_ENABLE_addr  SMTP_TO_addr + SMTP_TO_size
+#define SMTP_ENABLE_size  1
 
-#define TELEGRAM_TOKEN_addr	ENABLE_EMAIL_addr + ENABLE_EMAIL_size
-#define TELEGRAM_TOKEN_size	50
-
-#define TELEGRAM_USERS_TABLE_addr	TELEGRAM_TOKEN_addr + TELEGRAM_TOKEN_size
-#define TELEGRAM_USERS_TABLE_size	telegramUsersNumber * 20
-
-#define ENABLE_TELEGRAM_addr	TELEGRAM_USERS_TABLE_addr + TELEGRAM_USERS_TABLE_size
-#define ENABLE_TELEGRAM_size	1
-
-#define GSCRIPT_ID_addr	ENABLE_TELEGRAM_addr + ENABLE_TELEGRAM_size
+#define GSCRIPT_ID_addr	SMTP_ENABLE_addr + SMTP_ENABLE_size
 #define GSCRIPT_ID_size	100
 
-#define ENABLE_GSCRIPT_addr	GSCRIPT_ID_addr + GSCRIPT_ID_size
-#define ENABLE_GSCRIPT_size	1
+#define GSCRIPT_ENABLE_addr	GSCRIPT_ID_addr + GSCRIPT_ID_size
+#define GSCRIPT_ENABLE_size	1
 
-#define PUSHINGBOX_ID_addr	ENABLE_GSCRIPT_addr + ENABLE_GSCRIPT_size
-#define PUSHINGBOX_ID_size	100
+#define GSM_USERS_TABLE_addr	GSCRIPT_ENABLE_addr + GSCRIPT_ENABLE_size
+#define GSM_USERS_TABLE_size	gsmUsersNumber * 15
 
-#define PUSHINGBOX_PARAM_addr	PUSHINGBOX_ID_addr + PUSHINGBOX_ID_size
-#define PUSHINGBOX_PARAM_size	50
+#define GSM_ENABLE_addr	GSM_USERS_TABLE_addr + GSM_USERS_TABLE_size
+#define GSM_ENABLE_size	1
 
-#define ENABLE_PUSHINGBOX_addr	PUSHINGBOX_PARAM_addr + PUSHINGBOX_PARAM_size
-#define ENABLE_PUSHINGBOX_size	1
+#define RADIO_STOP 0
+#define RADIO_CONNECTING 1
+#define RADIO_CONNECTED 2
+#define RADIO_WAITING 3
 
-#define HTTP_PORT_addr	ENABLE_PUSHINGBOX_addr + ENABLE_PUSHINGBOX_size
-#define HTTP_PORT_size	5
+#define OUT_ON true
+#define OUT_OFF false
 
-#define ENABLE_HTTP_addr	HTTP_PORT_addr + HTTP_PORT_size
-#define ENABLE_HTTP_size	1
+#define WIFI_MODE_OFF 0
+#define WIFI_MODE_STA 1
+#define WIFI_MODE_AP 2
+#define WIFI_MODE_AP_STA 3
+#define WIFI_MODE_AUTO 4
+const String wifiModes[5] = { "Off", "Station", "Access point",  "Access point + Station", "Auto" };
 
-#define NTP_SERVER_addr	ENABLE_HTTP_addr + ENABLE_HTTP_size
-#define NTP_SERVER_size	15
+#define CHANNEL_UART 0
+#define CHANNEL_TELNET 1
+#define CHANNEL_MQTT 2
+#define CHANNEL_TELEGRAM 3
+#define CHANNEL_GSCRIPT 4
+#define CHANNEL_PUSHINGBOX 5
+#define CHANNEL_EMAIL 6
+#define CHANNEL_GSM 7
+const String channels[8] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
 
-#define NTP_TIME_ZONE_addr	NTP_SERVER_addr + NTP_SERVER_size
-#define NTP_TIME_ZONE_size	3
+const String pinModeList[4] = { "INPUT","OUTPUT","INPUT_PULLUP", "OFF" };
 
-#define DISPLAY_REFRESH_addr	NTP_TIME_ZONE_addr + NTP_TIME_ZONE_size
-#define DISPLAY_REFRESH_size	6
+const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
 
-#define NTP_REFRESH_DELAY_addr	DISPLAY_REFRESH_addr + DISPLAY_REFRESH_size
-#define NTP_REFRESH_DELAY_size	5
+bool inputs[PIN_NUMBER];
 
-#define ENABLE_NTP_addr	NTP_REFRESH_DELAY_addr + NTP_REFRESH_DELAY_size
-#define ENABLE_NTP_size	1
+uint16_t outputs[PIN_NUMBER];
 
-#define INT1_MODE_addr	ENABLE_NTP_addr + ENABLE_NTP_size
-#define INT1_MODE_size	1
+uint32_t InterruptCounter[PIN_NUMBER];
 
-#define INT2_MODE_addr	INT1_MODE_addr + INT1_MODE_size
-#define INT2_MODE_size	1
-
-#define INT3_MODE_addr	INT2_MODE_addr + INT2_MODE_size
-#define INT3_MODE_size	1
-
-#define INT4_MODE_addr	INT3_MODE_addr + INT3_MODE_size
-#define INT4_MODE_size	1
-
-#define INT5_MODE_addr	INT4_MODE_addr + INT4_MODE_size
-#define INT5_MODE_size	1
-
-#define INT6_MODE_addr	INT5_MODE_addr + INT5_MODE_size
-#define INT6_MODE_size	1
-
-#define INT7_MODE_addr	INT6_MODE_addr + INT6_MODE_size
-#define INT7_MODE_size	1
-
-#define INT8_MODE_addr	INT7_MODE_addr + INT7_MODE_size
-#define INT8_MODE_size	1
-
-#define OUT1_INIT_addr	INT8_MODE_addr + INT8_MODE_size
-#define OUT1_INIT_size	4
-
-#define OUT2_INIT_addr	OUT1_INIT_addr + OUT1_INIT_size
-#define OUT2_INIT_size	4
-
-#define OUT3_INIT_addr	OUT2_INIT_addr + OUT2_INIT_size
-#define OUT3_INIT_size	4
-
-#define OUT4_INIT_addr	OUT3_INIT_addr + OUT3_INIT_size
-#define OUT4_INIT_size	4
-
-#define OUT5_INIT_addr	OUT4_INIT_addr + OUT4_INIT_size
-#define OUT5_INIT_size	4
-
-#define OUT6_INIT_addr	OUT5_INIT_addr + OUT5_INIT_size
-#define OUT6_INIT_size	4
-
-#define OUT7_INIT_addr	OUT6_INIT_addr + OUT6_INIT_size
-#define OUT7_INIT_size	4
-
-#define OUT8_INIT_addr	OUT7_INIT_addr + OUT7_INIT_size
-#define OUT8_INIT_size	4
-
-#define MQTT_SERVER_addr  OUT8_INIT_addr + OUT8_INIT_size
-#define MQTT_SERVER_size  100
-
-#define MQTT_PORT_addr  MQTT_SERVER_addr + MQTT_SERVER_size
-#define MQTT_PORT_size  5
-
-#define MQTT_USER_addr  MQTT_PORT_addr + MQTT_PORT_size
-#define MQTT_USER_size  100
-
-#define MQTT_PASS_addr  MQTT_USER_addr + MQTT_USER_size
-#define MQTT_PASS_size  100
-
-#define MQTT_NAME_addr  MQTT_PASS_addr + MQTT_PASS_size
-#define MQTT_NAME_size  100
-
-#define MQTT_TOPIC_IN_addr  MQTT_NAME_addr + MQTT_NAME_size
-#define MQTT_TOPIC_IN_size  100
-
-#define MQTT_TOPIC_OUT_addr  MQTT_TOPIC_IN_addr + MQTT_TOPIC_IN_size
-#define MQTT_TOPIC_OUT_size  100
-
-#define ENABLE_MQTT_addr  MQTT_TOPIC_OUT_addr + MQTT_TOPIC_OUT_size
-#define ENABLE_MQTT_size  1
-
-#define UART_CHANNEL 0
-#define TELNET_CHANNEL 1
-#define TELEGRAM_CHANNEL 2
-#define MQTT_CHANNEL 2
-
-#define WIFI_STOP 0
-#define WIFI_CONNECTING 1
-#define WIFI_CONNECTED 2
-
-#define OUT_ON false
-#define OUT_OFF true
-
-typedef struct sensorDataCollection
+struct sensorDataCollection
 {
 	int year;
-	byte month;
-	byte day;
-	byte hour;
-	byte minute;
-	byte second;
+	uint8_t month;
+	uint8_t day;
+	uint8_t hour;
+	uint8_t minute;
+	uint8_t second;
 
 #ifdef AMS2320_ENABLE
 	float ams_temp;
@@ -199,6 +238,12 @@ typedef struct sensorDataCollection
 	float bme280_temp;
 	float bme280_humidity;
 	float bme280_pressure;
+#endif
+
+#ifdef BMP180_ENABLE
+	float bmp180_temp;
+	float bmp180_humidity;
+	float bmp180_pressure;
 #endif
 
 #ifdef DS18B20_ENABLE
@@ -223,128 +268,62 @@ typedef struct sensorDataCollection
 	int adc;
 #endif
 
-#ifdef INTERRUPT_COUNTER1_ENABLE
-	unsigned long int InterruptCounter1;
-#endif
-#ifdef INTERRUPT_COUNTER2_ENABLE
-	unsigned long int InterruptCounter2;
-#endif
-#ifdef INTERRUPT_COUNTER3_ENABLE
-	unsigned long int InterruptCounter3;
-#endif
-#ifdef INTERRUPT_COUNTER4_ENABLE
-	unsigned long int InterruptCounter4;
-#endif
-#ifdef INTERRUPT_COUNTER5_ENABLE
-	unsigned long int InterruptCounter5;
-#endif
-#ifdef INTERRUPT_COUNTER6_ENABLE
-	unsigned long int InterruptCounter6;
-#endif
-#ifdef INTERRUPT_COUNTER7_ENABLE
-	unsigned long int InterruptCounter7;
-#endif
-#ifdef INTERRUPT_COUNTER8_ENABLE
-	unsigned long int InterruptCounter8;
-#endif
+	uint32_t InterruptCounters[PIN_NUMBER];
 
-#ifdef INPUT1_ENABLE
-	bool input1;
-#endif
-#ifdef INPUT2_ENABLE
-	bool input2;
-#endif
-#ifdef INPUT3_ENABLE
-	bool input3;
-#endif
-#ifdef INPUT4_ENABLE
-	bool input4;
-#endif
-#ifdef INPUT5_ENABLE
-	bool input5;
-#endif
-#ifdef INPUT6_ENABLE
-	bool input6;
-#endif
-#ifdef INPUT7_ENABLE
-	bool input7;
-#endif
-#ifdef INPUT8_ENABLE
-	bool input8;
-#endif
+	bool inputs[PIN_NUMBER];
 
-#ifdef OUTPUT1_ENABLE
-	bool output1;
-#endif
-#ifdef OUTPUT2_ENABLE
-	bool output2;
-#endif
-#ifdef OUTPUT3_ENABLE
-	bool output3;
-#endif
-#ifdef OUTPUT4_ENABLE
-	bool output4;
-#endif
-#ifdef OUTPUT5_ENABLE
-	bool output5;
-#endif
-#ifdef OUTPUT6_ENABLE
-	bool output6;
-#endif
-#ifdef OUTPUT7_ENABLE
-	bool output7;
-#endif
-#ifdef OUTPUT8_ENABLE
-	bool output8;
-#endif
+	bool outputs[PIN_NUMBER];
 };
 
-#ifdef INPUT1_ENABLE
-bool in1;
-#endif
-#ifdef INPUT2_ENABLE
-bool in2;
-#endif
-#ifdef INPUT3_ENABLE
-bool in3;
-#endif
-#ifdef INPUT4_ENABLE
-bool in4;
-#endif
-#ifdef INPUT5_ENABLE
-bool in5;
-#endif
-#ifdef INPUT6_ENABLE
-bool in6;
-#endif
-#ifdef INPUT7_ENABLE
-bool in7;
-#endif
-#ifdef INPUT8_ENABLE
-bool in8;
+//D1=05, D2=04, D3=00, D4=02, D5=14, D6=12, D7=13, D8=15, reverse to binary order
+//pins             D=87654321
+
+#if defined(DS18B20_ENABLE) || defined(MH_Z19_UART_ENABLE) || defined(BME280_ENABLE) || defined(BMP180_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
+#define TEMPERATURE_SENSOR
 #endif
 
-#ifdef OUTPUT1_ENABLE
-int out1 = OUT_OFF;
+#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE) || defined(DHT_ENABLE)
+#define HUMIDITY_SENSOR
 #endif
-#ifdef OUTPUT2_ENABLE
-int out2 = OUT_OFF;
+
+#if defined(MH_Z19_UART_ENABLE) || defined(MH_Z19_PPM_ENABLE)
+#define CO2_SENSOR
 #endif
-#ifdef OUTPUT3_ENABLE
-int out3 = OUT_OFF;
+
+#if defined(BME280_ENABLE) || defined(BMP180_ENABLE)
+#define PRESSURE_SENSOR
 #endif
-#ifdef OUTPUT4_ENABLE
-int out4 = OUT_OFF;
+
+#if defined(TM1637DISPLAY_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
+#define DISPLAY_ENABLED
 #endif
-#ifdef OUTPUT5_ENABLE
-int out5 = OUT_OFF;
+
+struct smsMessage
+{
+	bool IsAdmin;
+	String PhoneNumber;
+	String Message;
+};
+#if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE)
+#define GSM_ENABLE
 #endif
-#ifdef OUTPUT6_ENABLE
-int out6 = OUT_OFF;
+
+#if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE) || defined(MH_Z19_UART_ENABLE)
+#define UART2_ENABLE
 #endif
-#ifdef OUTPUT7_ENABLE
-int out7 = OUT_OFF;
+
+#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE) || defined(BMP180_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
+#define I2C_ENABLE
 #endif
-#ifdef OUTPUT8_ENABLE
-int out8 = OUT_OFF;
+
+#if defined(DS18B20_ENABLE)
+#define ONEWIRE_ENABLE
+#endif
+
+#if defined(GSM_M590_ENABLE) && defined(GSM_SIM800_ENABLE)
+#error "Only one gms modem can use SoftUART"
+#endif
+
+#if defined(GSM_ENABLE) && defined(MH_Z19_UART_ENABLE)
+#error "Only one device can use SoftUART"
 #endif
