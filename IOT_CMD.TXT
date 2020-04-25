@@ -108,10 +108,6 @@ get_config
 	save_log
 
 Add:
-- check schedule last run time from EEPROM. set to 0 on add from command. Set to current time on run.
-
-- GSM_MODEM send_sms("phone","message")
 - GSM_MODEM status (connection state, network name)
 - get commands from SMS messages (security like in TELEGRAM).
-
 - TIMER service to run actions each n seconds to be started from event or command or schedule
