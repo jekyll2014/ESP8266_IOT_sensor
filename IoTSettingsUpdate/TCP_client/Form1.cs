@@ -20,13 +20,13 @@ namespace IoTSettingsUpdate
         private string _comName;
         private int _comSpeed;
         private int _replyTimeout = 10000;
-        private List<char> csvDivider = new List<char>() { '\x0d', '\x0a' };
+        private readonly List<char> stringsDivider = new List<char>() { '\x0d', '\x0a' };
 
         private string _unparsedData = "";
 
         //private int _maxLogLength = 4096;
 
-        private DataTable configData = new DataTable();
+        private readonly DataTable configData = new DataTable();
 
         private readonly string[] columnNames = { "Parameter", "Default Value", "New value", "Reply string" };
 
@@ -51,7 +51,7 @@ namespace IoTSettingsUpdate
         TextLogger _logger;
 
         private volatile List<string> _inputStrings = new List<string>();
-        private volatile uint _waitReply;
+        private volatile bool _waitReply;
         private volatile bool _sending;
 
         #region Data acquisition
@@ -72,11 +72,8 @@ namespace IoTSettingsUpdate
                 }
                 catch (Exception ex)
                 {
-                    Invoke((MethodInvoker)delegate
-                   {
-                       _logger.AddText("Connect error to: " + _ipAddress + ":" + _ipPort + ex + Environment.NewLine,
-                           DateTime.Now, (byte)DataDirection.Error);
-                   });
+                    _logger.AddText("Connect error to: " + _ipAddress + ":" + _ipPort + ex + Environment.NewLine,
+                        DateTime.Now, (byte)DataDirection.Error);
                     if (_clientSocket.Client.Connected)
                     {
                         _clientSocket.Client.Disconnect(false);
@@ -92,10 +89,7 @@ namespace IoTSettingsUpdate
                     return;
                 }
 
-                Invoke((MethodInvoker)delegate
-               {
-                   _logger.AddText("Device connected to: " + _ipAddress + ":" + _ipPort + Environment.NewLine, DateTime.Now, (byte)DataDirection.Note);
-               });
+                _logger.AddText("Device connected to: " + _ipAddress + ":" + _ipPort + Environment.NewLine, DateTime.Now, (byte)DataDirection.Note);
                 button_receive.Enabled = true;
                 timer1.Enabled = true;
             }
@@ -125,8 +119,7 @@ namespace IoTSettingsUpdate
                     return;
                 }
 
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("Port opened\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("Port opened\r\n", DateTime.Now, (byte)DataDirection.Note);
             }
             if (!serialPort1.IsOpen && !IsClientConnected())
             {
@@ -162,13 +155,11 @@ namespace IoTSettingsUpdate
                 }
                 catch (Exception ex)
                 {
-                    Invoke((MethodInvoker)delegate
-                    { _logger.AddText("Disconnect error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error); });
+                    _logger.AddText("Disconnect error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                     return;
                 }
 
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("Device disconnected ...\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("Device disconnected ...\r\n", DateTime.Now, (byte)DataDirection.Note);
             }
             else
             {
@@ -181,8 +172,7 @@ namespace IoTSettingsUpdate
                     MessageBox.Show("Error closing port " + serialPort1.PortName + ": " + ex.Message);
                 }
 
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("Port disconnected ...\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("Port disconnected ...\r\n", DateTime.Now, (byte)DataDirection.Note);
             }
             button_connect.Enabled = true;
             button_disconnect.Enabled = false;
@@ -211,7 +201,7 @@ namespace IoTSettingsUpdate
                 return;
             }
 
-            sendParameter(currentRow, currentCell);
+            SendParameter(currentRow, currentCell);
         }
 
         private void Button_sendAll_Click(object sender, EventArgs e)
@@ -251,11 +241,9 @@ namespace IoTSettingsUpdate
             for (var currentRow = 0; currentRow < configData.Rows.Count; currentRow++)
             {
                 if (!_sending) break;
-                sendParameter(currentRow, currentCell);
+                SendParameter(currentRow, currentCell);
             }
 
-            _waitReply = 0;
-            _inputStrings.Clear();
             _sending = false;
             button_send.Enabled = true;
             button_sendAll.Text = "Send all";
@@ -267,11 +255,14 @@ namespace IoTSettingsUpdate
             comboBox_portname1.Enabled = true;
         }
 
-        void sendParameter(int currentRow, int currentCell)
+        void SendParameter(int currentRow, int currentCell)
         {
+            _waitReply = false;
+            _inputStrings.Clear();
+
             var par = configData.Rows[currentRow].ItemArray[currentCell].ToString();
 
-            if (par == "")
+            if (string.IsNullOrEmpty(par))
                 par = " ";
             var tmpStr = configData.Rows[currentRow].ItemArray[(int)Columns.Parameter] + "=" + par;
 
@@ -280,7 +271,7 @@ namespace IoTSettingsUpdate
 
             var waitSample = configData.Rows[currentRow].ItemArray[(int)Columns.ReplyString].ToString();
 
-            if (string.IsNullOrEmpty(waitSample)) _waitReply++;
+            if (!string.IsNullOrEmpty(waitSample)) _waitReply = true;
             SendData(outStream.ToArray(), checkBox_addCrLf.Checked);
 
             if (string.IsNullOrEmpty(waitSample)) return;
@@ -295,6 +286,7 @@ namespace IoTSettingsUpdate
                 var row = currentRow;
                 dataGridView_config.Rows[row].Cells[currentCell].Style.BackColor = Color.Red;
             }
+            _waitReply = false;
         }
 
         private bool SendData(byte[] outStream, bool addEol)
@@ -314,15 +306,13 @@ namespace IoTSettingsUpdate
                     }
                     catch (Exception ex)
                     {
-                        Invoke((MethodInvoker)delegate
-                            { _logger.AddText("Write error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error); });
+                        _logger.AddText("Write error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                         return false;
                     }
                 }
                 else
                 {
-                    Invoke((MethodInvoker)delegate
-                        { _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                    _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note);
                     Button_disconnect_Click(this, EventArgs.Empty);
                     return false;
                 }
@@ -337,22 +327,19 @@ namespace IoTSettingsUpdate
                     }
                     catch (Exception ex)
                     {
-                        Invoke((MethodInvoker)delegate
-                            { _logger.AddText("Write error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error); });
+                        _logger.AddText("Write error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                         return false;
                     }
                 }
                 else
                 {
-                    Invoke((MethodInvoker)delegate
-                        { _logger.AddText("port closed\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                    _logger.AddText("port closed\r\n", DateTime.Now, (byte)DataDirection.Note);
                     Button_disconnect_Click(this, EventArgs.Empty);
                     return false;
                 }
             }
 
-            Invoke((MethodInvoker)delegate
-            { _logger.AddText(Encoding.ASCII.GetString(outData.ToArray()), DateTime.Now, (byte)DataDirection.Sent); });
+            _logger.AddText(Encoding.ASCII.GetString(outData.ToArray()), DateTime.Now, (byte)DataDirection.Sent);
 
             return true;
         }
@@ -372,8 +359,7 @@ namespace IoTSettingsUpdate
                     }
                     catch (Exception ex)
                     {
-                        Invoke((MethodInvoker)delegate
-                        { _logger.AddText("Read error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error); });
+                        _logger.AddText("Read error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                     }
                 }
 
@@ -381,8 +367,7 @@ namespace IoTSettingsUpdate
             }
             else
             {
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note);
                 Button_disconnect_Click(this, EventArgs.Empty);
             }
         }
@@ -402,8 +387,6 @@ namespace IoTSettingsUpdate
                     }
                     catch (Exception ex)
                     {
-                        Invoke((MethodInvoker)delegate
-                        { });
                         _logger.AddText("Read error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                     }
                 }
@@ -411,8 +394,7 @@ namespace IoTSettingsUpdate
             }
             else
             {
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note);
                 Button_disconnect_Click(this, EventArgs.Empty);
             }
         }
@@ -442,8 +424,7 @@ namespace IoTSettingsUpdate
                     }
                     catch (Exception ex)
                     {
-                        Invoke((MethodInvoker)delegate
-                        { _logger.AddText("Socket error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error); });
+                        _logger.AddText("Socket error: " + ex + Environment.NewLine, DateTime.Now, (byte)DataDirection.Error);
                         return false;
                     }
                 }
@@ -522,7 +503,7 @@ namespace IoTSettingsUpdate
 
         private void ProcessInput(byte[] data)
         {
-            if (data?.Length == 0)
+            if (data == null || data.Length == 0)
             {
                 return;
             }
@@ -531,24 +512,17 @@ namespace IoTSettingsUpdate
 
             foreach (var s in stringsCollection)
             {
-                if (_waitReply > 0)
+                if (_waitReply)
                 {
                     _inputStrings.Add(s);
                 }
-                else
-                {
-                    _inputStrings.Clear();
-                }
-                Invoke((MethodInvoker)delegate
-               {
-                   _logger.AddText(s + Environment.NewLine, DateTime.Now, (byte)DataDirection.Received);
-               });
+
+                _logger.AddText(s + Environment.NewLine, DateTime.Now, (byte)DataDirection.Received);
             }
         }
 
         private bool WaitForReply(string stringStart, int timeout)
         {
-            //_waitReply++;
             bool reply = false;
 
             string[] samples = stringStart.Split(';');
@@ -573,8 +547,6 @@ namespace IoTSettingsUpdate
                 }
                 if (reply) break;
             }
-
-            _waitReply--;
 
             return reply;
         }
@@ -637,8 +609,7 @@ namespace IoTSettingsUpdate
             }
             else if (!serialPort1.IsOpen)
             {
-                Invoke((MethodInvoker)delegate
-                { _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note); });
+                _logger.AddText("not connected\r\n", DateTime.Now, (byte)DataDirection.Note);
                 Button_disconnect_Click(this, EventArgs.Empty);
             }
         }
@@ -649,7 +620,7 @@ namespace IoTSettingsUpdate
             foreach (var t in data)
             {
                 var found = false;
-                foreach (char c in csvDivider)
+                foreach (char c in stringsDivider)
                 {
                     if ((char)t == c)
                     {
@@ -715,6 +686,8 @@ namespace IoTSettingsUpdate
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
+
             serialPort1.Encoding = Encoding.GetEncoding(IoTSettingsUpdate.Properties.Settings.Default.CodePage);
             _ipAddress = IoTSettingsUpdate.Properties.Settings.Default.DefaultAddress;
             _ipPort = IoTSettingsUpdate.Properties.Settings.Default.DefaultPort;
@@ -722,26 +695,26 @@ namespace IoTSettingsUpdate
             _comSpeed = IoTSettingsUpdate.Properties.Settings.Default.DefaultComSpeed;
             _replyTimeout = IoTSettingsUpdate.Properties.Settings.Default.ReplyTimeout;
             textBox_replyTimeout.Text = _replyTimeout.ToString();
-            csvDivider.AddRange(IoTSettingsUpdate.Properties.Settings.Default.StringsDivider);
+            stringsDivider.AddRange(IoTSettingsUpdate.Properties.Settings.Default.StringsDivider);
 
             SerialPopulate();
-            _logger = new TextLogger(textBox_dataLog)
+            _logger = new TextLogger(this)
             {
                 FilterZeroChar = true,
                 AutoSave = true,
-                AutoScroll = true,
+                AutoScroll = checkBox_autoScroll.Checked,
                 DefaultTextFormat = TextLogger.TextFormat.PlainText,
                 DefaultTimeFormat = TextLogger.TimeFormat.LongTime,
                 LogFileName = "loader.log"
             };
             _logger.Channels.AddRange(directions);
 
+            this.textBox_dataLog.DataBindings.Add("Text", this._logger, "Text", false, DataSourceUpdateMode.OnPropertyChanged);
+
             foreach (var col in columnNames)
             {
                 configData.Columns.Add(col);
             }
-
-
 
             configData.Columns[(int)Columns.Parameter].ReadOnly = true;
             configData.Columns[(int)Columns.DefaultValue].ReadOnly = true;
@@ -764,7 +737,10 @@ namespace IoTSettingsUpdate
             {
                 _clientSocket.Client.Disconnect(false);
                 _clientSocket.Close();
+                //_clientSocket.Dispose();
             }
+
+            _logger.Dispose();
 
             IoTSettingsUpdate.Properties.Settings.Default.DefaultAddress = _ipAddress;
             IoTSettingsUpdate.Properties.Settings.Default.DefaultPort = _ipPort;
@@ -816,13 +792,13 @@ namespace IoTSettingsUpdate
             {
                 comboBox_portname1.DropDownStyle = ComboBoxStyle.DropDown;
                 comboBox_portspeed1.Enabled = false;
-                checkBox_addCrLf.Checked = false;
+                //checkBox_addCrLf.Checked = false;
             }
             else
             {
                 comboBox_portname1.DropDownStyle = ComboBoxStyle.DropDownList;
                 comboBox_portspeed1.Enabled = true;
-                checkBox_addCrLf.Checked = true;
+                //checkBox_addCrLf.Checked = true;
             }
         }
 

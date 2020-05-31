@@ -14,8 +14,8 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15 }; //D1=05, D2=04,
 #define MQTT_ENABLE
 #define TELEGRAM_ENABLE
 #define PUSHINGBOX_ENABLE
-//#define SMTP_ENABLE
-//#define GSCRIPT_ENABLE
+#define SMTP_ENABLE
+#define GSCRIPT_ENABLE
 //#define LOG_ENABLE
 
 // **** SENSORS
@@ -38,7 +38,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15 }; //D1=05, D2=04,
 //#define TM1637_CLK								0 //D3
 //#define TM1637_DIO								2 //D4
 
-#define SSD1306DISPLAY_ENABLE
+//#define SSD1306DISPLAY_ENABLE
 
 #define GSM_M590_ENABLE
 //#define GSM_SIM800_ENABLE
@@ -53,7 +53,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15 }; //D1=05, D2=04,
 //Esp4
 //#define SIGNALS_PINOUT						0b00001001 //new Esp 4
 //#define PIN_WIRE_SCL							05 //D1 new
-//#define PIN_WIRE_SDA							02 //D4 new
+//#define PIN_WIRE_SDA							04 //D4 new
 //#define ONEWIRE_DATA							00 //D3
 
 //Esp+4digit display
@@ -84,7 +84,18 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15 }; //D1=05, D2=04,
 //#define PIN_WIRE_SDA							02 //D4 new
 //#define ONEWIRE_DATA							00 //D3
 
-//new pinout
+//pinout v2
+//Pin - Pin - Function
+// 05 -  D1 -   + IN/OUT1
+// 04 - ~D2 -   + IN/OUT2
+// 00 -  D3 -   - keep HIGH to boot FLASH, LOW to boot UART, 1-Wire, TM1637_CLK
+// 02 -  D4 -   + keep HIGH on boot, I2C_SDA, Serial1_TX, TM1637_DIO
+// 14 - ~D5 -   + I2C_SCL
+// 12 - ~D6 -   + SoftUART_TX
+// 13 -  D7 -   + SoftUART_RX
+// 15 - ~D8 -   - keep LOW on boot, OUT8
+
+//pinout v1
 //Pin - Pin - Function
 // 05 -  D1 -   + I2C_SCL
 // 04 - ~D2 -   + IN/OUT2
@@ -95,7 +106,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15 }; //D1=05, D2=04,
 // 13 -  D7 -   + SoftUART_RX
 // 15 - ~D8 -   - keep LOW on boot, OUT8
 
-//old pinout
+//pinout v0
 //Pin - Pin - Function
 // 05 -  D1 - I2C_SCL
 // 04 - ~D2 - I2C_SDA

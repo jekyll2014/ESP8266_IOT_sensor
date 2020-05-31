@@ -1,17 +1,29 @@
 help
+help_event
+help_schedule
+help_action
+
 get_sensor
 get_status
 get_config
-[ADMIN] set_time=yyyy.mm.dd hh:mm:ss
-[ADMIN] autoreport=0/1
-[ADMIN] set_output?=0/1
 
+[ADMIN]        set_time=yyyy.mm.dd hh:mm:ss
+
+[ADMIN][FLASH] set_pin_mode?=OFF/INPUT/INPUT_PULLUP/OUTPUT
+[ADMIN][FLASH] set_init_output?=on/off/0..1023
 [ADMIN][FLASH] set_interrupt_mode?=FALLING/RISING/CHANGE
-[ADMIN][FLASH] set_init_output?=on/off/x
+[ADMIN]        set_output?=on/off/0..1023
 
-[ADMIN] getLog = uart/telnet/email/telegram
+[ADMIN][FLASH] autoreport=n (bit[0..7] = UART, TELNET, MQTT, TELEGRAM, GSCRIPT, PUSHINGBOX, SMTP, GSM)
+
+[ADMIN][FLASH] display_refresh=n
 
 [ADMIN][FLASH] check_period=n
+
+[ADMIN][FLASH] autoreport=n [bit0-7: UART, TELNET, MQTT, TELEGRAM, GSCRIPT, PUSHINGBOX, SMTP, GSM]
+
+[ADMIN][FLASH] log_period=n
+[ADMIN]        getLog (not implemented)
 
 [ADMIN][FLASH] device_name=****
 
@@ -19,21 +31,25 @@ get_config
 [ADMIN][FLASH] sta_pass=****
 [ADMIN][FLASH] ap_ssid=****
 [ADMIN][FLASH] ap_pass=****
-[ADMIN][FLASH] wifi_mode=0/1/2/3
-[ADMIN] wifi_enable=1/0
+[ADMIN][FLASH] wifi_standart=B/G/N
+[ADMIN][FLASH] wifi_power=[0..20,5]
+[ADMIN][FLASH] wifi_mode=auto/station/apstation/ap/off
+[ADMIN][FLASH] wifi_connect_time=n
+[ADMIN][FLASH] wifi_reconnect_period=n
+[ADMIN]        wifi_enable=on/off
 
 [ADMIN][FLASH] telnet_port=n
-[ADMIN][FLASH] telnet_enable=1/0
+[ADMIN][FLASH] telnet_enable=on/off
 
 [ADMIN][FLASH] http_port=n
-[ADMIN][FLASH] http_enable=1/0
+[ADMIN][FLASH] http_enable=on/off
 
 [ADMIN][FLASH] smtp_server=****
 [ADMIN][FLASH] smtp_port=n
 [ADMIN][FLASH] smtp_login=****
 [ADMIN][FLASH] smtp_pass=****
 [ADMIN][FLASH] smtp_to=****@***.***
-[ADMIN][FLASH] smtp_enable=1/0
+[ADMIN][FLASH] smtp_enable=on/off
 
 [ADMIN][FLASH] mqtt_server=****
 [ADMIN][FLASH] mqtt_port=n
@@ -42,40 +58,42 @@ get_config
 [ADMIN][FLASH] mqtt_id=****
 [ADMIN][FLASH] mqtt_topic_in=****
 [ADMIN][FLASH] mqtt_topic_out=****
-[ADMIN][FLASH] mqtt_clean=0/1
-[ADMIN][FLASH] mqtt_enable=1/0
+[ADMIN][FLASH] mqtt_clean=on/off
+[ADMIN][FLASH] mqtt_enable=on/off
 
 [ADMIN][FLASH] gsm_user?=n
-[ADMIN][FLASH] gsm_enable=1/0 (on/off)
+[ADMIN][FLASH] gsm_enable=on/off
+[ADMIN]        send_sms=[*, user#],message
 
 [ADMIN][FLASH] telegram_token=****
 [ADMIN][FLASH] telegram_user?=n
-[ADMIN][FLASH] telegram_enable=1/0
+[ADMIN][FLASH] telegram_enable=on/off
 
 [ADMIN][FLASH] gscript_token=****
-[ADMIN][FLASH] gscript_enable=1/0
+[ADMIN][FLASH] gscript_enable=on/off
 
 [ADMIN][FLASH] pushingbox_token=****
 [ADMIN][FLASH] pushingbox_parameter=****
-[ADMIN][FLASH] pushingbox_enable=1/0
+[ADMIN][FLASH] pushingbox_enable=on/off
 
-[ADMIN][FLASH] ntp_server=***.***.***.***
+[ADMIN][FLASH] ntp_server=****
 [ADMIN][FLASH] ntp_time_zone=n
 [ADMIN][FLASH] ntp_refresh_delay=n
-[ADMIN][FLASH] ntp_enable=1/0
+[ADMIN][FLASH] ntp_enable=on/off
 
 [ADMIN][FLASH] set_event?=condition:action1;action2
-[ADMIN][FLASH] events_enable=1/0
+[ADMIN][FLASH] events_enable=on/off
+[ADMIN]        set_event_flag?=on/off
 
 [ADMIN][FLASH] set_schedule?=time:action1;action2
-[ADMIN][FLASH] scheduler_enable=1/0
+[ADMIN][FLASH] scheduler_enable=on/off
+[ADMIN]        clear_schedule_exec_time?
 
-[ADMIN][FLASH] display_refresh=n
-
-[ADMIN][FLASH] sleep_enable=1/0
+[ADMIN][FLASH] sleep_enable=on/off
+[ADMIN][FLASH] sleep_on=n
+[ADMIN][FLASH] sleep_off=n
 
 [ADMIN] reset
-
 
 - EVENT conditions:
 	input?=[on, off, c]
@@ -94,17 +112,25 @@ get_config
 
 - ACTIONS:
 	command=[any command]
+
 	set_output?=[on, off, 0..1023]
+
+	set_counter?=x
 	reset_counter?
-	set_event_flag?=0/1
+
+	set_event_flag?=on/off
 	reset_flag?
 	set_flag?
+
+	clear_schedule_exec_time?
+
 	send_telegram=[*, user#],message
 	send_PushingBox=message
 	send_mail=address,message
 	send_GScript=message
 	send_mqtt=message
 	send_sms=[*, user#],message
+
 	save_log
 
 Add:

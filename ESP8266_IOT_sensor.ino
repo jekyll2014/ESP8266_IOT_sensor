@@ -34,16 +34,16 @@ Planned features:
  - SCHEDULE service - restore flags at the start of the day or set the appropriate time region to activate schedule event.
  - GoogleScript service - memory allocation problem
  - DEBUG mode verbose serial output
-  - option to use UART for GPRS/sensors
+	- option to use UART for GPRS/sensors
  - SMS message paging
  - improve SMS management
  */
 
-/*
-Sensors to be supported:
- - BMP280
- - ACS712 (A0)
-*/
+ /*
+ Sensors to be supported:
+	- BMP280
+	- ACS712 (A0)
+ */
 
 #include <ESP8266WiFi.h>
 #include <SPI.h>
@@ -103,9 +103,35 @@ void ICACHE_RAM_ATTR int6count();
 void ICACHE_RAM_ATTR int7count();
 void ICACHE_RAM_ATTR int8count();
 
-String set_output(String& outputSetter);
-String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJson);
-bool add_signal_pin(uint8_t pin);
+String set_output(String&);
+String ParseSensorReport(sensorDataCollection&, String, bool);
+bool add_signal_pin(uint8_t);
+String readConfigString(uint16_t, uint16_t);
+void readConfigString(uint16_t, uint16_t, char*);
+uint32_t readConfigLong(uint16_t);
+float readConfigFloat(uint16_t);
+void processEvent(uint8_t);
+void ProcessAction(String&, uint8_t, bool);
+String getSchedule(uint8_t);
+sensorDataCollection collectData();
+float getTemperature(sensorDataCollection&);
+void writeConfigLong(uint16_t, uint32_t);
+void mqtt_callback(char*, uint8_t*, uint16_t);
+uint64_t getTelegramUser(uint8_t);
+String sendATCommand(String, bool);
+String processCommand(String, uint8_t, bool);
+String waitResponse();
+uint32_t CollectEepromSize();
+void startWiFi();
+void Start_OFF_Mode();
+void Start_AP_Mode();
+void Start_STA_Mode();
+void Start_AP_STA_Mode();
+void sendToTelnet(String&, uint8_t);
+String timeToString(uint32_t);
+String printStatus(bool);
+String getStaSsid();
+String printHelpAction();
 
 // DATA BUSES
 
@@ -952,7 +978,7 @@ void sendBufferToTelegram()
 			//process data from TELEGRAM
 			if (isRegisteredUser && msg.text.length() > 0)
 			{
-				sendToTelegram(msg.sender.id, deviceName + ": " + msg.text, telegramRetries);
+				//sendToTelegram(msg.sender.id, deviceName + ": " + msg.text, telegramRetries);
 				String str = processCommand(msg.text, CHANNEL_TELEGRAM, isAdmin);
 				sendToTelegram(msg.sender.id, deviceName + ": " + str, telegramRetries);
 			}
@@ -1967,9 +1993,9 @@ void loop()
 			if (telnetServer.hasClient())
 			{
 				uint8_t i;
+				//find free/disconnected spot
 				for (i = 0; i < MAX_SRV_CLIENTS; i++)
 				{
-					//find free/disconnected spot
 					if (!serverClient[i] || !serverClient[i].connected())
 					{
 						if (serverClient[i])
@@ -1990,66 +2016,66 @@ void loop()
 				}
 			}
 
-			String telnetCommand[MAX_SRV_CLIENTS];
-
-			//check network clients for data
+			//check network clients for incoming data and process commands
 			for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
 			{
 				if (serverClient[i] && serverClient[i].connected())
 				{
 					if (serverClient[i].available())
 					{
+						String telnetCommand;
+						telnetCommand.reserve(255);
 						//get data from the telnet client
 						while (serverClient[i].available())
 						{
-							telnetCommand[i] = serverClient[i].readString();
+							char c = serverClient[i].read();
+							if (c == '\r' || c == '\n')
+							{
+								if (telnetCommand.length() > 0)
+								{
+									String str = processCommand(telnetCommand, CHANNEL_TELNET, true);
+									telnetCommand = "";
+									yield();
+									sendToTelnet(str, i);
+								}
+							}
+							else telnetCommand += (char)c;
 							yield();
 						}
 					}
 				}
-				yield();
-			}
-
-			//Process data from network
-			for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
-			{
-				if (telnetCommand[i].length() > 0)
-				{
-					String str = processCommand(telnetCommand[i], CHANNEL_TELNET, true);
-					sendToTelnet(str, i);
-					telnetCommand[i] = "";
-				}
-				yield();
 			}
 		}
+		yield();
+	}
 
-		if (WiFi.status() == WL_CONNECTED)
-		{
+	if (WiFi.status() == WL_CONNECTED)
+	{
 #ifdef MQTT_ENABLE
-			if (mqttEnable)
+		if (mqttEnable)
+		{
+			if (!mqtt_client.connected()) mqtt_connect();
+			else mqtt_client.loop();
+			if (mqttCommand.length() > 0)
 			{
-				if (!mqtt_client.connected()) mqtt_connect();
-				else mqtt_client.loop();
-				if (mqttCommand.length() > 0)
-				{
-					String str = processCommand(mqttCommand, CHANNEL_MQTT, true);
-					mqtt_send((char*)str.c_str(), str.length());
-					mqttCommand = "";
-				}
-				yield();
+				String str = processCommand(mqttCommand, CHANNEL_MQTT, true);
+				mqtt_send((char*)str.c_str(), str.length());
+				mqttCommand = "";
 			}
+			yield();
+		}
 #endif
 
 #ifdef TELEGRAM_ENABLE
-			//check TELEGRAM for data
-			if (telegramEnable && millis() - telegramLastTime > telegramMessageDelay)
-			{
-				sendBufferToTelegram();
-				telegramLastTime = millis();
-			}
-#endif
+		//check TELEGRAM for data
+		if (telegramEnable && millis() - telegramLastTime > telegramMessageDelay)
+		{
+			sendBufferToTelegram();
+			telegramLastTime = millis();
 		}
+#endif
 	}
+
 	yield();
 #ifdef GSM_ENABLE
 	if (gsmEnable && millis() > gsmTimeOut)
@@ -3221,97 +3247,116 @@ String printHelp()
 		"get_sensor\r\n"
 		"get_status\r\n"
 		"get_config\r\n"
-		"[ADMIN] set_time=yyyy.mm.dd hh:mm:ss\r\n"
+
+		"[ADMIN]        set_time=yyyy.mm.dd hh:mm:ss\r\n"
 
 		"[ADMIN][FLASH] set_pin_mode?=OFF/INPUT/OUTPUT/INPUT_PULLUP\r\n"
-		"[ADMIN][FLASH] set_init_output?=n (0..1023, on/off)\r\n"
+		"[ADMIN][FLASH] set_init_output?=[on/off, 0..1023]\r\n"
 		"[ADMIN][FLASH] set_interrupt_mode?=OFF/FALLING/RISING/CHANGE\r\n"
-		"[ADMIN] set_output?=n (0..1023, on/off)\r\n"
+		"[ADMIN]        set_output?=[on/off, 0..1023]\r\n"
 
-		"[ADMIN][FLASH] autoreport=n (bit[0..7] = UART, TELNET, MQTT, TELEGRAM, GSCRIPT, PUSHINGBOX, SMTP, GSM)\r\n"
+		"[ADMIN][FLASH] autoreport=n (bit[0..7]=UART,TELNET,MQTT,TELEGRAM,GSCRIPT,PUSHINGBOX,SMTP,GSM)\r\n"
+
 #ifdef SSD1306DISPLAY_ENABLE
 		"[ADMIN][FLASH] display_refresh=n (sec.)\r\n"
 #endif
+
 		"[ADMIN][FLASH] check_period=n (sec.)\r\n"
-#ifdef LOG_ENABLE
-		"[ADMIN] getLog = uart/telnet/smtp/telegram\r\n"
-		"[ADMIN][FLASH] log_period=n (sec.)\r\n"
-#endif
+
 		"[ADMIN][FLASH] device_name=****\r\n"
 
 		"[ADMIN][FLASH] sta_ssid=****\r\n"
 		"[ADMIN][FLASH] sta_pass=****\r\n"
-		"[ADMIN][FLASH] ap_ssid=**** (leave empty for device_name+mac)\r\n"
+		"[ADMIN][FLASH] ap_ssid=**** (empty for device_name+mac)\r\n"
 		"[ADMIN][FLASH] ap_pass=****\r\n"
 		"[ADMIN][FLASH] wifi_standart=B/G/N\r\n"
 		"[ADMIN][FLASH] wifi_power=n (0..20.5)\r\n"
 		"[ADMIN][FLASH] wifi_mode=AUTO/STATION/APSTATION/AP/OFF\r\n"
 		"[ADMIN][FLASH] wifi_connect_time=n (sec.)\r\n"
 		"[ADMIN][FLASH] wifi_reconnect_period=n (sec.)\r\n"
-		"[ADMIN] wifi_enable=1/0 (on/off)\r\n"
+		"[ADMIN]        wifi_enable=on/off\r\n"
+
+#ifdef LOG_ENABLE		
+		"[ADMIN][FLASH] log_period=n (sec.)\r\n"
+#endif
+
 #ifdef SLEEP_ENABLE
 		"[ADMIN][FLASH] sleep_on=n (sec.)\r\n"
 		"[ADMIN][FLASH] sleep_off=n (sec.)\r\n"
-		"[ADMIN][FLASH] sleep_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] sleep_enable=on/off\r\n"
 #endif
+
 		"[ADMIN][FLASH] telnet_port=n\r\n"
-		"[ADMIN][FLASH] telnet_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] telnet_enable=on/off\r\n"
+
 #ifdef HTTP_SERVER_ENABLE
 		"[ADMIN][FLASH] http_port=n\r\n"
-		"[ADMIN][FLASH] http_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] http_enable=on/off\r\n"
 #endif
+
 #ifdef NTP_TIME_ENABLE
 		"[ADMIN][FLASH] ntp_server=****\r\n"
 		"[ADMIN][FLASH] ntp_time_zone=n\r\n"
 		"[ADMIN][FLASH] ntp_refresh_delay=n (sec.)\r\n"
-		"[ADMIN][FLASH] ntp_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] ntp_enable=on/off\r\n"
 #endif
+
 #ifdef MQTT_ENABLE
 		"[ADMIN][FLASH] mqtt_server=****\r\n"
 		"[ADMIN][FLASH] mqtt_port=n\r\n"
 		"[ADMIN][FLASH] mqtt_login=****\r\n"
 		"[ADMIN][FLASH] mqtt_pass=****\r\n"
-		"[ADMIN][FLASH] mqtt_id=**** (leave empty for device_name+mac)\r\n"
+		"[ADMIN][FLASH] mqtt_id=**** (empty for device_name+mac)\r\n"
 		"[ADMIN][FLASH] mqtt_topic_in=****\r\n"
 		"[ADMIN][FLASH] mqtt_topic_out=****\r\n"
-		"[ADMIN][FLASH] mqtt_clean=1/0 (on/off)\r\n"
-		"[ADMIN][FLASH] mqtt_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] mqtt_clean=on/off\r\n"
+		"[ADMIN][FLASH] mqtt_enable=on/off\r\n"
 #endif
+
 #ifdef GSM_ENABLE
 		"[ADMIN][FLASH] gsm_user?=n\r\n"
-		"[ADMIN][FLASH] gsm_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] gsm_enable=on/off\r\n"
 #endif
+
 #ifdef TELEGRAM_ENABLE
 		"[ADMIN][FLASH] telegram_token=****\r\n"
 		"[ADMIN][FLASH] telegram_user?=n\r\n"
-		"[ADMIN][FLASH] telegram_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] telegram_enable=on/off\r\n"
 #endif
+
 #ifdef SMTP_ENABLE
 		"[ADMIN][FLASH] smtp_server=****\r\n"
 		"[ADMIN][FLASH] smtp_port=n\r\n"
 		"[ADMIN][FLASH] smtp_login=****\r\n"
 		"[ADMIN][FLASH] smtp_pass=****\r\n"
 		"[ADMIN][FLASH] smtp_to=****@***.***\r\n"
-		"[ADMIN][FLASH] smtp_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] smtp_enable=on/off\r\n"
 #endif
+
 #ifdef GSCRIPT_ENABLE
 		"[ADMIN][FLASH] gscript_token=****\r\n"
-		"[ADMIN][FLASH] gscript_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] gscript_enable=on/off\r\n"
 #endif
+
 #ifdef PUSHINGBOX_ENABLE
 		"[ADMIN][FLASH] pushingbox_token=****\r\n"
 		"[ADMIN][FLASH] pushingbox_parameter=****\r\n"
-		"[ADMIN][FLASH] pushingbox_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] pushingbox_enable=on/off\r\n"
 #endif
+
 #ifdef EVENTS_ENABLE
 		"[ADMIN][FLASH] set_event?=condition:action1;action2;...\r\n"
-		"[ADMIN][FLASH] events_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] events_enable=on/off\r\n"
+		"[ADMIN]        set_event_flag?=on/off\r\n"
 #endif
+
 #ifdef SCHEDULER_ENABLE
 		"[ADMIN][FLASH] set_schedule?=period@time:action1;action2;...\r\n"
-		"[ADMIN][FLASH] scheduler_enable=1/0 (on/off)\r\n"
+		"[ADMIN][FLASH] scheduler_enable=on/off\r\n"
+		"[ADMIN]        clear_schedule_exec_time?\r\n"
 #endif
-		"[ADMIN] reset");
+
+		"[ADMIN]        reset");
 }
 
 String timeToString(uint32_t time)
@@ -3678,7 +3723,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 		str += printHelpAction();
 	}
 #endif
-	//command_getLog=uart/telnet/smtp/telegram
+
 	else if (isAdmin)
 	{
 		if (tmp.startsWith(F("set_time=")) && command.length() == 28)
@@ -3723,6 +3768,46 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			str += String(uint16_t(logPeriod / 1000UL));
 			str += quote;
 			writeConfigString(LOG_PERIOD_addr, LOG_PERIOD_size, String(uint16_t(logPeriod / 1000UL)));
+		}
+		//getLog - to be implemented
+		else if (tmp == F("getlog="))
+		{
+			for (int i = 0; i < LOG_SIZE; i++)
+			{
+				if (history_log[i].year > 0)
+				{
+					str += ParseSensorReport(history_log[i], eol, true);
+					switch (channel)
+					{
+					case CHANNEL_UART:
+						Serial.println(str);
+						break;
+					case CHANNEL_TELNET:
+
+						break;
+					case CHANNEL_MQTT:
+
+						break;
+					case CHANNEL_TELEGRAM:
+
+						break;
+					case CHANNEL_GSCRIPT:
+
+						break;
+					case CHANNEL_PUSHINGBOX:
+
+						break;
+					case CHANNEL_EMAIL:
+
+						break;
+					case CHANNEL_GSM:
+
+						break;
+					default:
+						break;
+					};
+				}
+			}
 		}
 #endif
 		else if (tmp.startsWith(F("device_name=")) && command.length() > 12)
@@ -3883,6 +3968,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				str += stateStr;
 			}
 		}
+
 		else if (tmp.startsWith(F("telnet_port=")) && command.length() > 12)
 		{
 			uint16_t telnetPort = command.substring(command.indexOf('=') + 1).toInt();
@@ -4138,6 +4224,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef MQTT_ENABLE
+		//send_mqtt - to be implemented
+
 		else if (tmp.startsWith(F("mqtt_server=")) && command.length() > 12)
 		{
 			String tmpSrv = (command.substring(command.indexOf('=') + 1));
@@ -4262,6 +4350,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef SMTP_ENABLE
+		//send_mail - to be implemented
+
 		else if (tmp.startsWith(F("smtp_server=")) && command.length() > 12)
 		{
 			String smtpServerAddress = command.substring(command.indexOf('=') + 1);
@@ -4329,8 +4419,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 		}
 #endif
 
-#ifdef GSM_ENABLE
-
+#ifdef GSM_ENABLE		
 		else if (tmp.startsWith(F("send_sms=")))
 		{
 			uint8_t i = 0;
@@ -4418,6 +4507,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef TELEGRAM_ENABLE
+		//send_telegram - to be implemented
+
 		else if (tmp.startsWith(F("telegram_user")) && command.length() > 10)
 		{
 			int t = command.indexOf('=');
@@ -4481,6 +4572,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef GSCRIPT_ENABLE
+		//send_gscript - to be implemented
+
 		else if (tmp.startsWith(F("gscript_token=")) && command.length() > 14)
 		{
 			String gScriptId = command.substring(command.indexOf('=') + 1);
@@ -4514,6 +4607,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef PUSHINGBOX_ENABLE
+		//send_pushingbox - to be implemented
+
 		else if (tmp.startsWith(F("pushingbox_token=")) && command.length() > 17)
 		{
 			String pushingBoxId = command.substring(command.indexOf('=') + 1);
@@ -4610,7 +4705,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 		}
 #endif
 
-#ifdef EVENTS_ENABLE
+#ifdef EVENTS_ENABLE		
 		else if (tmp.startsWith(F("set_event")) && command.length() > 11)
 		{
 			int t = command.indexOf('=');
@@ -4657,6 +4752,29 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				str = F("Incorrect value: ");
 				str += stateStr;
+			}
+		}
+		else if (tmp.startsWith(F("set_event_flag")) && command.length() > 16)
+		{
+			int t = tmp.indexOf('=');
+			if (t >= 15 && t < tmp.length() - 1)
+			{
+				uint8_t eventNum = tmp.substring(14, t).toInt();
+				if (eventNum >= 0 && eventNum < eventsNumber)
+				{
+					String stateStr = tmp.substring(t + 1);
+					stateStr.trim();
+					if (stateStr == SWITCH_OFF_NUMBER || stateStr == SWITCH_OFF)
+					{
+						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
+						eventsFlags[eventNum] = false;
+					}
+					else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
+					{
+						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
+						eventsFlags[eventNum] = true;
+					}
+				}
 			}
 		}
 #endif
@@ -4711,6 +4829,14 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				str += stateStr;
 			}
 		}
+		else if (tmp.startsWith(F("clear_schedule_exec_time")) && command.length() > 24)
+		{
+			uint8_t scheduleNum = tmp.substring(24).toInt();
+			if (scheduleNum >= 0 && scheduleNum < schedulesNumber)
+			{
+				writeScheduleExecTime(scheduleNum, 0);
+			}
+		}
 #endif
 
 #ifdef DISPLAY_ENABLED
@@ -4740,15 +4866,18 @@ String printHelpAction()
 	return F("Actions:\r\n"
 		"command=[any command]\r\n"
 		"set_output?=[on, off, 0..1023]\r\n"
+		"set_counter ? = x\r\n"
 		"reset_counter?\r\n"
 		"set_event_flag?=0/1\r\n"
 		"reset_flag?\r\n"
 		"set_flag?\r\n"
+		"clear_schedule_exec_time?\r\n"
 		"send_telegram=[*, user#],message\r\n"
 		"send_pushingbox=message\r\n"
 		"send_mail=address,message\r\n"
 		"send_gscript=message\r\n"
 		"send_mqtt=topic,message\r\n"
+		"send_sms=[*, user#],message\r\n"
 		"save_log\r\n");
 }
 
@@ -4790,6 +4919,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		{
 			set_output(tmpAction);
 		}
+
+		// deprecated
 		//reset_counter?
 		else if (tmpAction.startsWith(F("reset_counter")) && tmpAction.length() > 13)
 		{
@@ -4799,8 +4930,25 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				InterruptCounter[counterNum - 1] = 0;
 			}
 		}
-		//reset_flag?
+
+		//set_counter?=x
+		else if (tmpAction.startsWith(F("set_counter")) && tmpAction.length() > 12)
+		{
+			int t = tmpAction.indexOf('=');
+			if (t >= 11 && t < tmpAction.length() - 1)
+			{
+				uint8_t counterNum = tmpAction.substring(10, t).toInt();
+				if (counterNum >= 0 && counterNum < PIN_NUMBER)
+				{
+					String stateStr = tmpAction.substring(t + 1);
+					stateStr.trim();
+					InterruptCounter[counterNum - 1] = stateStr.toInt();
+				}
+			}
+		}
+
 #ifdef EVENTS_ENABLE
+		//reset_flag?
 		else if (tmpAction.startsWith(F("reset_flag")) && tmpAction.length() > 10)
 		{
 			uint8_t eventNum = tmpAction.substring(10).toInt();
@@ -4842,9 +4990,21 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				}
 			}
 		}
+
 #endif
-		//send_sms=* / user#,message
+#ifdef SCHEDULER_ENABLE
+		//clear_schedule_exec_time?
+		else if (tmpAction.startsWith(F("clear_schedule_exec_time")) && tmpAction.length() > 24)
+		{
+			uint8_t scheduleNum = tmpAction.substring(24).toInt();
+			if (scheduleNum >= 0 && scheduleNum < schedulesNumber)
+			{
+				writeScheduleExecTime(scheduleNum, 0);
+			}
+		}
+#endif
 #ifdef GSM_ENABLE
+		//send_sms=* / user#,message
 		else if (gsmEnable && tmpAction.startsWith(F("send_sms=")))
 		{
 			uint8_t i = 0;
@@ -4884,8 +5044,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			}
 		}
 #endif
-		//send_telegram=* / user#,message
 #ifdef TELEGRAM_ENABLE
+		//send_telegram=* / user#,message
 		else if (telegramEnable && tmpAction.startsWith(F("send_telegram=")))
 		{
 			uint8_t i = 0;
@@ -4925,8 +5085,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			}
 		}
 #endif
-		//send_PushingBox=message
 #ifdef PUSHINGBOX_ENABLE
+		//send_PushingBox=message
 		else if (pushingBoxEnable && tmpAction.startsWith(F("send_pushingbox")))
 		{
 			tmpAction = tmpAction.substring(tmpAction.indexOf('=') + 1);
@@ -4945,8 +5105,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			}
 		}
 #endif
-		//send_mail=address_to,message
 #ifdef SMTP_ENABLE
+		//send_mail=address_to,message
 		else if (smtpEnable && tmpAction.startsWith(F("send_mail")))
 		{
 			String address = tmpAction.substring(10, tmpAction.indexOf(','));
@@ -4965,8 +5125,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			}
 		}
 #endif
-		//send_GScript=message
 #ifdef GSCRIPT_ENABLE
+		//send_GScript=message
 		else if (gScriptEnable && tmpAction.startsWith(F("send_gscript")))
 		{
 			tmpAction = tmpAction.substring(tmpAction.indexOf('=') + 1);
@@ -4985,8 +5145,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			}
 		}
 #endif
-		//send_MQTT=message
 #ifdef MQTT_ENABLE
+		//send_MQTT=message
 		if (mqttEnable && tmpAction.startsWith(F("send_mqtt")))
 		{
 			tmpAction = tmpAction.substring(tmpAction.indexOf('=') + 1);
