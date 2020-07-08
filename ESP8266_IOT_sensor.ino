@@ -34,7 +34,7 @@ Planned features:
  - SCHEDULE service - restore flags at the start of the day or set the appropriate time region to activate schedule event.
  - GoogleScript service - memory allocation problem
  - DEBUG mode verbose serial output
-	- option to use UART for GPRS/sensors
+ - option to use UART for GPRS/sensors
  - SMS message paging
  - improve SMS management
  */

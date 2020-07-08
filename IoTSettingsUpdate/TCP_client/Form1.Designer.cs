@@ -61,6 +61,7 @@
             this.button_setTime = new System.Windows.Forms.Button();
             this.button_getSensor = new System.Windows.Forms.Button();
             this.button_getStatus = new System.Windows.Forms.Button();
+            this.button_scanIp = new System.Windows.Forms.Button();
             this.contextMenuStrip_item.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView_config)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -77,7 +78,7 @@
             this.textBox_dataLog.Name = "textBox_dataLog";
             this.textBox_dataLog.ReadOnly = true;
             this.textBox_dataLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.textBox_dataLog.Size = new System.Drawing.Size(470, 328);
+            this.textBox_dataLog.Size = new System.Drawing.Size(383, 328);
             this.textBox_dataLog.TabIndex = 9;
             // 
             // button_send
@@ -117,7 +118,7 @@
             // 
             this.button_receive.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.button_receive.Enabled = false;
-            this.button_receive.Location = new System.Drawing.Point(750, 399);
+            this.button_receive.Location = new System.Drawing.Point(576, 399);
             this.button_receive.Name = "button_receive";
             this.button_receive.Size = new System.Drawing.Size(75, 23);
             this.button_receive.TabIndex = 7;
@@ -129,7 +130,7 @@
             // 
             this.checkBox_hex.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.checkBox_hex.AutoSize = true;
-            this.checkBox_hex.Location = new System.Drawing.Point(909, 403);
+            this.checkBox_hex.Location = new System.Drawing.Point(735, 403);
             this.checkBox_hex.Name = "checkBox_hex";
             this.checkBox_hex.Size = new System.Drawing.Size(43, 17);
             this.checkBox_hex.TabIndex = 4;
@@ -161,7 +162,7 @@
             this.checkBox_autoScroll.AutoSize = true;
             this.checkBox_autoScroll.Checked = true;
             this.checkBox_autoScroll.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox_autoScroll.Location = new System.Drawing.Point(831, 403);
+            this.checkBox_autoScroll.Location = new System.Drawing.Point(657, 403);
             this.checkBox_autoScroll.Name = "checkBox_autoScroll";
             this.checkBox_autoScroll.Size = new System.Drawing.Size(72, 17);
             this.checkBox_autoScroll.TabIndex = 8;
@@ -225,7 +226,7 @@
             this.checkBox_addCrLf.AutoSize = true;
             this.checkBox_addCrLf.Checked = true;
             this.checkBox_addCrLf.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox_addCrLf.Location = new System.Drawing.Point(663, 403);
+            this.checkBox_addCrLf.Location = new System.Drawing.Point(489, 403);
             this.checkBox_addCrLf.Name = "checkBox_addCrLf";
             this.checkBox_addCrLf.Size = new System.Drawing.Size(81, 17);
             this.checkBox_addCrLf.TabIndex = 8;
@@ -249,7 +250,7 @@
             this.dataGridView_config.Name = "dataGridView_config";
             this.dataGridView_config.RowHeadersWidthSizeMode = System.Windows.Forms.DataGridViewRowHeadersWidthSizeMode.AutoSizeToAllHeaders;
             this.dataGridView_config.RowTemplate.Resizable = System.Windows.Forms.DataGridViewTriState.False;
-            this.dataGridView_config.Size = new System.Drawing.Size(466, 328);
+            this.dataGridView_config.Size = new System.Drawing.Size(379, 328);
             this.dataGridView_config.TabIndex = 15;
             this.dataGridView_config.CellValueChanged += new System.Windows.Forms.DataGridViewCellEventHandler(this.DataGridView_config_CellValueChanged);
             this.dataGridView_config.KeyDown += new System.Windows.Forms.KeyEventHandler(this.DataGridView_config_KeyDown);
@@ -269,14 +270,14 @@
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.textBox_dataLog);
-            this.splitContainer1.Size = new System.Drawing.Size(940, 328);
-            this.splitContainer1.SplitterDistance = 466;
+            this.splitContainer1.Size = new System.Drawing.Size(766, 328);
+            this.splitContainer1.SplitterDistance = 379;
             this.splitContainer1.TabIndex = 16;
             // 
             // button_clear
             // 
             this.button_clear.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.button_clear.Location = new System.Drawing.Point(877, 10);
+            this.button_clear.Location = new System.Drawing.Point(703, 10);
             this.button_clear.Name = "button_clear";
             this.button_clear.Size = new System.Drawing.Size(75, 23);
             this.button_clear.TabIndex = 17;
@@ -287,7 +288,7 @@
             // button_save
             // 
             this.button_save.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.button_save.Location = new System.Drawing.Point(796, 10);
+            this.button_save.Location = new System.Drawing.Point(622, 10);
             this.button_save.Name = "button_save";
             this.button_save.Size = new System.Drawing.Size(75, 23);
             this.button_save.TabIndex = 18;
@@ -298,7 +299,7 @@
             // button_load
             // 
             this.button_load.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.button_load.Location = new System.Drawing.Point(715, 10);
+            this.button_load.Location = new System.Drawing.Point(541, 10);
             this.button_load.Name = "button_load";
             this.button_load.Size = new System.Drawing.Size(75, 23);
             this.button_load.TabIndex = 19;
@@ -334,7 +335,7 @@
             // 
             this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(522, 403);
+            this.label1.Location = new System.Drawing.Point(348, 403);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(69, 13);
             this.label1.TabIndex = 22;
@@ -343,7 +344,7 @@
             // textBox_replyTimeout
             // 
             this.textBox_replyTimeout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBox_replyTimeout.Location = new System.Drawing.Point(598, 400);
+            this.textBox_replyTimeout.Location = new System.Drawing.Point(424, 400);
             this.textBox_replyTimeout.MaxLength = 5;
             this.textBox_replyTimeout.Name = "textBox_replyTimeout";
             this.textBox_replyTimeout.Size = new System.Drawing.Size(59, 20);
@@ -358,7 +359,7 @@
             this.textBox_customCommand.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.CustomSource;
             this.textBox_customCommand.Location = new System.Drawing.Point(352, 375);
             this.textBox_customCommand.Name = "textBox_customCommand";
-            this.textBox_customCommand.Size = new System.Drawing.Size(519, 20);
+            this.textBox_customCommand.Size = new System.Drawing.Size(345, 20);
             this.textBox_customCommand.TabIndex = 24;
             this.textBox_customCommand.KeyUp += new System.Windows.Forms.KeyEventHandler(this.TextBox_customCommand_KeyUp);
             // 
@@ -376,7 +377,7 @@
             // 
             this.button_sendCommand.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.button_sendCommand.Enabled = false;
-            this.button_sendCommand.Location = new System.Drawing.Point(877, 373);
+            this.button_sendCommand.Location = new System.Drawing.Point(703, 373);
             this.button_sendCommand.Name = "button_sendCommand";
             this.button_sendCommand.Size = new System.Drawing.Size(75, 23);
             this.button_sendCommand.TabIndex = 25;
@@ -420,11 +421,22 @@
             this.button_getStatus.UseVisualStyleBackColor = true;
             this.button_getStatus.Click += new System.EventHandler(this.Button_getStatus_Click);
             // 
+            // button_scanIp
+            // 
+            this.button_scanIp.Location = new System.Drawing.Point(461, 10);
+            this.button_scanIp.Name = "button_scanIp";
+            this.button_scanIp.Size = new System.Drawing.Size(75, 23);
+            this.button_scanIp.TabIndex = 26;
+            this.button_scanIp.Text = "Scan IP";
+            this.button_scanIp.UseVisualStyleBackColor = true;
+            this.button_scanIp.Click += new System.EventHandler(this.button_scanIp_ClickAsync);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(964, 438);
+            this.ClientSize = new System.Drawing.Size(790, 438);
+            this.Controls.Add(this.button_scanIp);
             this.Controls.Add(this.button_sendCommand);
             this.Controls.Add(this.textBox_customCommand);
             this.Controls.Add(this.textBox_replyTimeout);
@@ -448,7 +460,7 @@
             this.Controls.Add(this.checkBox_addCrLf);
             this.Controls.Add(this.button_connect);
             this.Controls.Add(this.checkBox_autoScroll);
-            this.MinimumSize = new System.Drawing.Size(760, 300);
+            this.MinimumSize = new System.Drawing.Size(800, 300);
             this.Name = "Form1";
             this.Text = "IoT settings updater";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
@@ -498,6 +510,7 @@
         private System.Windows.Forms.Button button_setTime;
         private System.Windows.Forms.Button button_getSensor;
         private System.Windows.Forms.Button button_getStatus;
+        private System.Windows.Forms.Button button_scanIp;
     }
 }
 

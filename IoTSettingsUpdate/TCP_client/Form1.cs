@@ -4,9 +4,12 @@ using System.Data;
 using System.Drawing;
 using System.IO;
 using System.IO.Ports;
+using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace IoTSettingsUpdate
@@ -291,7 +294,7 @@ namespace IoTSettingsUpdate
 
         private bool SendData(byte[] outStream, bool addEol)
         {
-            List<byte> outData = new List<byte>();
+            var outData = new List<byte>();
             outData.AddRange(outStream);
             if (addEol)
                 outData.AddRange(new byte[] { 13, 10 });
@@ -937,5 +940,116 @@ namespace IoTSettingsUpdate
         }
         #endregion
 
+        private void button_scanIp_ClickAsync(object sender, EventArgs e)
+        {
+            if (comboBox_portname1.SelectedIndex != 0)
+            {
+                return;
+            }
+
+            var foundIpList = new Dictionary<IPAddress, string>();
+            var taskList = new List<Task<Dictionary<IPAddress, string>>>();
+
+            var addressBytes = IPAddress.Parse(_ipAddress).GetAddressBytes();
+            for (var i = 0; i < 255; i++)
+            {
+                var task = (new Func<int, Task<Dictionary<IPAddress, string>>>((p) => Task.Run<Dictionary<IPAddress, string>>(() => PingAddress(addressBytes, p)))).Invoke(i);
+                //task.Start();
+                taskList.Add(task);
+            }
+
+            Task.WaitAll(taskList.ToArray());
+
+            foreach (var ip in taskList.Where(x => x.Result != null))
+            {
+                _logger.AddText(ip.Result?.FirstOrDefault() + Environment.NewLine, DateTime.Now, (byte)DataDirection.Note);
+            }
+        }
+
+        private Dictionary<IPAddress, string> PingAddress(byte[] addressBytes, int num)
+        {
+            const int timeOut = 1000;
+            var ping = new Ping();
+            addressBytes[3] = (byte)num;
+            var destIp = new IPAddress(addressBytes);
+            var pingResultTask = ping.Send(destIp, timeOut);
+            ping.Dispose();
+
+            if (pingResultTask.Status != IPStatus.Success) return null;
+            var tmpSocket = new TcpClient();
+            var deviceFound = new Dictionary<IPAddress, string>();
+
+            try
+            {
+                tmpSocket.Connect(destIp, _ipPort);
+                tmpSocket.ReceiveTimeout = timeOut;
+                tmpSocket.SendTimeout = timeOut;
+                tmpSocket.Client.ReceiveTimeout = timeOut;
+                tmpSocket.Client.SendTimeout = timeOut;
+                var tmpStream = tmpSocket.GetStream();
+                deviceFound.Add(destIp, "");
+
+                if (tmpSocket.Client.Connected)
+                {
+                    var outData = Encoding.ASCII.GetBytes("get_status");
+                    try
+                    {
+                        tmpStream.Write(outData, 0, outData.Length);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+                else
+                {
+                    return null;
+                }
+
+                var startTime = DateTime.Now;
+                var data = new List<byte>();
+
+                do
+                {
+                    if (tmpStream.DataAvailable)
+                    {
+                        try
+                        {
+                            var inStream = new byte[tmpSocket.Available];
+                            tmpStream.Read(inStream, 0, inStream.Length);
+                            data.AddRange(inStream);
+                            break;
+                        }
+                        catch
+                        {
+                        }
+                    }
+                } while (DateTime.Now.Subtract(startTime).TotalMilliseconds < timeOut * 10);
+
+                var tmp = "";
+                var stringsCollection = ConvertBytesToStrings(data.ToArray(), ref tmp);
+
+                if (stringsCollection.Length > 0)
+                {
+                    deviceFound[destIp] = stringsCollection[0];
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                if (tmpSocket.Client.Connected)
+                {
+                    tmpSocket.Client.Disconnect(false);
+                }
+
+                //serverStream.Close();
+                if (tmpSocket.Connected)
+                {
+                    tmpSocket.Close();
+                }
+                return null;
+            }
+            return deviceFound;
+        }
     }
 }
