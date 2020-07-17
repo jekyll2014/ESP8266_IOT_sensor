@@ -27,16 +27,15 @@ namespace IoTSettingsUpdate
 
         private readonly Form mainForm;
         private readonly TextBox _textBox;
-        private List<string> _logBuffer = new List<string>();
+        private readonly List<string> _logBuffer = new List<string>();
         private StringBuilder _unfinishedString = new StringBuilder();
-        private int selStart = 0;
-        private volatile bool textChanged = false;
+        private int selStart;
+        private volatile bool textChanged;
         private Timer formTimer;
 
         public List<string> Channels = new List<string> { "" };
-        private readonly object _textOutThreadLock = new object();
 
-        private byte _prevChannel = 0;
+        private byte _prevChannel;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -44,19 +43,12 @@ namespace IoTSettingsUpdate
         {
             textChanged = true;
             mainForm?.Invoke((MethodInvoker)delegate
-            {
-
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Text"));
-            });
+           {
+               PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Text"));
+           });
         }
 
-        public string Text
-        {
-            get
-            {
-                return ToString();
-            }
-        }
+        public string Text => ToString();
 
         public TextLogger(Form mainForm, TextBox textBox = null)
         {
@@ -69,7 +61,7 @@ namespace IoTSettingsUpdate
             if (mainForm != null && _textBox != null)
             {
                 formTimer = new Timer();
-                formTimer.Tick += new EventHandler(FormTimer_Tick);
+                formTimer.Tick += FormTimer_Tick;
                 formTimer.Interval = delay;
                 formTimer.Start();
             }
@@ -104,24 +96,28 @@ namespace IoTSettingsUpdate
             Full
         }
 
-        public bool AddText(string text, byte channel = 0, TextFormat textTextFormat = TextFormat.Default, TimeFormat timeFormat = TimeFormat.Default)
+        public bool AddText(string text, byte channel = 0, TextFormat textTextFormat = TextFormat.Default,
+            TimeFormat timeFormat = TimeFormat.Default)
         {
             return AddText(text, DateTime.MinValue, channel, textTextFormat, timeFormat);
         }
 
-        public bool AddText(string text, byte channel = 0, TimeFormat timeFormat = TimeFormat.Default, TextFormat textTextFormat = TextFormat.Default)
+        public bool AddText(string text, byte channel = 0, TimeFormat timeFormat = TimeFormat.Default,
+            TextFormat textTextFormat = TextFormat.Default)
         {
             return AddText(text, DateTime.MinValue, channel, textTextFormat, timeFormat);
         }
 
-        public bool AddText(string text, DateTime logTime, byte channel = 0, TextFormat textFormat = TextFormat.Default, TimeFormat timeFormat = TimeFormat.Default)
+        public bool AddText(string text, DateTime logTime, byte channel = 0, TextFormat textFormat = TextFormat.Default,
+            TimeFormat timeFormat = TimeFormat.Default)
         {
             if (text == null || text.Length <= 0) return true;
 
             var tmpStr = new StringBuilder();
             if (channel != _prevChannel)
             {
-                if (_unfinishedString.Length > 0) AddText(Environment.NewLine, logTime, _prevChannel, textFormat, timeFormat);
+                if (_unfinishedString.Length > 0)
+                    AddText(Environment.NewLine, logTime, _prevChannel, textFormat, timeFormat);
                 _prevChannel = channel;
             }
 
@@ -131,7 +127,8 @@ namespace IoTSettingsUpdate
                     timeFormat = DefaultTimeFormat;
 
                 if (timeFormat == TimeFormat.Full)
-                    tmpStr.Append(logTime.ToShortDateString() + " " + logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
+                    tmpStr.Append(logTime.ToShortDateString() + " " + logTime.ToLongTimeString() + "." +
+                                  logTime.Millisecond.ToString("D3") + " ");
 
                 else if (timeFormat == TimeFormat.LongTime)
                     tmpStr.Append(logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
@@ -146,20 +143,11 @@ namespace IoTSettingsUpdate
                     tmpStr.Append(logTime.ToShortDateString() + " ");
             }
 
-            if (channel >= Channels.Count)
-            {
-                channel = 0;
-            }
+            if (channel >= Channels.Count) channel = 0;
 
-            if (!string.IsNullOrEmpty(Channels[channel]))
-            {
-                tmpStr.Append(Channels[channel] + " ");
-            }
+            if (!string.IsNullOrEmpty(Channels[channel])) tmpStr.Append(Channels[channel] + " ");
 
-            if (textFormat == TextFormat.Default)
-            {
-                textFormat = DefaultTextFormat;
-            }
+            if (textFormat == TextFormat.Default) textFormat = DefaultTextFormat;
 
             if (textFormat == TextFormat.PlainText)
             {
@@ -176,38 +164,28 @@ namespace IoTSettingsUpdate
                 tmpStr.Append("\r\n");
             }
 
-            string[] inputStrings = ConvertTextToStringArray(tmpStr.ToString(), ref _unfinishedString);
+            var inputStrings = ConvertTextToStringArray(tmpStr.ToString(), ref _unfinishedString);
             return AddTextToBuffer(inputStrings);
         }
 
-        private bool AddTextToBuffer(string[] text)
+        private bool AddTextToBuffer(IList<string> text)
         {
-            if (text == null || text.Length <= 0)
-            {
-                return false;
-            }
-            lock (_textOutThreadLock)
+            if (text == null || text.Count <= 0) return false;
+            //lock (_textOutThreadLock)
             {
                 if (FilterZeroChar)
-                {
-                    for (var i = 0; i < text.Length; i++)
-                    {
-                        text[i] = Accessory.FilterZeroChar(text[i], true);
-                    }
-                }
+                    for (var i = 0; i < text.Count; i++)
+                        text[i] = Accessory.FilterZeroChar(text[i]);
 
                 if (AutoSave && !string.IsNullOrEmpty(LogFileName))
                 {
-                    for (var i = 0; i < text.Length; i++)
+                    foreach (var t in text)
                     {
-                        File.AppendAllText(LogFileName, text[i] + Environment.NewLine);
+                        File.AppendAllText(LogFileName, t + Environment.NewLine);
                     }
                 }
 
-                if (noScreenOutput)
-                {
-                    return true;
-                }
+                if (noScreenOutput) return true;
 
                 if (_textBox != null) selStart = _textBox.SelectionStart;
 
@@ -220,6 +198,7 @@ namespace IoTSettingsUpdate
                         _logBuffer.RemoveAt(0);
                     }
                 }
+
                 if (_textBox != null && selStart < 0) selStart = 0;
 
                 OnPropertyChanged();
@@ -228,45 +207,40 @@ namespace IoTSettingsUpdate
             return true;
         }
 
-        public void UpdateDisplay()
+        private void UpdateDisplay()
         {
             if (_textBox != null && textChanged)
-            {
                 mainForm?.Invoke((MethodInvoker)delegate
-                {
+               {
                     //var posLength = _textBox.SelectionLength;
                     _textBox.Text = ToString();
-                    if (AutoScroll)
-                    {
-                        _textBox.SelectionStart = _textBox.Text.Length;
-                        _textBox.ScrollToCaret();
-                    }
-                    else
-                    {
-                        _textBox.SelectionStart = selStart;
+                   if (AutoScroll)
+                   {
+                       _textBox.SelectionStart = _textBox.Text.Length;
+                       _textBox.ScrollToCaret();
+                   }
+                   else
+                   {
+                       _textBox.SelectionStart = selStart;
                         //_textBox.SelectionLength = posLength;
                         _textBox.ScrollToCaret();
-                    }
+                   }
 
-                    textChanged = false;
-                });
-            }
+                   textChanged = false;
+               });
         }
 
         public override string ToString()
         {
             var tmpTxt = new StringBuilder();
-            foreach (var str in _logBuffer)
-            {
-                tmpTxt.Append(str + Environment.NewLine);
-            }
+            foreach (var str in _logBuffer) tmpTxt.Append(str + Environment.NewLine);
 
-            tmpTxt.Append(_unfinishedString.ToString());
+            tmpTxt.Append(_unfinishedString);
 
             return tmpTxt.ToString();
         }
 
-        private string[] ConvertTextToStringArray(string data, ref StringBuilder nonComplete)
+        private static string[] ConvertTextToStringArray(string data, ref StringBuilder nonComplete)
         {
             var divider = new HashSet<char>
             {
@@ -277,7 +251,6 @@ namespace IoTSettingsUpdate
             var stringCollection = new List<string>();
 
             foreach (var t in data)
-            {
                 if (divider.Contains(t))
                 {
                     if (nonComplete.Length > 0) stringCollection.Add(nonComplete.ToString());
@@ -287,15 +260,15 @@ namespace IoTSettingsUpdate
                 {
                     if (!divider.Contains(t)) nonComplete.Append(t);
                 }
-            }
+
             return stringCollection.ToArray();
         }
 
-        private string ReplaceUnprintable(string text, bool leaveCrLf = true)
+        private static string ReplaceUnprintable(string text, bool leaveCrLf = true)
         {
             var str = new StringBuilder();
 
-            for (int i = 0; i < text.Length; i++)
+            for (var i = 0; i < text.Length; i++)
             {
                 var c = text[i];
                 if (char.IsControl(c) && !(leaveCrLf && (c == '\r' || c == '\n')))

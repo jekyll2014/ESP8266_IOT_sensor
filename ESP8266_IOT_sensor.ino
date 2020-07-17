@@ -13,13 +13,19 @@
 		 humidity<>x
 		 co2<>x
 	 actions:
+		 send_telegram
+
 		 send_mail=address;message
+		 send_pushingbox
 		 send_GScript
 		 save_log;
 */
 
 /*
 Planned features:
+ - SSL/TLS MQTT, SMTP and TELEGRAM
+ - OTA fw upgrade
+ - mDNS, LLMNR responder
  - TIMERS service (start_timer?=n; stop_timer? commands running actions)
  - telegram
 	- set TELEGRAM_URL "api.telegram.org"
@@ -27,11 +33,11 @@ Planned features:
 	- set TELEGRAM_PORT 443\
 	- setFingerprint
 	- use SSL
+	- show simple keyboard
  - temperature/humidity offset setting
  - Amazon Alexa integration
  - http settings page
  - EVENT service - option to check action successful execution.
- - SCHEDULE service - restore flags at the start of the day or set the appropriate time region to activate schedule event.
  - GoogleScript service - memory allocation problem
  - DEBUG mode verbose serial output
  - option to use UART for GPRS/sensors
@@ -115,6 +121,7 @@ void ProcessAction(String&, uint8_t, bool);
 String getSchedule(uint8_t);
 sensorDataCollection collectData();
 float getTemperature(sensorDataCollection&);
+float getHumidity(sensorDataCollection&);
 void writeConfigLong(uint16_t, uint32_t);
 void mqtt_callback(char*, uint8_t*, uint16_t);
 uint64_t getTelegramUser(uint8_t);
@@ -212,6 +219,8 @@ int co2SerialRead()
 	int ppm = -1;
 	mhtemp_s = 0;
 
+	uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+
 	uart2.flush();
 	uart2.write(cmd, 9);
 	memset(response, 0, 9);
@@ -242,6 +251,8 @@ int co2SerialRead()
 			mhtemp_s = int(response[4]) - (int)40;
 		}
 	}
+	uart2.end();
+
 	return ppm;
 }
 #endif
@@ -664,19 +675,19 @@ void processSchedule(uint8_t scheduleNum)
 #include <sendemail.h>
 bool smtpEnable = false;
 
-bool sendMail(String& subject, String& message, String address = "")
+bool sendMail(String& subject, String& message, String addressTo)
 {
 	String smtpServerAddress = readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	uint16_t smtpServerPort = readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size).toInt();
 	String smtpLogin = readConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size);
 	String smtpPassword = readConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size);
-	if (address.length() <= 0) address = readConfigString(SMTP_TO_addr, SMTP_TO_size);
+	if (addressTo.length() <= 0) addressTo = readConfigString(SMTP_TO_addr, SMTP_TO_size);
 
 	bool result = false;
 	if (smtpEnable && WiFi.status() == WL_CONNECTED)
 	{
-		SendEmail smtp(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 5000, false);
-		result = smtp.send(smtpLogin, address, subject, message);
+		SendEmail smtp(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 20000, true);
+		result = smtp.send(smtpLogin, addressTo, subject, message);
 	}
 	return result;
 }
@@ -784,7 +795,7 @@ bool mqtt_connect()
 	return result;
 }
 
-bool mqtt_send(char* message, int dataLength, String topic = "")
+bool mqtt_send(String& message, int dataLength, String topic)
 {
 	if (!mqtt_client.connected())
 	{
@@ -798,7 +809,6 @@ bool mqtt_send(char* message, int dataLength, String topic = "")
 
 		if (dataLength > mqtt_max_packet)
 		{
-			//res = mqtt_client.publish(topic, message, mqtt_max_packet);
 			result = mqtt_client.beginPublish(topic.c_str(), dataLength, false);
 			for (uint16_t i = 0; i < dataLength; i++)
 			{
@@ -809,7 +819,7 @@ bool mqtt_send(char* message, int dataLength, String topic = "")
 		}
 		else
 		{
-			result = mqtt_client.publish(topic.c_str(), message, dataLength);
+			result = mqtt_client.publish(topic.c_str(), message.c_str(), dataLength);
 		}
 	}
 	return result;
@@ -1045,39 +1055,48 @@ String getGsmUser(uint8_t n)
 
 String sendATCommand(String cmd, bool waiting)
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	uart2.flush();
 	String _resp = "";
 	uart2.println(cmd);
 	if (waiting)
 	{
-		_resp = waitResponse();
-	}
-	return _resp;
-}
+		uint32_t _timeout = millis() + smsTimeOut;
+		while (!uart2.available() && millis() < _timeout)
+		{
+			yield();
+		}
+		while (uart2.available())
+		{
+			_resp += uart2.readString();
+			yield();
+		}
+		if (_resp.length() <= 0)
+		{
+			//Serial.println("Timeout...");
+		}
 
-String waitResponse()
-{
-	String _resp = "";
-	uint32_t _timeout = millis() + smsTimeOut;
-	while (!uart2.available() && millis() < _timeout)
-	{
-		yield();
+		if (stopSerial) uart2.end();
+		return _resp;
 	}
-	while (uart2.available())
-	{
-		_resp += uart2.readString();
-		yield();
-	}
-	if (_resp.length() <= 0)
-	{
-		//Serial.println("Timeout...");
-	}
-
 	return _resp;
 }
 
 bool initModem()
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	bool resp = true;
 	String response = sendATCommand(atCommand_init1, true);
 	if (response.lastIndexOf("OK") <= 0) resp &= false;
@@ -1088,19 +1107,29 @@ bool initModem()
 	response = sendATCommand(atCommand_init4, true);
 	if (response.lastIndexOf("OK") <= 0) resp &= false;
 	else resp &= false;
+	if (stopSerial) uart2.end();
+
 	return resp;
 }
 
 bool sendSMS(String phone, String& smsText)
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	initModem();
 	String cmdTmp = atCommand_send;
+	cmdTmp.reserve(175);
 	cmdTmp += phone;
 	cmdTmp += F("\"");
 	sendATCommand(cmdTmp, true);
 
 	cmdTmp = "";
-	cmdTmp.reserve(175);
+
 	if (smsText.length() >= 170) cmdTmp += smsText.substring(0, 168);
 	else cmdTmp += smsText;
 
@@ -1117,7 +1146,24 @@ bool sendSMS(String phone, String& smsText)
 	uart2.flush();
 	uart2.write(((char)26));
 	yield();
-	cmdTmp = waitResponse();
+	cmdTmp = "";
+	uint32_t _timeout = millis() + smsTimeOut;
+	while (!uart2.available() && millis() < _timeout)
+	{
+		yield();
+	}
+	while (uart2.available())
+	{
+		cmdTmp += uart2.readString();
+		yield();
+	}
+	if (cmdTmp.length() <= 0)
+	{
+		//Serial.println("Timeout...");
+	}
+
+	if (stopSerial) uart2.end();
+
 	if (cmdTmp.lastIndexOf(F("OK")) > 0) return true;
 	else return false;
 }
@@ -1158,6 +1204,13 @@ smsMessage parseSMS(String msg)
 
 smsMessage getSMS()
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	initModem();
 	String _response = sendATCommand(atCommand_getSMS, true);
 	_response.trim();
@@ -1166,20 +1219,43 @@ smsMessage getSMS()
 	{
 		sms = parseSMS(_response);
 	}
+
+	if (stopSerial) uart2.end();
+
 	return sms;
 }
 
 bool deleteSMS()
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	String response = sendATCommand(atCommand_deleteSms, true);
+
+	if (stopSerial) uart2.end();
+
 	if (response.lastIndexOf("OK") > 0) return true;
 	else return false;
 }
 
 uint8_t getModemStatus()
 {
+	bool stopSerial = false;
+	if (!uart2.isListening())
+	{
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		stopSerial = true;
+	}
+
 	String response = sendATCommand(atCommand_status1, true);
 	response = sendATCommand(atCommand_status2, true);
+
+	if (stopSerial) uart2.end();
+
 	if (response.lastIndexOf("OK") > 0) return true;
 	else return false;
 }
@@ -1281,9 +1357,9 @@ bool sendToPushingBoxServer(String message)
 			flag = true;
 		}
 		client.stop();
-	}
-	return flag;
 }
+	return flag;
+		}
 
 bool sendToPushingBox(String& message)
 {
@@ -1469,7 +1545,7 @@ void setup()
 	{
 		Serial.println(F("Error setting I2C SDA pin to "));
 		Serial.println(String(PIN_WIRE_SDA));
-	}
+}
 	if (!add_signal_pin(PIN_WIRE_SCL))
 	{
 		Serial.println(F("Error setting I2C SCL pin to "));
@@ -1499,7 +1575,7 @@ void setup()
 	uart2_Speed = gsmUartSpeed;
 #endif
 
-	uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 256);
+	//uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 256);
 #endif
 
 #ifdef ONEWIRE_ENABLE
@@ -1781,7 +1857,7 @@ void setup()
 
 	if (sleepEnable) activeStart = millis();
 #endif	
-}
+	}
 
 void loop()
 {
@@ -1870,7 +1946,9 @@ void loop()
 				if (mqttEnable && bitRead(autoReport, CHANNEL_MQTT))
 				{
 					String str = ParseSensorReport(sensorData, ",", true);
-					mqtt_send((char*)str.c_str(), str.length());
+					String topic = "";
+					topic.reserve(100);
+					mqtt_send(str, str.length(), topic);
 				}
 #endif
 
@@ -1905,10 +1983,10 @@ void loop()
 					sendToPushingBox(str);
 				}
 #endif
-			}
 		}
-		checkSensorLastTime = millis();
 	}
+		checkSensorLastTime = millis();
+}
 	yield();
 #ifdef LOG_ENABLE
 	//check if it's time to collect log
@@ -2059,7 +2137,9 @@ void loop()
 			if (mqttCommand.length() > 0)
 			{
 				String str = processCommand(mqttCommand, CHANNEL_MQTT, true);
-				mqtt_send((char*)str.c_str(), str.length());
+				String topic = "";
+				topic.reserve(100);
+				mqtt_send(str, str.length(), topic);
 				mqttCommand = "";
 			}
 			yield();
@@ -2159,7 +2239,7 @@ void loop()
 					display.showNumberDecEx(minute(), 0xff, true, 2, 2);
 				}
 				else displayState++;
-			}
+				}
 			displayState++;
 			if (displayState > 3) displayState = 0;
 #endif
@@ -2228,8 +2308,8 @@ void loop()
 			else oled.set1X();
 			oled.print(tmpStr);
 #endif
+			}
 		}
-	}
 #endif
 	yield();
 #ifdef EVENTS_ENABLE
@@ -2260,7 +2340,7 @@ void loop()
 		ESP.deepSleep(sleepTimeOut_us);
 	}
 #endif
-}
+	}
 
 uint32_t CollectEepromSize()
 {
@@ -3146,7 +3226,7 @@ String printStatus(bool toJson = false)
 		{
 			if (serverClient[i] && serverClient[i].connected()) netClientsNum++;
 			yield();
-		}
+}
 		str += F("Telnet clients connected");
 		str += eq;
 		str += String(netClientsNum);
@@ -3190,7 +3270,7 @@ String printStatus(bool toJson = false)
 			str += delimiter;
 		}
 		yield();
-	}
+		}
 #endif
 
 #ifdef SCHEDULER_ENABLE
@@ -3235,7 +3315,7 @@ String printStatus(bool toJson = false)
 	if (toJson) str += F("\"}");
 
 	return str;
-}
+	}
 
 String printHelp()
 {
@@ -3374,7 +3454,7 @@ String timeToString(uint32_t time)
 	tmp += F(".");
 	tmp += String(day(time));
 	return tmp;
-}
+	}
 
 sensorDataCollection collectData()
 {
@@ -3454,8 +3534,8 @@ sensorDataCollection collectData()
 				sensorData.InterruptCounters[num] = InterruptCounter[num];
 			}
 			yield();
-		}
-	}
+}
+}
 
 	if (INPUT_PINS > 0)
 	{
@@ -3482,7 +3562,7 @@ sensorDataCollection collectData()
 	}
 
 	return sensorData;
-}
+			}
 
 String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJson = false)
 {
@@ -3563,7 +3643,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += F("HTU21D h");
 		str += eq;
 		str += String(data.htu21d_humidity);
-	}
+}
 #endif
 
 #ifdef BME280_ENABLE
@@ -3641,7 +3721,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 				str += String(data.InterruptCounters[num]);
 			}
 			yield();
-		}
+			}
 	}
 
 	if (INPUT_PINS > 0)
@@ -3655,7 +3735,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 				str += String(num + 1);
 				str += eq;
 				str += String(data.inputs[num]);
-			}
+		}
 			yield();
 		}
 	}
@@ -3751,7 +3831,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #ifdef NTP_TIME_ENABLE
 			NTPenable = false;
 #endif
-		}
+	}
 		else if (tmp.startsWith(F("check_period=")) && command.length() > 13)
 		{
 			checkSensorPeriod = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
@@ -4163,7 +4243,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				str = F("Incorrect value: ");
 				str += stateStr;
 			}
-		}
+				}
 		else if (tmp.startsWith(F("sleep_on=")) && command.length() > 9)
 		{
 			activeTimeOut_ms = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
@@ -4224,7 +4304,26 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef MQTT_ENABLE
-		//send_mqtt - to be implemented
+		// send_mqtt=topic,message - to be implemented
+		else if (tmp.startsWith(F("send_mqtt=")))
+		{
+			String topic = tmp.substring(10, tmp.indexOf(','));
+			if (topic.length() > 0)
+			{
+				String tmpMessage = command.substring(command.indexOf(',') + 1);
+				if (tmpMessage.length() > 0)
+				{
+					if (mqtt_send(tmpMessage, tmpMessage.length(), topic))
+					{
+						str += F("Mail sent");
+					}
+					else
+					{
+						str += F("Mail not sent");
+					}
+				}
+			}
+		}
 
 		else if (tmp.startsWith(F("mqtt_server=")) && command.length() > 12)
 		{
@@ -4350,7 +4449,28 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef SMTP_ENABLE
-		//send_mail - to be implemented
+		// send_mail=address,message
+		else if (tmp.startsWith(F("send_mail=")))
+		{
+			String addressTo = tmp.substring(10, tmp.indexOf(','));
+			if (addressTo.length() > 0)
+			{
+				String tmpMessage = command.substring(command.indexOf(',') + 1);
+				if (tmpMessage.length() > 0)
+				{
+					if (sendMail(String(F("Test")), tmpMessage, addressTo))
+					{
+						str += F("Mail sent");
+					}
+					else
+					{
+						str += F("3Mail not sent");
+					}
+				}
+				else str += F("2Mail not sent");
+		}
+			else str += F("1Mail not sent");
+		}
 
 		else if (tmp.startsWith(F("smtp_server=")) && command.length() > 12)
 		{
@@ -4419,7 +4539,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 		}
 #endif
 
-#ifdef GSM_ENABLE		
+#ifdef GSM_ENABLE
+		// send_sms=[*/user#],message
 		else if (tmp.startsWith(F("send_sms=")))
 		{
 			uint8_t i = 0;
@@ -4507,7 +4628,43 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef TELEGRAM_ENABLE
-		//send_telegram - to be implemented
+		// send_telegram=[*/user#],message
+		else if (tmp.startsWith(F("send_telegram=")))
+		{
+			uint8_t i = 0;
+			uint8_t j = 0;
+			if (tmp[14] == '*') //if * then all
+			{
+				i = 0;
+				j = gsmUsersNumber;
+			}
+			else
+			{
+				i = tmp.substring(14, tmp.indexOf(',')).toInt();
+				j = i + 1;
+			}
+
+			if (i <= gsmUsersNumber)
+			{
+				String tmpMessage = command.substring(command.indexOf(',') + 1);
+				for (; i < j; i++)
+				{
+					int64_t gsmUser = getTelegramUser(i);
+					if (gsmUser != 0)
+					{
+						if (sendToTelegramServer(gsmUser, tmpMessage))
+						{
+							str += F("Message sent");
+						}
+						else
+						{
+							str += F("Message not sent");
+						}
+					}
+					yield();
+				}
+			}
+		}
 
 		else if (tmp.startsWith(F("telegram_user")) && command.length() > 10)
 		{
@@ -4768,15 +4925,15 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 					{
 						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
 						eventsFlags[eventNum] = false;
-					}
+		}
 					else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 					{
 						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
 						eventsFlags[eventNum] = true;
 					}
+						}
+					}
 				}
-			}
-		}
 #endif
 
 #ifdef SCHEDULER_ENABLE
@@ -5166,14 +5323,14 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			tmpStr += F("\"}");
 
 			bool sendOk = false;
-			sendOk = mqtt_send((char*)tmpStr.c_str(), tmpStr.length(), topicTo);
+			sendOk = mqtt_send(tmpStr, tmpStr.length(), topicTo);
 			if (!sendOk)
 			{
 #ifdef EVENTS_ENABLE
 				eventsFlags[eventNum] = false;
 #endif
-			}
 		}
+			}
 #endif
 #ifdef LOG_ENABLE
 		//save_log
@@ -5226,7 +5383,7 @@ float getTemperature(sensorDataCollection& sensorData)
 	if (ds1820_enable) temp = sensorData.ds1820_temp;
 #endif
 	return temp;
-}
+		}
 #endif
 
 #ifdef HUMIDITY_SENSOR

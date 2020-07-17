@@ -80,6 +80,7 @@
             this.textBox_dataLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.textBox_dataLog.Size = new System.Drawing.Size(383, 328);
             this.textBox_dataLog.TabIndex = 9;
+            this.textBox_dataLog.TextChanged += new System.EventHandler(this.TextBox_dataLog_TextChanged);
             // 
             // button_send
             // 
@@ -206,6 +207,7 @@
             this.comboBox_portspeed1.Size = new System.Drawing.Size(85, 21);
             this.comboBox_portspeed1.TabIndex = 14;
             this.comboBox_portspeed1.SelectedIndexChanged += new System.EventHandler(this.ComboBox_portspeed1_SelectedIndexChanged);
+            this.comboBox_portspeed1.KeyUp += new System.Windows.Forms.KeyEventHandler(this.ComboBox_portspeed1_KeyUp);
             // 
             // comboBox_portname1
             // 
@@ -218,6 +220,7 @@
             this.comboBox_portname1.TabIndex = 13;
             this.comboBox_portname1.DropDown += new System.EventHandler(this.ComboBox_portname1_DropDown);
             this.comboBox_portname1.SelectedIndexChanged += new System.EventHandler(this.ComboBox_portname1_SelectedIndexChanged);
+            this.comboBox_portname1.KeyUp += new System.Windows.Forms.KeyEventHandler(this.ComboBox_portname1_KeyUp);
             this.comboBox_portname1.Leave += new System.EventHandler(this.ComboBox_portname1_Leave);
             // 
             // checkBox_addCrLf
@@ -429,7 +432,7 @@
             this.button_scanIp.TabIndex = 26;
             this.button_scanIp.Text = "Scan IP";
             this.button_scanIp.UseVisualStyleBackColor = true;
-            this.button_scanIp.Click += new System.EventHandler(this.button_scanIp_ClickAsync);
+            this.button_scanIp.Click += new System.EventHandler(this.Button_scanIp_ClickAsync);
             // 
             // Form1
             // 
