@@ -211,7 +211,7 @@ uint32_t mhz19UartSpeed = 9600;
 uint16_t co2_uart_avg[3] = { 0, 0, 0 };
 int mhtemp_s = 0;
 
-int co2SerialRead()
+/*int co2SerialRead()
 {
 	uint8_t cmd[9] = { 0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79 };
 	uint8_t response[9];
@@ -254,7 +254,100 @@ int co2SerialRead()
 	uart2.end();
 
 	return ppm;
+}*/
+
+int co2SerialRead()
+{
+	const int STATUS_NO_RESPONSE = -2;
+	const int STATUS_CHECKSUM_MISMATCH = -3;
+	const int STATUS_INCOMPLETE = -4;
+	const int STATUS_NOT_READY = -5;
+	const int STATUS_PWM_NOT_CONFIGURED = -6;
+	const int STATUS_SERIAL_NOT_CONFIGURED = -7;
+
+	unsigned long lastRequest = 0;
+
+	uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+	uart2.flush();
+	delay(50);
+
+	byte cmd[9] = { 0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79 };
+	byte response[9];  // for answer
+
+	uart2.write(cmd, 9);  // request PPM CO2
+	lastRequest = millis();
+
+	// clear the buffer
+	memset(response, 0, 9);
+
+	int waited = 0;
+	while (uart2.available() == 0)
+	{
+		delay(100);  // wait a short moment to avoid false reading
+		if (waited++ > 10) {
+			uart2.flush();
+			return STATUS_NO_RESPONSE;
+		}
+	}
+
+	boolean skip = false;
+	while (uart2.available() > 0 && (unsigned char)uart2.peek() != 0xFF)
+	{
+		if (!skip)
+		{
+			Serial.print(F("MHZ: - skipping unexpected readings:"));
+			skip = true;
+		}
+		Serial.print(" ");
+		Serial.print(uart2.peek(), HEX);
+		uart2.read();
+	}
+	if (skip) Serial.println();
+
+	if (uart2.available() > 0)
+	{
+		int count = uart2.readBytes(response, 9);
+		if (count < 9)
+		{
+			uart2.flush();
+			return STATUS_INCOMPLETE;
+		}
+	}
+	else
+	{
+		uart2.flush();
+		return STATUS_INCOMPLETE;
+	}
+
+	// checksum
+	byte check = getCheckSum(response);
+	if (response[8] != check) {
+		mhtemp_s = STATUS_CHECKSUM_MISMATCH;
+		uart2.flush();
+		return STATUS_CHECKSUM_MISMATCH;
+	}
+	uart2.flush();
+	uart2.end();
+
+	int ppm_uart = 256 * (int)response[2] + response[3];
+	mhtemp_s = response[4] - 44;  // - 40;
+	byte status = response[5];
+
+	return ppm_uart;
 }
+
+byte getCheckSum(byte* packet)
+{
+	byte i;
+	unsigned char checksum = 0;
+	for (i = 1; i < 8; i++) {
+		checksum += packet[i];
+	}
+	checksum = 0xff - checksum;
+	checksum += 1;
+	return checksum;
+}
+
 #endif
 
 // MH-Z19 CO2 sensor via PPM signal
@@ -1357,9 +1450,9 @@ bool sendToPushingBoxServer(String message)
 			flag = true;
 		}
 		client.stop();
-}
+	}
 	return flag;
-		}
+}
 
 bool sendToPushingBox(String& message)
 {
@@ -1545,7 +1638,7 @@ void setup()
 	{
 		Serial.println(F("Error setting I2C SDA pin to "));
 		Serial.println(String(PIN_WIRE_SDA));
-}
+	}
 	if (!add_signal_pin(PIN_WIRE_SCL))
 	{
 		Serial.println(F("Error setting I2C SCL pin to "));
@@ -1857,7 +1950,7 @@ void setup()
 
 	if (sleepEnable) activeStart = millis();
 #endif	
-	}
+}
 
 void loop()
 {
@@ -1983,10 +2076,10 @@ void loop()
 					sendToPushingBox(str);
 				}
 #endif
+			}
 		}
-	}
 		checkSensorLastTime = millis();
-}
+	}
 	yield();
 #ifdef LOG_ENABLE
 	//check if it's time to collect log
@@ -2239,7 +2332,7 @@ void loop()
 					display.showNumberDecEx(minute(), 0xff, true, 2, 2);
 				}
 				else displayState++;
-				}
+			}
 			displayState++;
 			if (displayState > 3) displayState = 0;
 #endif
@@ -2308,8 +2401,8 @@ void loop()
 			else oled.set1X();
 			oled.print(tmpStr);
 #endif
-			}
 		}
+	}
 #endif
 	yield();
 #ifdef EVENTS_ENABLE
@@ -2340,7 +2433,7 @@ void loop()
 		ESP.deepSleep(sleepTimeOut_us);
 	}
 #endif
-	}
+}
 
 uint32_t CollectEepromSize()
 {
@@ -3226,7 +3319,7 @@ String printStatus(bool toJson = false)
 		{
 			if (serverClient[i] && serverClient[i].connected()) netClientsNum++;
 			yield();
-}
+		}
 		str += F("Telnet clients connected");
 		str += eq;
 		str += String(netClientsNum);
@@ -3270,7 +3363,7 @@ String printStatus(bool toJson = false)
 			str += delimiter;
 		}
 		yield();
-		}
+	}
 #endif
 
 #ifdef SCHEDULER_ENABLE
@@ -3315,7 +3408,7 @@ String printStatus(bool toJson = false)
 	if (toJson) str += F("\"}");
 
 	return str;
-	}
+}
 
 String printHelp()
 {
@@ -3454,7 +3547,7 @@ String timeToString(uint32_t time)
 	tmp += F(".");
 	tmp += String(day(time));
 	return tmp;
-	}
+}
 
 sensorDataCollection collectData()
 {
@@ -3534,8 +3627,8 @@ sensorDataCollection collectData()
 				sensorData.InterruptCounters[num] = InterruptCounter[num];
 			}
 			yield();
-}
-}
+		}
+	}
 
 	if (INPUT_PINS > 0)
 	{
@@ -3562,7 +3655,7 @@ sensorDataCollection collectData()
 	}
 
 	return sensorData;
-			}
+}
 
 String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJson = false)
 {
@@ -3643,7 +3736,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += F("HTU21D h");
 		str += eq;
 		str += String(data.htu21d_humidity);
-}
+	}
 #endif
 
 #ifdef BME280_ENABLE
@@ -3721,7 +3814,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 				str += String(data.InterruptCounters[num]);
 			}
 			yield();
-			}
+		}
 	}
 
 	if (INPUT_PINS > 0)
@@ -3735,7 +3828,7 @@ String ParseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 				str += String(num + 1);
 				str += eq;
 				str += String(data.inputs[num]);
-		}
+			}
 			yield();
 		}
 	}
@@ -3831,7 +3924,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 #ifdef NTP_TIME_ENABLE
 			NTPenable = false;
 #endif
-	}
+		}
 		else if (tmp.startsWith(F("check_period=")) && command.length() > 13)
 		{
 			checkSensorPeriod = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
@@ -4243,7 +4336,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				str = F("Incorrect value: ");
 				str += stateStr;
 			}
-				}
+		}
 		else if (tmp.startsWith(F("sleep_on=")) && command.length() > 9)
 		{
 			activeTimeOut_ms = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
@@ -4468,7 +4561,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 					}
 				}
 				else str += F("2Mail not sent");
-		}
+			}
 			else str += F("1Mail not sent");
 		}
 
@@ -4925,15 +5018,15 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 					{
 						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
 						eventsFlags[eventNum] = false;
-		}
+					}
 					else if (stateStr == SWITCH_ON_NUMBER || stateStr == SWITCH_ON)
 					{
 						writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
 						eventsFlags[eventNum] = true;
 					}
-						}
-					}
 				}
+			}
+		}
 #endif
 
 #ifdef SCHEDULER_ENABLE
@@ -5329,8 +5422,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 #ifdef EVENTS_ENABLE
 				eventsFlags[eventNum] = false;
 #endif
-		}
 			}
+		}
 #endif
 #ifdef LOG_ENABLE
 		//save_log
@@ -5383,7 +5476,7 @@ float getTemperature(sensorDataCollection& sensorData)
 	if (ds1820_enable) temp = sensorData.ds1820_temp;
 #endif
 	return temp;
-		}
+}
 #endif
 
 #ifdef HUMIDITY_SENSOR

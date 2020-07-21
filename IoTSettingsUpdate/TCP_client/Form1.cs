@@ -336,7 +336,7 @@ namespace IoTSettingsUpdate
                 }
                 else
                 {
-                    _logger.AddText("netPort closed\r\n", DateTime.Now, (byte)DataDirection.Note);
+                    _logger.AddText("Port closed\r\n", DateTime.Now, (byte)DataDirection.Note);
                     Button_disconnect_Click(this, EventArgs.Empty);
                     return false;
                 }
@@ -641,8 +641,12 @@ namespace IoTSettingsUpdate
             var str = new StringBuilder();
 
             foreach (DataRow row in _configData.Rows)
-                str.AppendLine(row[(int)Columns.Parameter] + "=" + row[(int)Columns.DefaultValue] + " //" +
+            {
+                var value = row[(int)Columns.NewValue].ToString().Length == 0 ? row[(int)Columns.DefaultValue] : row[(int)Columns.NewValue];
+                str.AppendLine(row[(int)Columns.Parameter] + "=" + value + " //" +
                                row[(int)Columns.ReplyString]);
+            }
+
             return str.ToString();
         }
 
@@ -811,19 +815,6 @@ namespace IoTSettingsUpdate
                 _logger.DefaultTextFormat = TextLogger.TextFormat.AutoReplaceHex;
         }
 
-        private void SaveFileDialog1_FileOk(object sender, CancelEventArgs e)
-        {
-            var configData = PrepareConfig();
-            try
-            {
-                File.WriteAllText(saveFileDialog1.FileName, configData);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
-            }
-        }
-
         private void ComboBox_portname1_DropDown(object sender, EventArgs e)
         {
             SerialPopulate();
@@ -879,6 +870,19 @@ namespace IoTSettingsUpdate
             saveFileDialog1.Filter = "CFG files|*.cfg|All files|*.*";
             saveFileDialog1.FileName = "config" + ".cfg";
             saveFileDialog1.ShowDialog();
+        }
+
+        private void SaveFileDialog1_FileOk(object sender, CancelEventArgs e)
+        {
+            var configData = PrepareConfig();
+            try
+            {
+                File.WriteAllText(saveFileDialog1.FileName, configData);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+            }
         }
 
         private void CheckBox_autoScroll_CheckedChanged(object sender, EventArgs e)

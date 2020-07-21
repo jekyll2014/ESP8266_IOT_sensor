@@ -96,7 +96,7 @@
             // 
             // button_connect
             // 
-            this.button_connect.Location = new System.Drawing.Point(299, 10);
+            this.button_connect.Location = new System.Drawing.Point(380, 10);
             this.button_connect.Name = "button_connect";
             this.button_connect.Size = new System.Drawing.Size(75, 23);
             this.button_connect.TabIndex = 2;
@@ -107,7 +107,7 @@
             // button_disconnect
             // 
             this.button_disconnect.Enabled = false;
-            this.button_disconnect.Location = new System.Drawing.Point(380, 10);
+            this.button_disconnect.Location = new System.Drawing.Point(461, 10);
             this.button_disconnect.Name = "button_disconnect";
             this.button_disconnect.Size = new System.Drawing.Size(75, 23);
             this.button_disconnect.TabIndex = 3;
@@ -202,7 +202,7 @@
             "1200",
             "600",
             "300"});
-            this.comboBox_portspeed1.Location = new System.Drawing.Point(208, 12);
+            this.comboBox_portspeed1.Location = new System.Drawing.Point(289, 12);
             this.comboBox_portspeed1.Name = "comboBox_portspeed1";
             this.comboBox_portspeed1.Size = new System.Drawing.Size(85, 21);
             this.comboBox_portspeed1.TabIndex = 14;
@@ -214,7 +214,7 @@
             this.comboBox_portname1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox_portname1.ForeColor = System.Drawing.SystemColors.WindowText;
             this.comboBox_portname1.FormattingEnabled = true;
-            this.comboBox_portname1.Location = new System.Drawing.Point(12, 12);
+            this.comboBox_portname1.Location = new System.Drawing.Point(93, 12);
             this.comboBox_portname1.Name = "comboBox_portname1";
             this.comboBox_portname1.Size = new System.Drawing.Size(190, 21);
             this.comboBox_portname1.TabIndex = 13;
@@ -426,7 +426,7 @@
             // 
             // button_scanIp
             // 
-            this.button_scanIp.Location = new System.Drawing.Point(461, 10);
+            this.button_scanIp.Location = new System.Drawing.Point(12, 12);
             this.button_scanIp.Name = "button_scanIp";
             this.button_scanIp.Size = new System.Drawing.Size(75, 23);
             this.button_scanIp.TabIndex = 26;
