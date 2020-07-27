@@ -40,7 +40,6 @@ namespace MqttBroker
             return Program.RecordsDb.GetDeviceList(startTime, endTime);
         }
 
-        // GET api/<controller>/<action>
         [HttpGet]
         [ActionName("GetLatestRecords")]
         public IEnumerable<LiteDbLocal.SensorDataRec> GetLatestRecordsMinutes(int minutes)
@@ -66,7 +65,7 @@ namespace MqttBroker
         [ActionName("GetRecords")]
         public IEnumerable<LiteDbLocal.SensorDataRec> GetRecords(string deviceName)
         {
-            return Program.RecordsDb.GetRecordsByDevice(deviceName);
+            return Program.RecordsDb.GetRecordsByDevice(deviceName); // .Take(1000)
         }
 
         [HttpGet]

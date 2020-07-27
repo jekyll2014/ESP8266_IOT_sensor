@@ -1120,20 +1120,22 @@ uint64_t getTelegramUser(uint8_t n)
 #ifdef GSM_ENABLE
 
 #ifdef GSM_M590_ENABLE
-#define smsTimeOut 5000
+#define smsTimeOut 10000
 #define smsCheckTimeOut 30000
-#define atCommand_init1  F("ATE0")  //set text mode
-#define atCommand_init2  F("AT+CNMI=0,0,0,0,0")  //set text mode
-#define atCommand_init3  F("AT+CMGF=1")  //set text mode
-#define atCommand_init4  F("AT+CSCS=\"GSM\"")  //set text mode
-#define atCommand_status1  F("AT+CPAS")
-#define atCommand_status2  F("AT+CREG?")
-#define atCommand_send  F("AT+CMGS=\"")
-#define atCommand_getSMS  F("AT+CMGR=1")  // get sms message #1
-#define atCommand_deleteSms F("AT+CMGD=1")
+#define atCommand_init1  F("ATE0")              //disable echo
+#define atCommand_init2  F("AT+CNMI=0,0,0,0,0") //Set message indication Format
+#define atCommand_init3  F("AT+CMGF=1")         //set text mode
+#define atCommand_init4  F("AT+CSCS=\"GSM\"")   //Set "GSM” character set
+#define atCommand_status1  F("AT+CPAS")         //Check module’s status
+#define atCommand_status2  F("AT+CREG?")        //Check network registration status
+#define atCommand_status3  F("AT+CSQ")          //Signal intensity
+#define atCommand_status4  F("AT+CPMS?")          //Get SMS count
+#define atCommand_send  F("AT+CMGS=\"")         //Message sending
+#define atCommand_getSMS  F("AT+CMGR=")         //get sms message #
+#define atCommand_deleteSms F("AT+CMGD=")       //Delete message #
 #endif
 
-uint32_t gsmTimeOut;
+uint32_t gsmTimeOut = 0;
 uint32_t gsmUartSpeed = 19200;
 
 bool gsmEnable = false;
@@ -1158,6 +1160,7 @@ String sendATCommand(String cmd, bool waiting)
 	uart2.flush();
 	String _resp = "";
 	uart2.println(cmd);
+	//Serial.println(">>" + cmd);
 	if (waiting)
 	{
 		uint32_t _timeout = millis() + smsTimeOut;
@@ -1170,6 +1173,7 @@ String sendATCommand(String cmd, bool waiting)
 			_resp += uart2.readString();
 			yield();
 		}
+		//Serial.println("<<" + _resp);
 		if (_resp.length() <= 0)
 		{
 			//Serial.println("Timeout...");
@@ -1192,14 +1196,13 @@ bool initModem()
 
 	bool resp = true;
 	String response = sendATCommand(atCommand_init1, true);
-	if (response.lastIndexOf("OK") <= 0) resp &= false;
+	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
 	response = sendATCommand(atCommand_init2, true);
-	if (response.lastIndexOf("OK") <= 0) resp &= false;
+	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
 	response = sendATCommand(atCommand_init3, true);
-	if (response.lastIndexOf("OK") <= 0) resp &= false;
+	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
 	response = sendATCommand(atCommand_init4, true);
-	if (response.lastIndexOf("OK") <= 0) resp &= false;
-	else resp &= false;
+	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
 	if (stopSerial) uart2.end();
 
 	return resp;
@@ -1220,12 +1223,9 @@ bool sendSMS(String phone, String& smsText)
 	cmdTmp += phone;
 	cmdTmp += F("\"");
 	sendATCommand(cmdTmp, true);
-
 	cmdTmp = "";
-
 	if (smsText.length() >= 170) cmdTmp += smsText.substring(0, 168);
 	else cmdTmp += smsText;
-
 	//Serial.println("Sending sms to " + phone + ":\'" + cmdTmp + "\'");
 	//Serial.println(String(cmdTmp.length()));
 	for (uint16_t i = 0; i < cmdTmp.length(); i++)
@@ -1267,25 +1267,26 @@ smsMessage parseSMS(String msg)
 	String msgbody = "";
 	String msgphone = "";
 
-	msg = msg.substring(msg.indexOf("+CMGR: "));
+	msg = msg.substring(msg.indexOf(F("+CMGR: ")));
 	msgheader = msg.substring(0, msg.indexOf("\r"));
 
 	msgbody = msg.substring(msgheader.length() + 2);
-	msgbody = msgbody.substring(0, msgbody.lastIndexOf("OK"));
+	msgbody = msgbody.substring(0, msgbody.lastIndexOf(F("OK")));
 	msgbody.trim();
 
-	int firstIndex = msgheader.indexOf("\",\"") + 3;
-	int secondIndex = msgheader.indexOf("\",\"", firstIndex);
+	int firstIndex = msgheader.indexOf(F("\",\"")) + 3;
+	int secondIndex = msgheader.indexOf(F("\",\""), firstIndex);
 	msgphone = msgheader.substring(firstIndex, secondIndex);
+	if (msgphone.length() <= 0) msgphone = F(" ");
 
 	smsMessage response;
+	response.PhoneNumber = msgphone;
 	for (uint8_t i = 0; i < gsmUsersNumber; i++)
 	{
 		String gsmUser = getGsmUser(i);
 		if (msgphone == gsmUser)
 		{
 			if (i == 0) response.IsAdmin = true;
-			response.PhoneNumber = msgphone;
 			response.Message = msgbody;
 			break;
 		}
@@ -1305,20 +1306,29 @@ smsMessage getSMS()
 	}
 
 	initModem();
-	String _response = sendATCommand(atCommand_getSMS, true);
-	_response.trim();
+	//getModemStatus();
 	smsMessage sms;
-	if (_response.lastIndexOf("OK") > 0)
+	for (int i = 1; i <= 15; i++)
 	{
-		sms = parseSMS(_response);
+		String cmd = String(atCommand_getSMS) + String(i);
+		String _response = sendATCommand(cmd, true);
+		_response.trim();
+		if (_response.lastIndexOf(F("OK")) > 0)
+		{
+			deleteSMS(i);
+			sms = parseSMS(_response);
+			break;
+		}
+		yield();
 	}
-
+	//Serial.println("Sms: " + sms.Message);
+	//Serial.println("From: " + sms.PhoneNumber);
 	if (stopSerial) uart2.end();
 
 	return sms;
 }
 
-bool deleteSMS()
+bool deleteSMS(int n)
 {
 	bool stopSerial = false;
 	if (!uart2.isListening())
@@ -1327,15 +1337,14 @@ bool deleteSMS()
 		stopSerial = true;
 	}
 
-	String response = sendATCommand(atCommand_deleteSms, true);
-
+	String cmd = String(atCommand_deleteSms) + String(n);
+	String response = sendATCommand(cmd, true);
 	if (stopSerial) uart2.end();
-
-	if (response.lastIndexOf("OK") > 0) return true;
+	if (response.lastIndexOf(F("OK")) > 0) return true;
 	else return false;
 }
 
-uint8_t getModemStatus()
+String getModemStatus()
 {
 	bool stopSerial = false;
 	if (!uart2.isListening())
@@ -1345,12 +1354,15 @@ uint8_t getModemStatus()
 	}
 
 	String response = sendATCommand(atCommand_status1, true);
-	response = sendATCommand(atCommand_status2, true);
+	response += sendATCommand(atCommand_status2, true);
+	response += sendATCommand(atCommand_status3, true);
+	response += sendATCommand(atCommand_status4, true);
 
 	if (stopSerial) uart2.end();
 
-	if (response.lastIndexOf("OK") > 0) return true;
-	else return false;
+	//if (response.lastIndexOf(F("OK")) > 0) return true;
+	//else return false;
+	return response;
 }
 #endif
 
@@ -2270,7 +2282,6 @@ void loop()
 					//Serial.println(F("SMS not sent"));
 				}
 			}
-			deleteSMS();
 		}
 	}
 #endif
@@ -3396,6 +3407,20 @@ String printStatus(bool toJson = false)
 	str += delimiter;
 #endif
 
+#ifdef GSM_ENABLE
+	str += F("GSM enabled");
+	str += eq;
+	str += String(gsmEnable);
+	str += delimiter;
+#endif
+
+#ifdef SLEEP_ENABLE
+	str += F("SLEEP enabled");
+	str += eq;
+	str += String(sleepEnable);
+	str += delimiter;
+#endif
+
 	str += F("Free memory");
 	str += eq;
 	str += String(ESP.getFreeHeap());
@@ -3859,8 +3884,8 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 	else tmp = command;
 	tmp.toLowerCase();
 	String str = "";
-	if (channel == CHANNEL_GSM) str += F("^");
 	str.reserve(2048);
+	if (channel == CHANNEL_GSM) str += F("^");
 	if (tmp == F("get_sensor"))
 	{
 		sensorDataCollection sensorData = collectData();
