@@ -35,6 +35,13 @@ namespace ChartPlotMQTT
             sensors.EnsureIndex(x => x.Time);
         }
 
+        public LiteDbLocal(ConnectionString dbConnectionString, string collectionName)
+        {
+            db = new LiteDatabase(dbConnectionString);
+            sensors = db.GetCollection<SensorDataRec>(collectionName);
+            sensors.EnsureIndex(x => x.Time);
+        }
+
         public bool Disposed { get; private set; }
 
         public int AddRecord(SensorDataRec record)
@@ -114,7 +121,7 @@ namespace ChartPlotMQTT
             var records = sensors.Find(
                 x => x.Time > startTime
                      && x.Time < endTime);
-            if (records == null || records.Count() <= 0) return null;
+            if (records == null || !records.Any()) return null;
 
             return records;
         }
@@ -136,7 +143,7 @@ namespace ChartPlotMQTT
             // Dispose of unmanaged resources.
             Dispose(true);
             // Suppress finalization.
-            // GC.SuppressFinalize(this);
+            GC.SuppressFinalize(this);
         }
 
         // Protected implementation of Dispose pattern.
@@ -145,10 +152,12 @@ namespace ChartPlotMQTT
             if (Disposed) return;
 
             if (disposing)
-            //db.Shrink();
-            //db.Rebuild();
+            {
+                //db.Shrink();
+                //db.Rebuild();
                 db.Dispose();
-            Disposed = true;
+                Disposed = true;
+            }
         }
     }
 }
