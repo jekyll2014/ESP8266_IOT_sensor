@@ -62,9 +62,9 @@ Planned features:
 #define SWITCH_OFF_NUMBER F("0")
 #define SWITCH_ON F("on")
 #define SWITCH_OFF F("off")
-#define eol F("\r\n")
-#define csv_divider F(";")
-#define quote F("\"")
+#define EOL F("\r\n")
+#define CSV_DIVIDER F(";")
+#define QUOTE F("\"")
 
 String deviceName = "";
 
@@ -109,51 +109,159 @@ void ICACHE_RAM_ATTR int6count();
 void ICACHE_RAM_ATTR int7count();
 void ICACHE_RAM_ATTR int8count();
 
-String set_output(String&);
-String ParseSensorReport(sensorDataCollection&, String, bool);
-bool add_signal_pin(uint8_t);
+//CO2 UART
+int co2SerialRead();
+byte getCheckSum(byte*);
+
+//CO2 PPM
+int co2PPMRead();
+
+//ADC
+uint16_t getAdc();
+
+//Events
+String getEvent(uint8_t);
+void processEvent(uint8_t);
+String printHelpEvent();
+
+//Schedules
+String getSchedule(uint8_t);
+void writeScheduleExecTime(uint8_t, uint32_t);
+uint32_t readScheduleExecTime(uint8_t);
+String printHelpSchedule();
+void processSchedule(uint8_t);
+
+//SMTP
+bool sendMail(String&, String&, String&);
+
+//MQTT
+String getMqttServer();
+int getMqttPort();
+String getMqttUser();
+String getMqttPassword();
+String getMqttDeviceId();
+String getMqttTopicIn();
+String getMqttTopicOut();
+bool getMqttClean();
+bool mqtt_connect();
+bool mqtt_send(String&, int, String);
+void mqtt_callback(char*, uint8_t*, uint16_t);
+
+//Telegram
+String uint64ToString(uint64_t);
+uint64_t StringToUint64(String);
+bool sendToTelegramServer(int64_t, String);
+void addMessageToTelegramOutboundBuffer(int64_t, String, uint8_t);
+void removeMessageFromTelegramOutboundBuffer();
+void sendToTelegram(int64_t, String, uint8_t);
+void sendBufferToTelegram();
+uint64_t getTelegramUser(uint8_t);
+
+//GSM
+String getGsmUser(uint8_t);
+String sendATCommand(String, bool);
+bool initModem();
+bool sendSMS(String, String&);
+smsMessage parseSMS(String);
+smsMessage getSMS();
+bool deleteSMS(int);
+String getModemStatus();
+
+//Google script
+bool sendValueToGoogle(String&);
+
+//PushingBox
+bool sendToPushingBoxServer(String);
+bool sendToPushingBox(String&);
+
+//HTTP
+void handleRoot();
+void handleNotFound();
+
+//NTP
+void sendNTPpacket(IPAddress&);
+time_t getNtpTime();
+
+//Log
+void addToLog(sensorDataCollection&);
+
+//Telnet
+void sendToTelnet(String&, uint8_t);
+
+//EEPROM
+uint32_t CollectEepromSize();
 String readConfigString(uint16_t, uint16_t);
 void readConfigString(uint16_t, uint16_t, char*);
 uint32_t readConfigLong(uint16_t);
 float readConfigFloat(uint16_t);
-void processEvent(uint8_t);
-void ProcessAction(String&, uint8_t, bool);
-String getSchedule(uint8_t);
+void writeConfigString(uint16_t, uint16_t, String);
+void writeConfigString(uint16_t, uint16_t, char*, uint8_t);
+void writeConfigLong(uint16_t, uint32_t);
+void writeConfigFloat(uint16_t, float);
+
+//I/O
+bool add_signal_pin(uint8_t);
+String set_output(String&);
+
+//Help printout
+String printConfig(bool);
+String printStatus(bool);
+String printHelp();
+String printHelpAction();
+
+//Sensor data processing
 sensorDataCollection collectData();
+String ParseSensorReport(sensorDataCollection&, String, bool);
+
+//Script Processing
+String processCommand(String, uint8_t, bool);
+void ProcessAction(String&, uint8_t, bool);
+
+//Sensors
 float getTemperature(sensorDataCollection&);
 float getHumidity(sensorDataCollection&);
-void writeConfigLong(uint16_t, uint32_t);
+int getCo2(sensorDataCollection&);
+
+//Wi-Fi
+String getStaSsid();
+String getStaPassword();
+String getApSsid();
+String getApPassword();
+WiFiPhyMode getWifiStandard();
+float getWiFiPower();
+void startWiFi();
+void Start_OFF_Mode();
+void Start_STA_Mode();
+void Start_AP_Mode();
+void Start_AP_STA_Mode();
+
+String timeToString(uint32_t);
+
+void processEvent(uint8_t);
+String getSchedule(uint8_t);
+sensorDataCollection collectData();
 void mqtt_callback(char*, uint8_t*, uint16_t);
 uint64_t getTelegramUser(uint8_t);
 String sendATCommand(String, bool);
-String processCommand(String, uint8_t, bool);
 String waitResponse();
-uint32_t CollectEepromSize();
-void startWiFi();
-void Start_OFF_Mode();
-void Start_AP_Mode();
-void Start_STA_Mode();
-void Start_AP_STA_Mode();
-void sendToTelnet(String&, uint8_t);
-String timeToString(uint32_t);
-String printStatus(bool);
-String getStaSsid();
-String printHelpAction();
 
 // DATA BUSES
 
 #ifdef I2C_ENABLE
 #include <Wire.h>
+
 TwoWire i2c;
 #endif
 
 #ifdef ONEWIRE_ENABLE
 #include <OneWire.h>
+
 OneWire oneWire(ONEWIRE_DATA);
 #endif
 
 #ifdef UART2_ENABLE
 #include <SoftwareSerial.h>
+
 SoftwareSerial uart2(UART2_TX, UART2_RX);
 uint32_t uart2_Speed = 9600;
 #endif
@@ -164,6 +272,7 @@ uint32_t uart2_Speed = 9600;
 #ifdef AMS2320_ENABLE
 #include "Adafruit_Sensor.h"
 #include "Adafruit_AM2320.h"
+
 Adafruit_AM2320 am2320 = Adafruit_AM2320();
 bool am2320_enable = true;
 #endif
@@ -171,6 +280,7 @@ bool am2320_enable = true;
 // HTU21D I2C temperature + humidity sensor
 #ifdef HTU21D_ENABLE
 #include "Adafruit_HTU21DF.h"
+
 Adafruit_HTU21DF htu21d = Adafruit_HTU21DF();
 bool htu21d_enable = true;
 #endif
@@ -179,7 +289,9 @@ bool htu21d_enable = true;
 #ifdef BME280_ENABLE
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+
 #define BME280_ADDRESS 0xF6
+
 Adafruit_BME280 bme280;
 bool bme280_enable = true;
 #endif
@@ -187,6 +299,7 @@ bool bme280_enable = true;
 // BMP180 I2C temperature + pressure sensor
 #ifdef BMP180_ENABLE
 #include <Adafruit_BMP085.h>
+
 Adafruit_BMP085 bmp180;
 bool bmp180_enable = true;
 #endif
@@ -194,6 +307,7 @@ bool bmp180_enable = true;
 // DS18B20 OneWire temperature sensor
 #ifdef DS18B20_ENABLE
 #include "DallasTemperature.h"
+
 DallasTemperature ds1820(&oneWire);
 bool ds1820_enable = true;
 #endif
@@ -210,51 +324,6 @@ DHT dht(DHT_PIN, DHT_ENABLE);
 uint32_t mhz19UartSpeed = 9600;
 uint16_t co2_uart_avg[3] = { 0, 0, 0 };
 int mhtemp_s = 0;
-
-/*int co2SerialRead()
-{
-	uint8_t cmd[9] = { 0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79 };
-	uint8_t response[9];
-	uint8_t crc = 0;
-	int ppm = -1;
-	mhtemp_s = 0;
-
-	uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
-
-	uart2.flush();
-	uart2.write(cmd, 9);
-	memset(response, 0, 9);
-	uint8_t n = 0;
-	uint32_t tmpTime = millis() + 1000UL;
-	while (n < 9 && millis() < tmpTime)
-	{
-		if (uart2.available() > 0)
-		{
-			response[n] = uart2.read();
-			n++;
-		}
-		yield();
-	}
-	if (n == 9)
-	{
-		crc = 0;
-		for (uint8_t myVal = 1; myVal < 8; myVal++)
-		{
-			crc += response[myVal];
-			yield();
-		}
-		crc = 255 - crc;
-		crc++;
-		if (response[0] == 0xFF && response[1] == 0x86 && response[8] == crc)
-		{
-			ppm = (int)256 * (int)response[2] + (int)response[3];
-			mhtemp_s = int(response[4]) - (int)40;
-		}
-	}
-	uart2.end();
-
-	return ppm;
-}*/
 
 int co2SerialRead()
 {
@@ -338,16 +407,14 @@ int co2SerialRead()
 
 byte getCheckSum(byte* packet)
 {
-	byte i;
 	unsigned char checksum = 0;
-	for (i = 1; i < 8; i++) {
+	for (byte i = 1; i < 8; i++) {
 		checksum += packet[i];
 	}
 	checksum = 0xff - checksum;
 	checksum += 1;
 	return checksum;
 }
-
 #endif
 
 // MH-Z19 CO2 sensor via PPM signal
@@ -356,13 +423,13 @@ uint16_t co2_ppm_avg[3] = { 0, 0, 0 };
 
 int co2PPMRead()
 {
-	uint16_t th, tl, ppm;
-	uint32_t timeout = 1000;
-	uint32_t timer = millis();
+	uint16_t th, ppm;
+	const uint32_t timeout = 1000;
+	const uint32_t timer = millis();
 	do
 	{
 		th = pulseIn(MH_Z19_PPM_ENABLE, HIGH, 1004000) / 1000;
-		tl = 1004 - th;
+		const uint16_t tl = 1004 - th;
 		ppm = 5000 * (th - 2) / (th + tl - 4);
 		if (millis() - timer > timeout)
 		{
@@ -379,8 +446,9 @@ int co2PPMRead()
 uint32_t displaySwitchedLastTime = 0;
 uint32_t displaySwitchPeriod = 3000;
 
-/* TM1637 display.
-TM1637 display leds layout:
+// TM1637 display.
+#ifdef TM1637DISPLAY_ENABLE
+/*TM1637 display leds layout:
 		a
 		_
 	f| |b
@@ -388,8 +456,8 @@ TM1637 display leds layout:
 	e|_|c
 		d
 PINS: D3 - CLK, D4 - DIO */
-#ifdef TM1637DISPLAY_ENABLE
 #include <TM1637Display.h>
+
 const uint8_t SEG_DEGREE[] = { SEG_A | SEG_B | SEG_F | SEG_G };
 const uint8_t SEG_HUMIDITY[] = { SEG_C | SEG_E | SEG_F | SEG_G };
 TM1637Display display(TM1637_CLK, TM1637_DIO);
@@ -400,8 +468,10 @@ uint8_t displayState = 0;
 #ifdef SSD1306DISPLAY_ENABLE
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
+
 #define I2C_ADDRESS 0x3C
 #define RST_PIN -1
+
 const uint8_t* font = fixed_bold10x15;  // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
 //const uint8_t* font = Adafruit5x7;  // 5*7 pix
@@ -413,7 +483,7 @@ SSD1306AsciiWire oled;
 uint16_t getAdc()
 {
 	float averageValue = 0;
-	uint16_t measurementsToAverage = 16;
+	const uint16_t measurementsToAverage = 16;
 	for (uint16_t i = 0; i < measurementsToAverage; ++i)
 	{
 		averageValue += (float)analogRead(A0);
@@ -421,7 +491,7 @@ uint16_t getAdc()
 		yield();
 	}
 	averageValue /= measurementsToAverage;
-	return uint16_t(averageValue);
+	return (uint16_t)averageValue;
 }
 #endif
 
@@ -766,9 +836,10 @@ void processSchedule(uint8_t scheduleNum)
 // SMTP
 #ifdef SMTP_ENABLE
 #include <sendemail.h>
+
 bool smtpEnable = false;
 
-bool sendMail(String& subject, String& message, String addressTo)
+bool sendMail(String& subject, String& message, String& addressTo)
 {
 	String smtpServerAddress = readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	uint16_t smtpServerPort = readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size).toInt();
@@ -784,13 +855,14 @@ bool sendMail(String& subject, String& message, String addressTo)
 	}
 	return result;
 }
-
 #endif
 
 // MQTT
 #ifdef MQTT_ENABLE
 #include <PubSubClient.h>
-#define mqtt_max_packet 100
+
+#define MQTT_MAX_PACKET 100
+
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
 String mqttCommand = "";
@@ -900,7 +972,7 @@ bool mqtt_send(String& message, int dataLength, String topic)
 	{
 		if (topic.length() <= 0) topic = getMqttTopicOut();
 
-		if (dataLength > mqtt_max_packet)
+		if (dataLength > MQTT_MAX_PACKET)
 		{
 			result = mqtt_client.beginPublish(topic.c_str(), dataLength, false);
 			for (uint16_t i = 0; i < dataLength; i++)
@@ -933,10 +1005,12 @@ void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
 //#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "CTBot.h"
-#define telegramMessageMaxSize 300
-#define telegramMessageDelay 2000
-#define telegramRetries 3
+
+#define TELEGRAM_MESSAGE_MAX_SIZE 300
+#define TELEGRAM_MESSAGE_DELAY 2000
+#define TELEGRAM_RETRIES 3
 #define telegramMessageBufferSize  10
+
 CTBot myBot;
 struct telegramMessage
 {
@@ -944,7 +1018,6 @@ struct telegramMessage
 	int64_t user;
 	String message;
 };
-
 //int64_t telegramUsers[telegramUsersNumber];
 telegramMessage telegramOutboundBuffer[telegramMessageBufferSize];
 uint8_t telegramOutboundBufferPos = 0;
@@ -1040,10 +1113,10 @@ void sendToTelegram(int64_t user, String message, uint8_t retries)
 	// slice message to pieces
 	while (message.length() > 0)
 	{
-		if (message.length() >= telegramMessageMaxSize)
+		if (message.length() >= TELEGRAM_MESSAGE_MAX_SIZE)
 		{
-			addMessageToTelegramOutboundBuffer(user, message.substring(0, telegramMessageMaxSize), retries);
-			message = message.substring(telegramMessageMaxSize);
+			addMessageToTelegramOutboundBuffer(user, message.substring(0, TELEGRAM_MESSAGE_MAX_SIZE), retries);
+			message = message.substring(TELEGRAM_MESSAGE_MAX_SIZE);
 		}
 		else
 		{
@@ -1083,7 +1156,7 @@ void sendBufferToTelegram()
 			{
 				//sendToTelegram(msg.sender.id, deviceName + ": " + msg.text, telegramRetries);
 				String str = processCommand(msg.text, CHANNEL_TELEGRAM, isAdmin);
-				sendToTelegram(msg.sender.id, deviceName + ": " + str, telegramRetries);
+				sendToTelegram(msg.sender.id, deviceName + ": " + str, TELEGRAM_RETRIES);
 			}
 			yield();
 		}
@@ -1113,36 +1186,50 @@ uint64_t getTelegramUser(uint8_t n)
 	userStr.trim();
 	return StringToUint64(userStr);
 }
-
 #endif
 
 // GSM modem
 #ifdef GSM_ENABLE
 
 #ifdef GSM_M590_ENABLE
-#define smsTimeOut 10000
-#define smsCheckTimeOut 30000
-#define atCommand_init1  F("ATE0")              //disable echo
-#define atCommand_init2  F("AT+CNMI=0,0,0,0,0") //Set message indication Format
-#define atCommand_init3  F("AT+CMGF=1")         //set text mode
-#define atCommand_init4  F("AT+CSCS=\"GSM\"")   //Set "GSM” character set
-#define atCommand_status1  F("AT+CPAS")         //Check module’s status
-#define atCommand_status2  F("AT+CREG?")        //Check network registration status
-#define atCommand_status3  F("AT+CSQ")          //Signal intensity
-#define atCommand_status4  F("AT+CPMS?")          //Get SMS count
-#define atCommand_send  F("AT+CMGS=\"")         //Message sending
-#define atCommand_getSMS  F("AT+CMGR=")         //get sms message #
-#define atCommand_deleteSms F("AT+CMGD=")       //Delete message #
+#define SMS_TIME_OUT          10000
+#define SMS_CHECK_TIME_OUT    30000
+#define AT_COMMAND_INIT1      F("ATE0")              //disable echo
+#define AT_COMMAND_INIT2      F("AT+CNMI=0,0,0,0,0") //Set message indication Format
+#define AT_COMMAND_INIT3      F("AT+CMGF=1")         //set text mode
+#define AT_COMMAND_INIT4      F("AT+CSCS=\"GSM\"")   //Set "GSM” character set
+#define AT_COMMAND_STATUS1    F("AT+CPAS")         //Check module’s status
+#define AT_COMMAND_STATUS2    F("AT+CREG?")        //Check network registration status
+#define AT_COMMAND_STATUS3    F("AT+CSQ")          //Signal intensity
+#define AT_COMMAND_STATUS4    F("AT+CPMS?")          //Get SMS count
+#define AT_COMMAND_SEND       F("AT+CMGS=\"")         //Message sending
+#define AT_COMMAND_GET_SMS    F("AT+CMGR=")         //get sms message #
+#define AT_COMMAND_DELETE_SMS F("AT+CMGD=")       //Delete message #
+#endif
+
+#ifdef GSM_SIM800_ENABLE
+#define SMS_TIME_OUT          10000
+#define SMS_CHECK_TIME_OUT    30000
+#define AT_COMMAND_INIT1      F("ATE0")              //disable echo
+#define AT_COMMAND_INIT2      F("AT+CNMI=0,0,0,0,0") //Set message indication Format
+#define AT_COMMAND_INIT3      F("AT+CMGF=1")         //set text mode
+#define AT_COMMAND_INIT4      F("AT+CSCS=\"GSM\"")   //Set "GSM” character set
+#define AT_COMMAND_STATUS1    F("AT+CPAS")         //Check module’s status
+#define AT_COMMAND_STATUS2    F("AT+CREG?")        //Check network registration status
+#define AT_COMMAND_STATUS3    F("AT+CSQ")          //Signal intensity
+#define AT_COMMAND_STATUS4    F("AT+CPMS?")        //Get SMS count
+#define AT_COMMAND_SEND       F("AT+CMGS=\"")          //Message sending
+#define AT_COMMAND_GET_SMS    F("AT+CMGR=")         //get sms message #
+#define AT_COMMAND_DELETE_SMS F("AT+CMGD=")       //Delete message #
 #endif
 
 uint32_t gsmTimeOut = 0;
 uint32_t gsmUartSpeed = 19200;
-
 bool gsmEnable = false;
 
 String getGsmUser(uint8_t n)
 {
-	uint8_t singleUserLength = GSM_USERS_TABLE_size / gsmUsersNumber;
+	const uint8_t singleUserLength = GSM_USERS_TABLE_size / gsmUsersNumber;
 	String userStr = readConfigString((GSM_USERS_TABLE_addr + n * singleUserLength), singleUserLength);
 	userStr.trim();
 	return userStr;
@@ -1163,7 +1250,7 @@ String sendATCommand(String cmd, bool waiting)
 	//Serial.println(">>" + cmd);
 	if (waiting)
 	{
-		uint32_t _timeout = millis() + smsTimeOut;
+		const uint32_t _timeout = millis() + SMS_TIME_OUT;
 		while (!uart2.available() && millis() < _timeout)
 		{
 			yield();
@@ -1195,13 +1282,13 @@ bool initModem()
 	}
 
 	bool resp = true;
-	String response = sendATCommand(atCommand_init1, true);
+	String response = sendATCommand(AT_COMMAND_INIT1, true);
 	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
-	response = sendATCommand(atCommand_init2, true);
+	response = sendATCommand(AT_COMMAND_INIT2, true);
 	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
-	response = sendATCommand(atCommand_init3, true);
+	response = sendATCommand(AT_COMMAND_INIT3, true);
 	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
-	response = sendATCommand(atCommand_init4, true);
+	response = sendATCommand(AT_COMMAND_INIT4, true);
 	if (response.lastIndexOf(F("OK")) <= 0) resp &= false;
 	if (stopSerial) uart2.end();
 
@@ -1218,7 +1305,7 @@ bool sendSMS(String phone, String& smsText)
 	}
 
 	initModem();
-	String cmdTmp = atCommand_send;
+	String cmdTmp = AT_COMMAND_SEND;
 	cmdTmp.reserve(175);
 	cmdTmp += phone;
 	cmdTmp += F("\"");
@@ -1237,10 +1324,10 @@ bool sendSMS(String phone, String& smsText)
 	delay(500);
 	yield();
 	uart2.flush();
-	uart2.write(((char)26));
+	uart2.write((char)26);
 	yield();
 	cmdTmp = "";
-	uint32_t _timeout = millis() + smsTimeOut;
+	const uint32_t _timeout = millis() + SMS_TIME_OUT;
 	while (!uart2.available() && millis() < _timeout)
 	{
 		yield();
@@ -1258,7 +1345,7 @@ bool sendSMS(String phone, String& smsText)
 	if (stopSerial) uart2.end();
 
 	if (cmdTmp.lastIndexOf(F("OK")) > 0) return true;
-	else return false;
+	return false;
 }
 
 smsMessage parseSMS(String msg)
@@ -1310,7 +1397,7 @@ smsMessage getSMS()
 	smsMessage sms;
 	for (int i = 1; i <= 15; i++)
 	{
-		String cmd = String(atCommand_getSMS) + String(i);
+		const String cmd = String(AT_COMMAND_GET_SMS) + String(i);
 		String _response = sendATCommand(cmd, true);
 		_response.trim();
 		if (_response.lastIndexOf(F("OK")) > 0)
@@ -1337,8 +1424,8 @@ bool deleteSMS(int n)
 		stopSerial = true;
 	}
 
-	String cmd = String(atCommand_deleteSms) + String(n);
-	String response = sendATCommand(cmd, true);
+	const String cmd = String(AT_COMMAND_DELETE_SMS) + String(n);
+	const String response = sendATCommand(cmd, true);
 	if (stopSerial) uart2.end();
 	if (response.lastIndexOf(F("OK")) > 0) return true;
 	else return false;
@@ -1353,10 +1440,10 @@ String getModemStatus()
 		stopSerial = true;
 	}
 
-	String response = sendATCommand(atCommand_status1, true);
-	response += sendATCommand(atCommand_status2, true);
-	response += sendATCommand(atCommand_status3, true);
-	response += sendATCommand(atCommand_status4, true);
+	String response = sendATCommand(AT_COMMAND_STATUS1, true);
+	response += sendATCommand(AT_COMMAND_STATUS2, true);
+	response += sendATCommand(AT_COMMAND_STATUS3, true);
+	response += sendATCommand(AT_COMMAND_STATUS4, true);
 
 	if (stopSerial) uart2.end();
 
@@ -1369,6 +1456,7 @@ String getModemStatus()
 // Google script
 #ifdef GSCRIPT_ENABLE
 #include <HTTPSRedirect.h>
+
 bool gScriptEnable = false;
 
 bool sendValueToGoogle(String& value)
@@ -1383,8 +1471,7 @@ bool sendValueToGoogle(String& value)
 		String gScriptId = readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
 		const uint16_t httpsPort = 443;
 
-		HTTPSRedirect* gScriptClient = nullptr;
-		gScriptClient = new HTTPSRedirect(httpsPort);
+		HTTPSRedirect* gScriptClient = new HTTPSRedirect(httpsPort);
 		gScriptClient->setInsecure();
 		gScriptClient->setPrintResponseBody(true);
 
@@ -1418,9 +1505,10 @@ bool sendValueToGoogle(String& value)
 }
 #endif
 
-// Pushingbox
+// PushingBox
 #ifdef PUSHINGBOX_ENABLE
 #define PUSHINGBOX_SUBJECT F("device_name")
+
 const uint16_t pushingBoxMessageMaxSize = 1000;
 const char* pushingBoxServer = "api.pushingbox.com";
 bool pushingBoxEnable = false;
@@ -1491,14 +1579,10 @@ bool sendToPushingBox(String& message)
 // HTTP server
 #ifdef HTTP_SERVER_ENABLE
 #include <ESP8266WebServer.h>
+
 uint16_t httpPort = 80;
 ESP8266WebServer http_server(httpPort);
 bool httpServerEnable = false;
-
-String HTML_footer()
-{
-	return F("<br />\r\n</html>\r\n");
-}
 
 void handleRoot()
 {
@@ -1508,6 +1592,7 @@ void handleRoot()
 	str += F("\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\n");
 	//str += ParseSensorReport(history_log[history_record_number - 1], F("<br>"), false);
 	str += ParseSensorReport(sensorData, F("<br>"), false);
+	str += F("<br />\r\n</html>\r\n");
 	http_server.sendContent(str);
 }
 
@@ -1518,14 +1603,14 @@ void handleNotFound()
 	message += F("\nMethod: ");
 	message += (http_server.method() == HTTP_GET) ? F("GET") : F("POST\nArguments: ");
 	message += http_server.args();
-	message += eol;
+	message += EOL;
 	for (uint8_t i = 0; i < http_server.args(); i++)
 	{
 		message += F(" ");
 		message += http_server.argName(i);
 		message += F(": ");
 		message += http_server.arg(i);
-		message += eol;
+		message += EOL;
 		yield();
 	}
 	http_server.send(404, F("text/plain"), message);
@@ -1535,8 +1620,10 @@ void handleNotFound()
 // NTP Server
 #ifdef NTP_TIME_ENABLE
 #include <WiFiUdp.h>
+
 #define NTP_PACKET_SIZE 48 // NTP time is in the first 48 bytes of message
-#define localPort 8888  // local port to listen for UDP packets
+#define UDP_LOCAL_PORT 8888  // local port to listen for UDP packets
+
 WiFiUDP Udp;
 int ntpRefreshDelay = 180;
 bool NTPenable = false;
@@ -1571,12 +1658,10 @@ time_t getNtpTime()
 
 	while (Udp.parsePacket() > 0) yield(); // discard any previously received packets
 
-	String ntpServer = "pool.ntp.org";
 	IPAddress timeServerIP(129, 6, 15, 28); //129.6.15.28 = time-a.nist.gov
-	int timeZone = +3;     // Moscow Time
 
-	ntpServer = readConfigString(NTP_SERVER_addr, NTP_SERVER_size);
-	timeZone = readConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size).toInt();
+	String ntpServer = readConfigString(NTP_SERVER_addr, NTP_SERVER_size);
+	const int timeZone = readConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size).toInt();
 
 
 	if (!timeServerIP.fromString(ntpServer))
@@ -1588,18 +1673,17 @@ time_t getNtpTime()
 	}
 
 	sendNTPpacket(timeServerIP);
-	uint32_t beginWait = millis();
+	const uint32_t beginWait = millis();
 	while (millis() - beginWait < 1500)
 	{
-		int size = Udp.parsePacket();
+		const int size = Udp.parsePacket();
 		if (size >= NTP_PACKET_SIZE)
 		{
 			uint8_t packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 			Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
 			timeIsSet = true;
-			uint32_t secsSince1900;
 			// convert four bytes starting at location 40 to a long integer
-			secsSince1900 = (uint32_t)packetBuffer[40] << 24;
+			uint32_t secsSince1900 = (uint32_t)packetBuffer[40] << 24;
 			secsSince1900 |= (uint32_t)packetBuffer[41] << 16;
 			secsSince1900 |= (uint32_t)packetBuffer[42] << 8;
 			secsSince1900 |= (uint32_t)packetBuffer[43];
@@ -1618,6 +1702,7 @@ time_t getNtpTime()
 #ifdef LOG_ENABLE
 // Log settings for 32 hours of storage
 #define LOG_SIZE 120 // Save sensors value each 10 minutes: ( 32hours * 60minutes/hour ) / 10minutes/pcs = 192 pcs
+
 sensorDataCollection history_log[LOG_SIZE];
 uint16_t history_record_number = 0;
 uint32_t logLastTime = 0;
@@ -1727,7 +1812,7 @@ void setup()
 #ifdef TELEGRAM_ENABLE
 	for (uint8_t b = 0; b < telegramMessageBufferSize; b++)
 	{
-		telegramOutboundBuffer[0].message.reserve(telegramMessageMaxSize);
+		telegramOutboundBuffer[0].message.reserve(TELEGRAM_MESSAGE_MAX_SIZE);
 		yield();
 	}
 #endif
@@ -1828,7 +1913,7 @@ void setup()
 	if (readConfigString(NTP_ENABLE_addr, NTP_ENABLE_size) == SWITCH_ON_NUMBER) NTPenable = true;
 	if (NTPenable)
 	{
-		Udp.begin(localPort);
+		Udp.begin(UDP_LOCAL_PORT);
 		setSyncProvider(getNtpTime);
 		setSyncInterval(ntpRefreshDelay); //60 sec. = 1 min.
 	}
@@ -2030,12 +2115,12 @@ void loop()
 			sensorDataCollection sensorData = collectData();
 			if (bitRead(autoReport, CHANNEL_UART))
 			{
-				String str = ParseSensorReport(sensorData, eol, false);
+				String str = ParseSensorReport(sensorData, EOL, false);
 				Serial.println(str);
 			}
 			if ((WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0) && telnetEnable && bitRead(autoReport, CHANNEL_TELNET))
 			{
-				String str = ParseSensorReport(sensorData, eol, false);
+				String str = ParseSensorReport(sensorData, EOL, false);
 				for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
 				{
 					if (serverClient[i] && serverClient[i].connected())
@@ -2060,13 +2145,13 @@ void loop()
 #ifdef TELEGRAM_ENABLE
 				if (telegramEnable && bitRead(autoReport, CHANNEL_TELEGRAM))
 				{
-					String str = ParseSensorReport(sensorData, eol, false);
+					String str = ParseSensorReport(sensorData, EOL, false);
 					for (uint8_t i = 0; i < telegramUsersNumber; i++)
 					{
 						uint64_t user = getTelegramUser(i);
 						if (user > 0)
 						{
-							sendToTelegram(user, str, telegramRetries);
+							sendToTelegram(user, str, TELEGRAM_RETRIES);
 						}
 						yield();
 					}
@@ -2076,7 +2161,7 @@ void loop()
 #ifdef GSCRIPT_ENABLE
 				if (gScriptEnable && bitRead(autoReport, CHANNEL_GSCRIPT))
 				{
-					String str = ParseSensorReport(sensorData, eol, false);
+					String str = ParseSensorReport(sensorData, EOL, false);
 					sendValueToGoogle(str);
 				}
 #endif
@@ -2084,7 +2169,7 @@ void loop()
 #ifdef PUSHINGBOX_ENABLE
 				if (pushingBoxEnable && bitRead(autoReport, CHANNEL_PUSHINGBOX))
 				{
-					String str = ParseSensorReport(sensorData, eol, false);
+					String str = ParseSensorReport(sensorData, EOL, false);
 					sendToPushingBox(str);
 				}
 #endif
@@ -2108,8 +2193,8 @@ void loop()
 			{
 				bool sendOk = true;
 				uint16_t n = 0;
-				String tmpStr = ParseSensorReport(history_log[n], csv_divider);
-				tmpStr += eol;
+				String tmpStr = ParseSensorReport(history_log[n], CSV_DIVIDER, false);
+				tmpStr += EOL;
 				n++;
 				while (n < history_record_number)
 				{
@@ -2117,11 +2202,13 @@ void loop()
 					for (; n < (freeMem / tmpStr.length()) - 1; n++)
 					{
 						if (n >= history_record_number) break;
-						tmpStr += ParseSensorReport(history_log[n], csv_divider);
-						tmpStr += eol;
+						tmpStr += ParseSensorReport(history_log[n], CSV_DIVIDER, false);
+						tmpStr += EOL;
 						yield();
 					}
-					sendOk = sendMail(deviceName + " log", tmpStr);
+					String subj = deviceName + " log";
+					String addrTo = readConfigString(SMTP_TO_addr, SMTP_TO_size);
+					sendOk = sendMail(subj, tmpStr, addrTo);
 					tmpStr = "";
 					yield();
 					if (sendOk)
@@ -2231,7 +2318,6 @@ void loop()
 		}
 		yield();
 	}
-
 	if (WiFi.status() == WL_CONNECTED)
 	{
 #ifdef MQTT_ENABLE
@@ -2253,19 +2339,18 @@ void loop()
 
 #ifdef TELEGRAM_ENABLE
 		//check TELEGRAM for data
-		if (telegramEnable && millis() - telegramLastTime > telegramMessageDelay)
+		if (telegramEnable && millis() - telegramLastTime > TELEGRAM_MESSAGE_DELAY)
 		{
 			sendBufferToTelegram();
 			telegramLastTime = millis();
 		}
 #endif
 	}
-
 	yield();
 #ifdef GSM_ENABLE
 	if (gsmEnable && millis() > gsmTimeOut)
 	{
-		gsmTimeOut = millis() + smsCheckTimeOut;
+		gsmTimeOut = millis() + SMS_CHECK_TIME_OUT;
 		//getModemStatus();
 		smsMessage newSms = getSMS();
 		if (newSms.Message != "")
@@ -2404,7 +2489,7 @@ void loop()
 				tmpStr += String(co2_avg);
 				tmpStr += F("\r\n");
 				n++;
-			}
+		}
 #endif
 
 			//is strings are not many scale them
@@ -2412,8 +2497,8 @@ void loop()
 			else oled.set1X();
 			oled.print(tmpStr);
 #endif
-		}
 	}
+}
 #endif
 	yield();
 #ifdef EVENTS_ENABLE
@@ -2698,7 +2783,7 @@ String set_output(String& outputSetter)
 		{
 			str = F("Incorrect output #");
 			str += String(outNum);
-			str += eol;
+			str += EOL;
 		}
 	}
 	return str;
@@ -3889,7 +3974,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 	if (tmp == F("get_sensor"))
 	{
 		sensorDataCollection sensorData = collectData();
-		str += ParseSensorReport(sensorData, eol);
+		str += ParseSensorReport(sensorData, EOL);
 	}
 	else if (tmp == F("get_status"))
 	{
@@ -3955,7 +4040,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			checkSensorPeriod = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
 			str += F("New sensor check period = \"");
 			str += String(uint16_t(checkSensorPeriod / 1000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size, String(uint16_t(checkSensorPeriod / 1000UL)));
 		}
 #ifdef LOG_ENABLE
@@ -3964,7 +4049,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			logPeriod = uint32_t(atol(command.substring(command.indexOf('=') + 1).c_str()) * 1000UL);
 			str += F("New log save period = \"");
 			str += String(uint16_t(logPeriod / 1000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(LOG_PERIOD_addr, LOG_PERIOD_size, String(uint16_t(logPeriod / 1000UL)));
 		}
 		//getLog - to be implemented
@@ -3974,7 +4059,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				if (history_log[i].year > 0)
 				{
-					str += ParseSensorReport(history_log[i], eol, true);
+					str += ParseSensorReport(history_log[i], EOL, true);
 					switch (channel)
 					{
 					case CHANNEL_UART:
@@ -4013,7 +4098,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			deviceName = command.substring(command.indexOf('=') + 1);
 			str += F("New device name = \"");
 			str += deviceName;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(DEVICE_NAME_addr, DEVICE_NAME_size, deviceName);
 		}
 		else if (tmp.startsWith(F("sta_ssid=")) && command.length() > 9)
@@ -4021,7 +4106,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			String STA_Ssid = command.substring(command.indexOf('=') + 1);
 			str += F("New STA SSID = \"");
 			str += STA_Ssid;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(STA_SSID_addr, STA_SSID_size, STA_Ssid);
 		}
 		else if (tmp.startsWith(F("sta_pass=")) && command.length() > 9)
@@ -4031,7 +4116,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			STA_Password.trim();
 			str += F("New STA password = \"");
 			str += STA_Password;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(STA_PASS_addr, STA_PASS_size, STA_Password);
 		}
 		else if (tmp.startsWith(F("ap_ssid=")) && command.length() > 8)
@@ -4040,7 +4125,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			AP_Ssid.trim();
 			str += F("New AP SSID = \"");
 			str += AP_Ssid;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(AP_SSID_addr, AP_SSID_size, AP_Ssid);
 		}
 		else if (tmp.startsWith(F("ap_pass=")) && command.length() > 8)
@@ -4049,7 +4134,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			AP_Password.trim();
 			str += F("New AP password = \"");
 			str += AP_Password;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(AP_PASS_addr, AP_PASS_size, AP_Password);
 		}
 		else if (tmp.startsWith(F("wifi_standart=")) && command.length() > 14)
@@ -4059,7 +4144,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				str += F("New WiFi standart  = \"");
 				str += String(wifi_mode);
-				str += quote;
+				str += QUOTE;
 				writeConfigString(WIFI_STANDART_addr, WIFI_STANDART_size, wifi_mode);
 			}
 			else
@@ -4075,7 +4160,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				str += F("New WiFi power  = \"");
 				str += String(power);
-				str += quote;
+				str += QUOTE;
 				writeConfigFloat(WIFI_POWER_addr, power);
 			}
 			else
@@ -4119,7 +4204,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				str += F("New WiFi mode  = \"");
 				str += wifiModes[wifi_mode];
-				str += quote;
+				str += QUOTE;
 				writeConfigString(WIFI_MODE_addr, WIFI_MODE_size, String(wifi_mode));
 			}
 			else
@@ -4134,7 +4219,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			connectTimeLimit = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
 			str += F("New WiFi connect time limit = \"");
 			str += String(uint16_t(connectTimeLimit / 1000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(CONNECT_TIME_addr, CONNECT_TIME_size, String(uint16_t(connectTimeLimit / 1000UL)));
 		}
 		else if (tmp.startsWith(F("wifi_reconnect_period=")) && command.length() > 22)
@@ -4142,7 +4227,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			reconnectPeriod = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
 			str += F("New WiFi disconnect period = \"");
 			str += String(uint16_t(reconnectPeriod / 1000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size, String(uint16_t(reconnectPeriod / 1000UL)));
 		}
 		else if (tmp.startsWith(F("wifi_enable=")) && command.length() > 12)
@@ -4172,7 +4257,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			uint16_t telnetPort = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New telnet port = \"");
 			str += String(telnetPort);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(TELNET_PORT_addr, TELNET_PORT_size, String(telnetPort));
 			//WiFiServer server(telnetPort);
 		}
@@ -4369,7 +4454,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 
 			str += F("New sleep ON period = \"");
 			str += String(uint16_t(activeTimeOut_ms / 1000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SLEEP_ON_addr, SLEEP_ON_size, String(uint16_t(activeTimeOut_ms / 1000UL)));
 		}
 		else if (tmp.startsWith(F("sleep_off=")) && command.length() > 10)
@@ -4379,7 +4464,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 
 			str += F("New sleep OFF period = \"");
 			str += String(uint16_t(sleepTimeOut_us / 1000000UL));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SLEEP_OFF_addr, SLEEP_OFF_size, String(uint16_t(sleepTimeOut_us / 1000000UL)));
 		}
 #endif
@@ -4390,7 +4475,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			httpPort = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New HTTP port = \"");
 			str += String(httpPort);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(HTTP_PORT_addr, HTTP_PORT_size, String(httpPort));
 			//if (httpServerEnable) http_server.begin(httpPort);
 		}
@@ -4453,14 +4538,14 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				IPAddress mqtt_ip_server = tmpAddr;
 				str += F("New MQTT server = \"");
 				str += mqtt_ip_server.toString();
-				str += quote;
+				str += QUOTE;
 				writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, mqtt_ip_server.toString());
 			}
 			else
 			{
 				str += F("New MQTT server = \"");
 				str += tmpSrv;
-				str += quote;
+				str += QUOTE;
 				writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, tmpSrv);
 			}
 		}
@@ -4469,7 +4554,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			uint16_t mqtt_port = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New MQTT port = \"");
 			str += String(mqtt_port);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_PORT_addr, MQTT_PORT_size, String(mqtt_port));
 			//mqtt_client.setServer(mqtt_ip_server, mqtt_port);
 		}
@@ -4479,7 +4564,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			mqtt_User.trim();
 			str += F("New MQTT login = \"");
 			str += mqtt_User;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_USER_addr, MQTT_USER_size, mqtt_User);
 		}
 		else if (tmp.startsWith(F("mqtt_pass=")) && command.length() > 10)
@@ -4488,7 +4573,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			mqtt_Password.trim();
 			str += F("New MQTT password = \"");
 			str += mqtt_Password;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_PASS_addr, MQTT_PASS_size, mqtt_Password);
 		}
 		else if (tmp.startsWith(F("mqtt_id=")) && command.length() > 8)
@@ -4497,7 +4582,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			mqtt_device_id.trim();
 			str += F("New MQTT ID = \"");
 			str += mqtt_device_id;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_ID_addr, MQTT_ID_size, mqtt_device_id);
 		}
 		else if (tmp.startsWith(F("mqtt_topic_in=")) && command.length() > 8)
@@ -4506,7 +4591,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			mqtt_topic_in.trim();
 			str += F("New MQTT SUBSCRIBE topic = \"");
 			str += mqtt_topic_in;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size, mqtt_topic_in);
 		}
 		else if (tmp.startsWith(F("mqtt_topic_out=")) && command.length() > 8)
@@ -4515,7 +4600,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			mqtt_topic_out.trim();
 			str += F("New MQTT POST topic = \"");
 			str += mqtt_topic_out;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size, mqtt_topic_out);
 		}
 		else if (tmp.startsWith(F("mqtt_clean=")) && command.length() > 11)
@@ -4576,18 +4661,19 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				String tmpMessage = command.substring(command.indexOf(',') + 1);
 				if (tmpMessage.length() > 0)
 				{
-					if (sendMail(String(F("Test")), tmpMessage, addressTo))
+					String testMessage = F("Test");
+					if (sendMail(testMessage, tmpMessage, addressTo))
 					{
 						str += F("Mail sent");
 					}
 					else
 					{
-						str += F("3Mail not sent");
+						str += F("Mail send failed");
 					}
 				}
-				else str += F("2Mail not sent");
+				else str += F("Message empty");
 			}
-			else str += F("1Mail not sent");
+			else str += F("Address empty");
 		}
 
 		else if (tmp.startsWith(F("smtp_server=")) && command.length() > 12)
@@ -4596,7 +4682,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			smtpServerAddress.trim();
 			str += F("New SMTP server IP address = \"");
 			str += smtpServerAddress;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size, smtpServerAddress);
 		}
 		else if (tmp.startsWith(F("smtp_port=")) && command.length() > 10)
@@ -4604,7 +4690,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			uint16_t smtpServerPort = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New SMTP port = \"");
 			str += String(smtpServerPort);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size, String(smtpServerPort));
 		}
 		else if (tmp.startsWith(F("smtp_login=")) && command.length() > 11)
@@ -4613,7 +4699,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			smtpLogin.trim();
 			str += F("New SMTP login = \"");
 			str += smtpLogin;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size, smtpLogin);
 		}
 		else if (tmp.startsWith(F("smtp_pass=")) && command.length() > 10)
@@ -4622,7 +4708,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			smtpPassword.trim();
 			str += F("New SMTP password = \"");
 			str += smtpPassword;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size, smtpPassword);
 		}
 		else if (tmp.startsWith(F("smtp_to=")) && command.length() > 8)
@@ -4631,7 +4717,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			smtpTo.trim();
 			str += F("New SMTP TO address = \"");
 			str += smtpTo;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(SMTP_TO_addr, SMTP_TO_size, smtpTo);
 		}
 		else if (tmp.startsWith(F("smtp_enable=")) && command.length() > 12)
@@ -4816,7 +4902,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			telegramToken.trim();
 			str += F("New TELEGRAM token = \"");
 			str += telegramToken;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size, telegramToken);
 			//myBot.setTelegramToken(telegramToken);
 		}
@@ -4855,7 +4941,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			gScriptId.trim();
 			str += F("New GScript token = \"");
 			str += gScriptId;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size, gScriptId);
 		}
 		else if (tmp.startsWith(F("gscript_enable=")) && command.length() > 15)
@@ -4890,7 +4976,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			pushingBoxId.trim();
 			str += F("New PushingBox token = \"");
 			str += pushingBoxId;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size, pushingBoxId);
 		}
 		else if (tmp.startsWith(F("pushingbox_parameter=")) && command.length() > 21)
@@ -4899,7 +4985,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			pushingBoxParameter.trim();
 			str += F("New PUSHINGBOX_ENABLE parameter name = \"");
 			str += pushingBoxParameter;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size, pushingBoxParameter);
 		}
 		else if (tmp.startsWith(F("pushingbox_enable=")) && command.length() > 18)
@@ -4932,7 +5018,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			ntpServer.trim();
 			str += F("New NTP server = \"");
 			str += ntpServer;
-			str += quote;
+			str += QUOTE;
 			writeConfigString(NTP_SERVER_addr, NTP_SERVER_size, ntpServer);
 		}
 		else if (tmp.startsWith(F("ntp_time_zone=")) && command.length() > 14)
@@ -4940,7 +5026,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			int timeZone = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New NTP time zone = \"");
 			str += String(timeZone);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size, String(timeZone));
 		}
 		else if (tmp.startsWith(F("ntp_refresh_delay=")) && command.length() > 18)
@@ -4948,7 +5034,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			ntpRefreshDelay = command.substring(command.indexOf('=') + 1).toInt();
 			str += F("New NTP refresh delay = \"");
 			str += String(ntpRefreshDelay);
-			str += quote;
+			str += QUOTE;
 			writeConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size, String(ntpRefreshDelay));
 			setSyncInterval(ntpRefreshDelay);
 		}
@@ -4967,7 +5053,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			{
 				writeConfigString(NTP_ENABLE_addr, NTP_ENABLE_size, SWITCH_ON_NUMBER);
 				NTPenable = true;
-				Udp.begin(localPort);
+				Udp.begin(UDP_LOCAL_PORT);
 				setSyncProvider(getNtpTime);
 				setSyncInterval(ntpRefreshDelay);
 				str += F("NTP enabled");
@@ -5120,7 +5206,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			displaySwitchPeriod = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
 			str += F("New display refresh period = \"");
 			str += String(uint16_t(displaySwitchPeriod));
-			str += quote;
+			str += QUOTE;
 			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
 		}
 #endif
@@ -5129,9 +5215,9 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 	{
 		str = F("Incorrect command: \"");
 		str += command;
-		str += quote;
+		str += QUOTE;
 	}
-	str += eol;
+	str += EOL;
 	return str;
 }
 
@@ -5173,7 +5259,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 
 	do
 	{
-		int t = action.indexOf(csv_divider);
+		int t = action.indexOf(CSV_DIVIDER);
 		String tmpAction;
 		if (t > 0)
 		{
@@ -5212,7 +5298,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			int t = tmpAction.indexOf('=');
 			if (t >= 11 && t < tmpAction.length() - 1)
 			{
-				uint8_t counterNum = tmpAction.substring(10, t).toInt();
+				uint8_t counterNum = tmpAction.substring(11, t).toInt();
 				if (counterNum >= 0 && counterNum < PIN_NUMBER)
 				{
 					String stateStr = tmpAction.substring(t + 1);
@@ -5303,16 +5389,16 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				{
 					String tmpStr = deviceName;
 					tmpStr += F(":");
-					tmpStr += csv_divider;
+					tmpStr += CSV_DIVIDER;
 					tmpStr += tmpAction;
-					tmpStr += eol;
-					tmpStr += ParseSensorReport(sensorData, eol);
+					tmpStr += EOL;
+					tmpStr += ParseSensorReport(sensorData, EOL);
 					bool sendOk = sendSMS(gsmUser, tmpStr);
 					if (!sendOk)
 					{
-#ifdef EVENTS_ENABLE
-						eventsFlags[eventNum] = false;
-#endif
+						/*#ifdef EVENTS_ENABLE
+												eventsFlags[eventNum] = false;
+						#endif*/
 					}
 				}
 				yield();
@@ -5344,16 +5430,16 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				{
 					String tmpStr = deviceName;
 					tmpStr += F(":");
-					tmpStr += csv_divider;
+					tmpStr += CSV_DIVIDER;
 					tmpStr += tmpAction;
-					tmpStr += eol;
-					tmpStr += ParseSensorReport(sensorData, eol);
+					tmpStr += EOL;
+					tmpStr += ParseSensorReport(sensorData, EOL);
 					bool sendOk = sendToTelegramServer(user, tmpStr);
 					if (!sendOk)
 					{
-#ifdef EVENTS_ENABLE
-						eventsFlags[eventNum] = false;
-#endif
+						/*#ifdef EVENTS_ENABLE
+												eventsFlags[eventNum] = false;
+						#endif*/
 					}
 				}
 				yield();
@@ -5369,14 +5455,14 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			String tmpStr = deviceName;
 			tmpStr += F(": ");
 			tmpStr += tmpAction;
-			tmpStr += eol;
-			tmpStr += ParseSensorReport(sensorData, eol);
+			tmpStr += EOL;
+			tmpStr += ParseSensorReport(sensorData, EOL);
 			bool sendOk = sendToPushingBox(tmpStr);
 			if (!sendOk)
 			{
-#ifdef EVENTS_ENABLE
-				eventsFlags[eventNum] = false;
-#endif
+				/*#ifdef EVENTS_ENABLE
+								eventsFlags[eventNum] = false;
+				#endif*/
 			}
 		}
 #endif
@@ -5389,14 +5475,15 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			tmpAction = tmpAction.substring(tmpAction.indexOf(',') + 1);
 			sensorDataCollection sensorData = collectData();
 			String tmpStr = tmpAction;
-			tmpStr += eol;
-			tmpStr += ParseSensorReport(sensorData, eol);
-			bool sendOk = sendMail(deviceName + " alert", tmpStr, address);
+			tmpStr += EOL;
+			tmpStr += ParseSensorReport(sensorData, EOL);
+			String subj = deviceName + " alert";
+			bool sendOk = sendMail(subj, tmpStr, address);
 			if (!sendOk)
 			{
-#ifdef EVENTS_ENABLE
-				eventsFlags[eventNum] = false;
-#endif
+				/*#ifdef EVENTS_ENABLE
+								eventsFlags[eventNum] = false;
+				#endif*/
 			}
 		}
 #endif
@@ -5409,14 +5496,14 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			String tmpStr = deviceName;
 			tmpStr += F(": ");
 			tmpStr += tmpAction;
-			tmpStr += eol;
-			tmpStr += ParseSensorReport(sensorData, eol);
+			tmpStr += EOL;
+			tmpStr += ParseSensorReport(sensorData, EOL);
 			bool sendOk = sendValueToGoogle(tmpStr);
 			if (!sendOk)
 			{
-#ifdef EVENTS_ENABLE
-				eventsFlags[eventNum] = false;
-#endif
+				/*#ifdef EVENTS_ENABLE
+								eventsFlags[eventNum] = false;
+				#endif*/
 			}
 		}
 #endif
@@ -5444,9 +5531,9 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			sendOk = mqtt_send(tmpStr, tmpStr.length(), topicTo);
 			if (!sendOk)
 			{
-#ifdef EVENTS_ENABLE
-				eventsFlags[eventNum] = false;
-#endif
+				/*#ifdef EVENTS_ENABLE
+								eventsFlags[eventNum] = false;
+				#endif*/
 			}
 		}
 #endif
