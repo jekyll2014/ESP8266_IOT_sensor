@@ -135,5 +135,15 @@ get_config
 
 Add:
 - GSM_MODEM status (connection state, network name)
-- get commands from SMS messages (security like in TELEGRAM).
 - TIMER service to run actions each n seconds to be started from event or command or schedule
+- buzzer control
+	tone(Passive_buzzer, 1046);
+	delay (1000); 
+	noTone(Passive_buzzer);
+- Unify outbound message queue
+- unify command and action string processing
+- implement I2c, 1Wire scan
+- retry sensor read on fail
+- set sensor reactivation timeout after fail
+- refactor code to split into separate files
+- allow use HW UART for GSM modem and sensors

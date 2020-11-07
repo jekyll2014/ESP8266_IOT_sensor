@@ -57,193 +57,21 @@ Planned features:
 #include <TimeLib.h>
 #include "configuration.h"
 #include "datastructures.h"
+#include "ESP8266_IOT_sensor.h"
 
-#define SWITCH_ON_NUMBER F("1")
-#define SWITCH_OFF_NUMBER F("0")
-#define SWITCH_ON F("on")
-#define SWITCH_OFF F("off")
-#define EOL F("\r\n")
-#define CSV_DIVIDER F(";")
-#define QUOTE F("\"")
-
-String deviceName = "";
-
-// WiFi settings
-#define MAX_SRV_CLIENTS 5 //how many clients should be able to telnet to this ESP8266
-uint8_t wifi_mode = WIFI_MODE_OFF;
-uint32_t connectTimeLimit = 30000; //time for connection await
-uint32_t reconnectPeriod = 600000; //time for connection await
-uint8_t APclientsConnected = 0;
-uint8_t currentWiFiMode = 0;
-uint8_t wiFiIntendedStatus = RADIO_STOP;
-uint32_t wifiReconnectLastTime = 0;
-uint32_t ConnectionStarted = 0;
-uint32_t WaitingStarted = 0;
-bool wifiEnable = true;
-
+#ifdef TELNET_ENABLE
 WiFiServer telnetServer(23);
-WiFiClient serverClient[MAX_SRV_CLIENTS];
-bool telnetEnable = true;
+WiFiClient serverClient[TELNET_ENABLE];
 
-uint32_t checkSensorLastTime = 0;
-uint32_t checkSensorPeriod = 5000;
-
-String uartCommand = "";
-bool uartReady = false;
-
-bool timeIsSet = false;
-
-uint8_t autoReport = 0;
-
-uint8_t SIGNAL_PINS = 0;
-uint8_t INPUT_PINS = 0;
-uint8_t OUTPUT_PINS = 0;
-uint8_t INTERRUPT_PINS = 0;
-
-void ICACHE_RAM_ATTR int1count();
-void ICACHE_RAM_ATTR int2count();
-void ICACHE_RAM_ATTR int3count();
-void ICACHE_RAM_ATTR int4count();
-void ICACHE_RAM_ATTR int5count();
-void ICACHE_RAM_ATTR int6count();
-void ICACHE_RAM_ATTR int7count();
-void ICACHE_RAM_ATTR int8count();
-
-//CO2 UART
-int co2SerialRead();
-byte getCheckSum(byte*);
-
-//CO2 PPM
-int co2PPMRead();
-
-//ADC
-uint16_t getAdc();
-
-//Events
-String getEvent(uint8_t);
-void processEvent(uint8_t);
-String printHelpEvent();
-
-//Schedules
-String getSchedule(uint8_t);
-void writeScheduleExecTime(uint8_t, uint32_t);
-uint32_t readScheduleExecTime(uint8_t);
-String printHelpSchedule();
-void processSchedule(uint8_t);
-
-//SMTP
-bool sendMail(String&, String&, String&);
-
-//MQTT
-String getMqttServer();
-int getMqttPort();
-String getMqttUser();
-String getMqttPassword();
-String getMqttDeviceId();
-String getMqttTopicIn();
-String getMqttTopicOut();
-bool getMqttClean();
-bool mqtt_connect();
-bool mqtt_send(String&, int, String);
-void mqtt_callback(char*, uint8_t*, uint16_t);
-
-//Telegram
-String uint64ToString(uint64_t);
-uint64_t StringToUint64(String);
-bool sendToTelegramServer(int64_t, String);
-void addMessageToTelegramOutboundBuffer(int64_t, String, uint8_t);
-void removeMessageFromTelegramOutboundBuffer();
-void sendToTelegram(int64_t, String, uint8_t);
-void sendBufferToTelegram();
-uint64_t getTelegramUser(uint8_t);
-
-//GSM
-String getGsmUser(uint8_t);
-String sendATCommand(String, bool);
-bool initModem();
-bool sendSMS(String, String&);
-smsMessage parseSMS(String);
-smsMessage getSMS();
-bool deleteSMS(int);
-String getModemStatus();
-
-//Google script
-bool sendValueToGoogle(String&);
-
-//PushingBox
-bool sendToPushingBoxServer(String);
-bool sendToPushingBox(String&);
-
-//HTTP
-void handleRoot();
-void handleNotFound();
-
-//NTP
-void sendNTPpacket(IPAddress&);
-time_t getNtpTime();
-
-//Log
-void addToLog(sensorDataCollection&);
-
-//Telnet
-void sendToTelnet(String&, uint8_t);
-
-//EEPROM
-uint32_t CollectEepromSize();
-String readConfigString(uint16_t, uint16_t);
-void readConfigString(uint16_t, uint16_t, char*);
-uint32_t readConfigLong(uint16_t);
-float readConfigFloat(uint16_t);
-void writeConfigString(uint16_t, uint16_t, String);
-void writeConfigString(uint16_t, uint16_t, char*, uint8_t);
-void writeConfigLong(uint16_t, uint32_t);
-void writeConfigFloat(uint16_t, float);
-
-//I/O
-bool add_signal_pin(uint8_t);
-String set_output(String&);
-
-//Help printout
-String printConfig(bool);
-String printStatus(bool);
-String printHelp();
-String printHelpAction();
-
-//Sensor data processing
-sensorDataCollection collectData();
-String ParseSensorReport(sensorDataCollection&, String, bool);
-
-//Script Processing
-String processCommand(String, uint8_t, bool);
-void ProcessAction(String&, uint8_t, bool);
-
-//Sensors
-float getTemperature(sensorDataCollection&);
-float getHumidity(sensorDataCollection&);
-int getCo2(sensorDataCollection&);
-
-//Wi-Fi
-String getStaSsid();
-String getStaPassword();
-String getApSsid();
-String getApPassword();
-WiFiPhyMode getWifiStandard();
-float getWiFiPower();
-void startWiFi();
-void Start_OFF_Mode();
-void Start_STA_Mode();
-void Start_AP_Mode();
-void Start_AP_STA_Mode();
-
-String timeToString(uint32_t);
-
-void processEvent(uint8_t);
-String getSchedule(uint8_t);
-sensorDataCollection collectData();
-void mqtt_callback(char*, uint8_t*, uint16_t);
-uint64_t getTelegramUser(uint8_t);
-String sendATCommand(String, bool);
-String waitResponse();
+void sendToTelnet(String& str, uint8_t clientN)
+{
+	if (serverClient[clientN] && serverClient[clientN].connected())
+	{
+		serverClient[clientN].print(str);
+		delay(1);
+	}
+}
+#endif
 
 // DATA BUSES
 
@@ -259,11 +87,10 @@ TwoWire i2c;
 OneWire oneWire(ONEWIRE_DATA);
 #endif
 
-#ifdef UART2_ENABLE
+#ifdef SOFT_UART_ENABLE
 #include <SoftwareSerial.h>
 
-SoftwareSerial uart2(UART2_TX, UART2_RX);
-uint32_t uart2_Speed = 9600;
+SoftwareSerial uart2(SOFT_UART_TX, SOFT_UART_RX);
 #endif
 
 // SENSORS
@@ -336,7 +163,7 @@ int co2SerialRead()
 
 	unsigned long lastRequest = 0;
 
-	uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+	uart2.begin(mhz19UartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 	uart2.flush();
 	delay(50);
 
@@ -364,14 +191,23 @@ int co2SerialRead()
 	{
 		if (!skip)
 		{
+#ifdef DEBUG_MODE
 			Serial.print(F("MHZ: - skipping unexpected readings:"));
+#endif
 			skip = true;
 		}
+#ifdef DEBUG_MODE
 		Serial.print(" ");
 		Serial.print(uart2.peek(), HEX);
+#endif
 		uart2.read();
 	}
-	if (skip) Serial.println();
+	if (skip)
+	{
+#ifdef DEBUG_MODE
+		Serial.println();
+#endif
+	}
 
 	if (uart2.available() > 0)
 	{
@@ -433,7 +269,9 @@ int co2PPMRead()
 		ppm = 5000 * (th - 2) / (th + tl - 4);
 		if (millis() - timer > timeout)
 		{
-			//Serial.println(F("Failed to read PPM"));
+#ifdef DEBUG_MODE
+			Serial.println(F("Failed to read PPM"));
+#endif
 			return -1;
 		}
 		yield();
@@ -594,8 +432,10 @@ void processEvent(uint8_t eventNum)
 				}
 				else
 				{
+#ifdef DEBUG_MODE
 					//Serial.print(F("\r\nIncorrect output: "));
 					//Serial.println(String(outNum));
+#endif
 				}
 			}
 		}
@@ -857,148 +697,6 @@ bool sendMail(String& subject, String& message, String& addressTo)
 }
 #endif
 
-// MQTT
-#ifdef MQTT_ENABLE
-#include <PubSubClient.h>
-
-#define MQTT_MAX_PACKET 100
-
-WiFiClient espClient;
-PubSubClient mqtt_client(espClient);
-String mqttCommand = "";
-bool mqttEnable = false;
-
-String getMqttServer()
-{
-	return readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
-}
-
-int getMqttPort()
-{
-	return readConfigString(MQTT_PORT_addr, MQTT_PORT_size).toInt();
-}
-
-String getMqttUser()
-{
-	return readConfigString(MQTT_USER_addr, MQTT_USER_size);
-}
-
-String getMqttPassword()
-{
-	return readConfigString(MQTT_PASS_addr, MQTT_PASS_size);
-}
-
-String getMqttDeviceId()
-{
-	return readConfigString(MQTT_ID_addr, MQTT_ID_size);
-}
-
-String getMqttTopicIn()
-{
-	return readConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size);
-}
-
-String getMqttTopicOut()
-{
-	return readConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size);
-}
-
-bool getMqttClean()
-{
-	bool mqttClean = false;
-	if (readConfigString(MQTT_CLEAN_addr, MQTT_CLEAN_size) == SWITCH_ON_NUMBER) mqttClean = true;
-	return mqttClean;
-}
-
-bool mqtt_connect()
-{
-	bool result = false;
-	if (mqttEnable && WiFi.status() == WL_CONNECTED)
-	{
-		IPAddress mqtt_ip_server;
-		String mqtt_server = getMqttServer();
-		uint16_t mqtt_port = getMqttPort();
-		String mqtt_User = getMqttUser();
-		String mqtt_Password = getMqttPassword();
-		String mqtt_device_id = getMqttDeviceId();
-		String mqtt_topic_in = getMqttTopicIn();
-		bool mqttClean = getMqttClean();
-
-		if (mqtt_ip_server.fromString(mqtt_server))
-		{
-			mqtt_server = "";
-			mqtt_client.setServer(mqtt_ip_server, mqtt_port);
-		}
-		else
-		{
-			mqtt_client.setServer(mqtt_server.c_str(), mqtt_port);
-		}
-
-		mqtt_client.setCallback(mqtt_callback);
-
-		if (mqtt_device_id.length() <= 0)
-		{
-			mqtt_device_id = deviceName;
-			mqtt_device_id += "_";
-			mqtt_device_id += WiFi.macAddress();
-		}
-
-		if (mqtt_User.length() > 0)
-		{
-			result = mqtt_client.connect(mqtt_device_id.c_str(), mqtt_User.c_str(), mqtt_Password.c_str(), "", 0, false, "", mqttClean);
-		}
-		else
-		{
-			result = mqtt_client.connect(mqtt_device_id.c_str());
-		}
-		if (!result)
-		{
-			return result;
-		}
-		result = mqtt_client.subscribe(mqtt_topic_in.c_str());
-	}
-	return result;
-}
-
-bool mqtt_send(String& message, int dataLength, String topic)
-{
-	if (!mqtt_client.connected())
-	{
-		mqtt_connect();
-	}
-
-	bool result = false;
-	if (mqttEnable && WiFi.status() == WL_CONNECTED)
-	{
-		if (topic.length() <= 0) topic = getMqttTopicOut();
-
-		if (dataLength > MQTT_MAX_PACKET)
-		{
-			result = mqtt_client.beginPublish(topic.c_str(), dataLength, false);
-			for (uint16_t i = 0; i < dataLength; i++)
-			{
-				mqtt_client.write(message[i]);
-				yield();
-			}
-			result = mqtt_client.endPublish();
-		}
-		else
-		{
-			result = mqtt_client.publish(topic.c_str(), message.c_str(), dataLength);
-		}
-	}
-	return result;
-}
-
-void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
-{
-	for (uint16_t i = 0; i < dataLength; i++)
-	{
-		mqttCommand += char(payload[i]);
-		yield();
-	}
-}
-#endif
 
 // Telegram
 #ifdef TELEGRAM_ENABLE
@@ -1240,14 +938,16 @@ String sendATCommand(String cmd, bool waiting)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
 	uart2.flush();
 	String _resp = "";
 	uart2.println(cmd);
+#ifdef DEBUG_MODE
 	//Serial.println(">>" + cmd);
+#endif
 	if (waiting)
 	{
 		const uint32_t _timeout = millis() + SMS_TIME_OUT;
@@ -1260,10 +960,14 @@ String sendATCommand(String cmd, bool waiting)
 			_resp += uart2.readString();
 			yield();
 		}
+#ifdef DEBUG_MODE
 		//Serial.println("<<" + _resp);
+#endif
 		if (_resp.length() <= 0)
 		{
+#ifdef DEBUG_MODE
 			//Serial.println("Timeout...");
+#endif
 		}
 
 		if (stopSerial) uart2.end();
@@ -1277,7 +981,7 @@ bool initModem()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1300,7 +1004,7 @@ bool sendSMS(String phone, String& smsText)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1313,8 +1017,10 @@ bool sendSMS(String phone, String& smsText)
 	cmdTmp = "";
 	if (smsText.length() >= 170) cmdTmp += smsText.substring(0, 168);
 	else cmdTmp += smsText;
+#ifdef DEBUG_MODE
 	//Serial.println("Sending sms to " + phone + ":\'" + cmdTmp + "\'");
 	//Serial.println(String(cmdTmp.length()));
+#endif
 	for (uint16_t i = 0; i < cmdTmp.length(); i++)
 	{
 		uart2.write((char)cmdTmp[i]);
@@ -1339,7 +1045,9 @@ bool sendSMS(String phone, String& smsText)
 	}
 	if (cmdTmp.length() <= 0)
 	{
+#ifdef DEBUG_MODE
 		//Serial.println("Timeout...");
+#endif
 	}
 
 	if (stopSerial) uart2.end();
@@ -1388,7 +1096,7 @@ smsMessage getSMS()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1408,8 +1116,10 @@ smsMessage getSMS()
 		}
 		yield();
 	}
+#ifdef DEBUG_MODE
 	//Serial.println("Sms: " + sms.Message);
 	//Serial.println("From: " + sms.PhoneNumber);
+#endif
 	if (stopSerial) uart2.end();
 
 	return sms;
@@ -1420,7 +1130,7 @@ bool deleteSMS(int n)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1436,7 +1146,7 @@ String getModemStatus()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 64);
+		uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1483,7 +1193,9 @@ bool sendValueToGoogle(String& value)
 				flag = true;
 				break;
 			}
+#ifdef DEBUG_MODE
 			//else Serial.println(F("Connection failed. Retrying..."));
+#endif
 			yield();
 		}
 		if (flag)
@@ -1577,7 +1289,7 @@ bool sendToPushingBox(String& message)
 #endif
 
 // HTTP server
-#ifdef HTTP_SERVER_ENABLE
+#ifdef HTTP_ENABLE
 #include <ESP8266WebServer.h>
 
 uint16_t httpPort = 80;
@@ -1724,84 +1436,109 @@ void addToLog(sensorDataCollection& record)
 
 void setup()
 {
-	Serial.begin(115200);
+	deviceName.reserve(DEVICE_NAME_size + 1);	
 
-	deviceName.reserve(DEVICE_NAME_size + 1);
-	uartCommand.reserve(257);
-
+#ifdef HARD_UART_ENABLE
+	uartCommand.reserve(100);
+	if (!add_signal_pin(HARD_UART_TX))
+	{
+#ifdef DEBUG_MODE
+		Serial.println(F("Error setting HardUART TX pin to "));
+		Serial.println(String(HARD_UART_TX));
+#endif
+	}
+	if (!add_signal_pin(HARD_UART_RX))
+	{
+#ifdef DEBUG_MODE
+		Serial.println(F("Error setting HardUART RX pin to "));
+		Serial.println(String(HARD_UART_RX));
+#endif
+	}
+	Serial.begin(HARD_UART_SPEED);
+#endif
+	
 	//mark signal pins to avoid using them as discrete I/O
 #ifdef I2C_ENABLE
 	if (!add_signal_pin(PIN_WIRE_SDA))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting I2C SDA pin to "));
 		Serial.println(String(PIN_WIRE_SDA));
+#endif
 	}
 	if (!add_signal_pin(PIN_WIRE_SCL))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting I2C SCL pin to "));
 		Serial.println(String(PIN_WIRE_SCL));
+#endif
 	}
 
 	Wire.begin(PIN_WIRE_SDA, PIN_WIRE_SCL);
 #endif
 
-#ifdef UART2_ENABLE
-	if (!add_signal_pin(UART2_TX))
+#ifdef SOFT_UART_ENABLE
+	if (!add_signal_pin(SOFT_UART_TX))
 	{
-		Serial.println(F("Error setting UART2 TX pin to "));
-		Serial.println(String(UART2_TX));
+#ifdef DEBUG_MODE
+		Serial.println(F("Error setting SoftUART TX pin to "));
+		Serial.println(String(SOFT_UART_TX));
+#endif
 	}
-	if (!add_signal_pin(UART2_RX))
+	if (!add_signal_pin(SOFT_UART_RX))
 	{
-		Serial.println(F("Error setting UART2 RX pin to "));
-		Serial.println(String(UART2_RX));
+#ifdef DEBUG_MODE
+		Serial.println(F("Error setting SoftUART RX pin to "));
+		Serial.println(String(SOFT_UART_RX));
+#endif
 	}
-
-#ifdef MH_Z19_UART_ENABLE
-	uart2_Speed = mhz19UartSpeed;
-#endif
-
-#ifdef GSM_ENABLE
-	uart2_Speed = gsmUartSpeed;
-#endif
-
-	//uart2.begin(uart2_Speed, SWSERIAL_8N1, UART2_TX, UART2_RX, false, 256);
+	//uart2.begin(uart2_Speed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 256);
 #endif
 
 #ifdef ONEWIRE_ENABLE
 	if (!add_signal_pin(ONEWIRE_DATA))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting ONEWIRE pin to "));
 		Serial.println(String(ONEWIRE_DATA));
+#endif
 	}
 #endif
 
 #ifdef DHT_ENABLE
 	if (!add_signal_pin(DHT_PIN))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting DHT pin to "));
 		Serial.println(String(DHT_PIN));
+#endif
 	}
 #endif
 
 #ifdef TM1637DISPLAY_ENABLE
 	if (!add_signal_pin(TM1637_CLK))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting TM1637 CLK pin to "));
 		Serial.println(String(TM1637_CLK));
+#endif
 	}
 	if (!add_signal_pin(TM1637_DIO))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting TM1637 DIO pin to "));
 		Serial.println(String(TM1637_DIO));
+#endif
 	}
 #endif
 
 #ifdef MH_Z19_PPM_ENABLE
 	if (!add_signal_pin(MH_Z19_PPM_ENABLE))
 	{
+#ifdef DEBUG_MODE
 		Serial.println(F("Error setting MH-Z19 PPM pin to "));
 		Serial.println(String(MH_Z19_PPM_ENABLE));
+#endif
 	}
 #endif
 
@@ -1847,10 +1584,12 @@ void setup()
 	// init WiFi
 	startWiFi();
 
+#ifdef TELNET_ENABLE
 	uint16_t telnetPort = readConfigString(TELNET_PORT_addr, TELNET_PORT_size).toInt();
 	telnetServer.begin(telnetPort);
 	telnetServer.setNoDelay(true);
-
+#endif
+	
 #ifdef EVENTS_ENABLE
 	if (readConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size) == SWITCH_ON_NUMBER) eventsEnable = true;
 #endif
@@ -1896,7 +1635,7 @@ void setup()
 	if (readConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size) == SWITCH_ON_NUMBER) pushingBoxEnable = true;
 #endif
 
-#ifdef HTTP_SERVER_ENABLE
+#ifdef HTTP_ENABLE
 	httpPort = readConfigString(HTTP_PORT_addr, HTTP_PORT_size).toInt();
 	if (readConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size) == SWITCH_ON_NUMBER) httpServerEnable = true;
 	http_server.on(F("/"), handleRoot);
@@ -1924,7 +1663,9 @@ void setup()
 	if (!am2320.begin())
 	{
 		am2320_enable = false;
+#ifdef DEBUG_MODE
 		Serial.println(F("Can't find AMS2320 sensor!"));
+#endif
 	}
 #endif
 
@@ -1933,7 +1674,9 @@ void setup()
 	if (!htu21d.begin())
 	{
 		htu21d_enable = false;
+#ifdef DEBUG_MODE
 		Serial.println(F("Can't find HTU21D sensor!"));
+#endif
 	}
 #endif
 
@@ -1941,7 +1684,9 @@ void setup()
 	if (!bme280.begin(BME280_ADDRESS))
 	{
 		bme280_enable = false;
+#ifdef DEBUG_MODE
 		Serial.println(F("Can't find BME280 sensor!"));
+#endif
 	}
 #endif
 
@@ -1949,7 +1694,9 @@ void setup()
 	if (!bmp180.begin())
 	{
 		bmp180_enable = false;
+#ifdef DEBUG_MODE
 		Serial.println(F("Can't find BMP180 sensor!"));
+#endif
 	}
 #endif
 
@@ -1958,7 +1705,9 @@ void setup()
 	if (ds1820.getDeviceCount() <= 0)
 	{
 		ds1820_enable = false;
+#ifdef DEBUG_MODE
 		Serial.println(F("Can't find DS18B20 sensor!"));
+#endif
 	}
 #endif
 
@@ -2064,11 +1813,13 @@ void loop()
 		//check if connection is established
 		if (wiFiIntendedStatus == RADIO_CONNECTING && WiFi.status() == WL_CONNECTED)
 		{
+#ifdef DEBUG_MODE
 			/*Serial.print(F("STA connected to \""));
 			Serial.print(String(STA_Ssid));
 			Serial.println(F("\" AP."));
 			Serial.print(F("IP: "));
 			Serial.println(WiFi.localIP());*/
+#endif
 			wiFiIntendedStatus = RADIO_CONNECTED;
 		}
 	}
@@ -2096,14 +1847,18 @@ void loop()
 	//check if clients connected/disconnected to AP
 	if ((wifi_mode == WIFI_MODE_AP || wifi_mode == WIFI_MODE_AP_STA) && APclientsConnected != WiFi.softAPgetStationNum())
 	{
-		/*if (APclientsConnected < WiFi.softAPgetStationNum())
+		if (APclientsConnected < WiFi.softAPgetStationNum())
 		{
+#ifdef DEBUG_MODE
 			Serial.println(F("AP client connected: "));
+#endif
 		}
 		else
 		{
+#ifdef DEBUG_MODE
 			Serial.println(F("AP Client disconnected: "));
-		}*/
+#endif
+		}
 		APclientsConnected = WiFi.softAPgetStationNum();
 	}
 	yield();
@@ -2116,12 +1871,15 @@ void loop()
 			if (bitRead(autoReport, CHANNEL_UART))
 			{
 				String str = ParseSensorReport(sensorData, EOL, false);
+#ifdef DEBUG_MODE
 				Serial.println(str);
+#endif
 			}
+#ifdef TELNET_ENABLE
 			if ((WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0) && telnetEnable && bitRead(autoReport, CHANNEL_TELNET))
 			{
 				String str = ParseSensorReport(sensorData, EOL, false);
-				for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
+				for (uint8_t i = 0; i < TELNET_ENABLE; i++)
 				{
 					if (serverClient[i] && serverClient[i].connected())
 					{
@@ -2130,6 +1888,7 @@ void loop()
 					yield();
 				}
 			}
+#endif
 			if (WiFi.status() == WL_CONNECTED)
 			{
 #ifdef MQTT_ENABLE
@@ -2217,9 +1976,11 @@ void loop()
 					}
 					else
 					{
-						//Serial.print(F("Error sending log to E-mail "));
-						//Serial.print(String(history_record_number));
-						//Serial.println(F(" records."));
+#ifdef DEBUG_MODE
+						Serial.print(F("Error sending log to E-mail "));
+						Serial.print(String(history_record_number));
+						Serial.println(F(" records."));
+#endif
 					}
 					yield();
 				}
@@ -2229,6 +1990,7 @@ void loop()
 	}
 #endif
 	yield();
+#ifdef DEBUG_MODE
 	//check UART for data
 	while (Serial.available() && !uartReady)
 	{
@@ -2237,7 +1999,6 @@ void loop()
 		else uartCommand += (char)c;
 		yield();
 	}
-
 	//process data from UART
 	if (uartReady)
 	{
@@ -2250,13 +2011,15 @@ void loop()
 		uartCommand = "";
 	}
 	yield();
+#endif
 	//process data from HTTP/Telnet/MQTT/TELEGRAM if available
 	if (WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0)
 	{
-#ifdef HTTP_SERVER_ENABLE
+#ifdef HTTP_ENABLE
 		if (httpServerEnable) http_server.handleClient();
 #endif
 
+#ifdef TELNET_ENABLE
 		if (telnetEnable)
 		{
 			//check if there are any new clients
@@ -2264,7 +2027,7 @@ void loop()
 			{
 				uint8_t i;
 				//find free/disconnected spot
-				for (i = 0; i < MAX_SRV_CLIENTS; i++)
+				for (i = 0; i < TELNET_ENABLE; i++)
 				{
 					if (!serverClient[i] || !serverClient[i].connected())
 					{
@@ -2278,16 +2041,18 @@ void loop()
 					yield();
 				}
 				//no free/disconnected spot so reject
-				if (i >= MAX_SRV_CLIENTS)
+				if (i >= TELNET_ENABLE)
 				{
 					WiFiClient serverClient = telnetServer.available();
 					serverClient.stop();
-					//Serial.print(F("No more slots. Client rejected."));
+#ifdef DEBUG_MODE
+					Serial.print(F("No more slots. Client rejected."));
+#endif
 				}
 			}
 
 			//check network clients for incoming data and process commands
-			for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
+			for (uint8_t i = 0; i < TELNET_ENABLE; i++)
 			{
 				if (serverClient[i] && serverClient[i].connected())
 				{
@@ -2316,6 +2081,8 @@ void loop()
 				}
 			}
 		}
+#endif
+		
 		yield();
 	}
 	if (WiFi.status() == WL_CONNECTED)
@@ -2355,7 +2122,9 @@ void loop()
 		smsMessage newSms = getSMS();
 		if (newSms.Message != "")
 		{
-			//Serial.println("New SMS from " + newSms.PhoneNumber + ":\"" + newSms.Message + "\"");
+#ifdef DEBUG_MODE
+			Serial.println("New SMS from " + newSms.PhoneNumber + ":\"" + newSms.Message + "\"");
+#endif			
 			//process data from GSM
 			String str = processCommand(newSms.Message, CHANNEL_GSM, newSms.IsAdmin);
 			str.trim();
@@ -2364,7 +2133,9 @@ void loop()
 				bool f = sendSMS(newSms.PhoneNumber, str);
 				if (!f)
 				{
-					//Serial.println(F("SMS not sent"));
+#ifdef DEBUG_MODE
+					Serial.println(F("SMS not sent"));
+#endif
 				}
 			}
 		}
@@ -2489,7 +2260,7 @@ void loop()
 				tmpStr += String(co2_avg);
 				tmpStr += F("\r\n");
 				n++;
-		}
+			}
 #endif
 
 			//is strings are not many scale them
@@ -2497,8 +2268,8 @@ void loop()
 			else oled.set1X();
 			oled.print(tmpStr);
 #endif
+		}
 	}
-}
 #endif
 	yield();
 #ifdef EVENTS_ENABLE
@@ -2721,15 +2492,6 @@ void writeConfigFloat(uint16_t startAt, float data)
 	EEPROM.commit();
 }
 
-void sendToTelnet(String& str, uint8_t clientN)
-{
-	if (serverClient[clientN] && serverClient[clientN].connected())
-	{
-		serverClient[clientN].print(str);
-		delay(1);
-	}
-}
-
 bool add_signal_pin(uint8_t pin)
 {
 	for (uint8_t num = 0; num < PIN_NUMBER; num++)
@@ -2865,7 +2627,7 @@ String printConfig(bool toJson = false)
 	str += F("Autoreport");
 	str += eq;
 	m = readConfigString(AUTOREPORT_addr, AUTOREPORT_size).toInt();
-	for (uint8_t b = 0; b < PIN_NUMBER; b++)
+	for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
 	{
 		if (bitRead(m, b))
 		{
@@ -2900,11 +2662,19 @@ String printConfig(bool toJson = false)
 				str += F("I2C SDA");
 				break;
 #endif
-#ifdef UART2_ENABLE
-			case UART2_TX:
+#ifdef HARD_UART_ENABLE
+			case HARD_UART_TX:
+				str += F("HardUART TX");
+				break;
+			case HARD_UART_RX:
+				str += F("HardUART RX");
+				break;
+#endif
+#ifdef SOFT_UART_ENABLE
+			case SOFT_UART_TX:
 				str += F("SoftUART TX");
 				break;
-			case UART2_RX:
+			case SOFT_UART_RX:
 				str += F("SoftUART RX");
 				break;
 #endif
@@ -2990,6 +2760,7 @@ String printConfig(bool toJson = false)
 	str += delimiter;
 #endif
 
+#ifdef TELNET_ENABLE
 	str += F("Telnet port");
 	str += eq;
 	str += readConfigString(TELNET_PORT_addr, TELNET_PORT_size);
@@ -2997,15 +2768,16 @@ String printConfig(bool toJson = false)
 
 	str += F("Telnet clients limit");
 	str += eq;
-	str += String(MAX_SRV_CLIENTS);
+	str += String(TELNET_ENABLE);
 	str += delimiter;
 
 	str += F("Telnet service enabled");
 	str += eq;
 	str += readConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size);
 	str += delimiter;
-
-#ifdef HTTP_SERVER_ENABLE
+#endif
+	
+#ifdef HTTP_ENABLE
 	str += F("HTTP port");
 	str += eq;
 	str += readConfigString(HTTP_PORT_addr, HTTP_PORT_size);
@@ -3214,24 +2986,25 @@ String printConfig(bool toJson = false)
 	str += delimiter;
 #endif
 
-#ifdef UART2_ENABLE
-	str += F("SoftUART speed");
-	str += eq;
-	str += String(uart2_Speed);
-	str += delimiter;
-#endif
-
 #ifdef GSM_M590_ENABLE
 	str += F("M590 GSM modem");
 	str += eq;
+#if GSM_M590_ENABLE == HARD_UART
+	str += F("HardUART");
+#elif GSM_M590_ENABLE == SOFT_UART
 	str += F("SoftUART");
+#endif
 	str += delimiter;
 #endif
 
 #ifdef GSM_SIM800_ENABLE
 	str += F("SIM800 GSM modem");
 	str += eq;
+#if GSM_SIM800_ENABLE == HARD_UART
+	str += F("HardUART");
+#elif GSM_SIM800_ENABLE == SOFT_UART
 	str += F("SoftUART");
+#endif
 	str += delimiter;
 #endif
 
@@ -3320,8 +3093,12 @@ String printConfig(bool toJson = false)
 #ifdef MH_Z19_UART_ENABLE
 	str += F("MH-Z19 CO2");
 	str += eq;
+#if MH_Z19_UART_ENABLE == HARD_UART
+	str += F("HardUART");
+#elif MH_Z19_UART_ENABLE == SOFT_UART
 	str += F("SoftUART");
-	str += delimiter;
+#endif
+		str += delimiter;
 #endif
 
 #ifdef MH_Z19_PPM_ENABLE
@@ -3408,10 +3185,11 @@ String printStatus(bool toJson = false)
 		str += delimiter;
 	}
 
+#ifdef TELNET_ENABLE
 	if (WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0)
 	{
 		uint8_t netClientsNum = 0;
-		for (uint8_t i = 0; i < MAX_SRV_CLIENTS; i++)
+		for (uint8_t i = 0; i < TELNET_ENABLE; i++)
 		{
 			if (serverClient[i] && serverClient[i].connected()) netClientsNum++;
 			yield();
@@ -3420,7 +3198,7 @@ String printStatus(bool toJson = false)
 		str += eq;
 		str += String(netClientsNum);
 		str += F("/");
-		str += MAX_SRV_CLIENTS;
+		str += TELNET_ENABLE;
 		str += delimiter;
 	}
 
@@ -3431,7 +3209,8 @@ String printStatus(bool toJson = false)
 		str += String(WiFi.softAPgetStationNum());
 		str += delimiter;
 	}
-
+#endif
+	
 #ifdef TELEGRAM_ENABLE
 	str += F("TELEGRAM buffer usage");
 	str += eq;
@@ -3572,7 +3351,7 @@ String printHelp()
 		"[ADMIN][FLASH] telnet_port=n\r\n"
 		"[ADMIN][FLASH] telnet_enable=on/off\r\n"
 
-#ifdef HTTP_SERVER_ENABLE
+#ifdef HTTP_ENABLE
 		"[ADMIN][FLASH] http_port=n\r\n"
 		"[ADMIN][FLASH] http_enable=on/off\r\n"
 #endif
@@ -4062,30 +3841,44 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 					str += ParseSensorReport(history_log[i], EOL, true);
 					switch (channel)
 					{
+#ifdef DEBUG_MODE
 					case CHANNEL_UART:
 						Serial.println(str);
 						break;
+#endif
 					case CHANNEL_TELNET:
 
 						break;
+#ifdef MQTT_ENABLE
 					case CHANNEL_MQTT:
 
 						break;
+#endif
+#ifdef TELEGRAM_ENABLE
 					case CHANNEL_TELEGRAM:
 
 						break;
+#endif
+#ifdef GSCRIPT_ENABLE
 					case CHANNEL_GSCRIPT:
 
 						break;
+#endif
+#ifdef PUSHINGBOX_ENABLE
 					case CHANNEL_PUSHINGBOX:
 
 						break;
-					case CHANNEL_EMAIL:
+#endif
+#ifdef SMTP_ENABLE
+					case CHANNEL_SMTP:
 
 						break;
+#endif
+#ifdef GSM_ENABLE
 					case CHANNEL_GSM:
 
 						break;
+#endif
 					default:
 						break;
 					};
@@ -4252,6 +4045,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			}
 		}
 
+	#ifdef TELNET_ENABLE
 		else if (tmp.startsWith(F("telnet_port=")) && command.length() > 12)
 		{
 			uint16_t telnetPort = command.substring(command.indexOf('=') + 1).toInt();
@@ -4283,7 +4077,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				str += stateStr;
 			}
 		}
-
+#endif
 		else if (tmp == F("reset"))
 		{
 			if (channel == CHANNEL_TELEGRAM)
@@ -4293,8 +4087,10 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
+#ifdef DEBUG_MODE
 				//Serial.println(F("Resetting..."));
 				//Serial.flush();
+#endif
 				ESP.restart();
 			}
 		}
@@ -4304,7 +4100,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			autoReport = command.substring(command.indexOf('=') + 1).toInt();
 			writeConfigString(AUTOREPORT_addr, AUTOREPORT_size, String(autoReport));
 			str += F("New autoreport channels=");
-			for (uint8_t b = 0; b < channels->length(); b++)
+			for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
 			{
 				if (bitRead(autoReport, b))
 				{
@@ -4425,6 +4221,36 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			str += set_output(command);
 		}
 
+		else if (tmp.startsWith(F("buzz")) && command.length() > 8)
+		{
+			int t = command.indexOf('=');
+			if (t == 4)
+			{
+				uint8_t outNum = command.substring(15, t).toInt();
+				if (outNum >= 1 && outNum <= PIN_NUMBER && !bitRead(SIGNAL_PINS, outNum - 1))
+				{
+					String outStateStr = command.substring(t + 1);
+					if (outStateStr != SWITCH_ON && outStateStr != SWITCH_OFF)
+					{
+						uint16_t outState = 0;
+						outState = outStateStr.toInt();
+						outStateStr = String(outState);
+					}
+					uint16_t l = OUTPUT_INIT_size / PIN_NUMBER;
+					writeConfigString(OUTPUT_INIT_addr + (outNum - 1) * l, l, outStateStr);
+					str += F("New OUT");
+					str += String(outNum);
+					str += F(" initial state: ");
+					str += outStateStr;
+				}
+				else
+				{
+					str = F("Incorrect OUT");
+					str += String(outNum);
+				}
+			}
+		}
+
 #ifdef SLEEP_ENABLE
 		else if (tmp.startsWith(F("sleep_enable=")) && command.length() > 13)
 		{
@@ -4440,13 +4266,13 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 				//sleepEnable = true;
 				writeConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size, SWITCH_ON_NUMBER);
 				str += F("SLEEP mode enabled");
-			}
+	}
 			else
 			{
 				str = F("Incorrect value: ");
 				str += stateStr;
 			}
-		}
+}
 		else if (tmp.startsWith(F("sleep_on=")) && command.length() > 9)
 		{
 			activeTimeOut_ms = uint32_t(command.substring(command.indexOf('=') + 1).toInt() * 1000UL);
@@ -4469,7 +4295,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 		}
 #endif
 
-#ifdef HTTP_SERVER_ENABLE
+#ifdef HTTP_ENABLE
 		else if (tmp.startsWith(F("http_port=")) && command.length() > 10)
 		{
 			httpPort = command.substring(command.indexOf('=') + 1).toInt();
@@ -5210,7 +5036,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
 		}
 #endif
-	}
+		}
 	if (str == "")
 	{
 		str = F("Incorrect command: \"");
@@ -5219,7 +5045,7 @@ String processCommand(String command, uint8_t channel, bool isAdmin)
 	}
 	str += EOL;
 	return str;
-}
+			}
 
 #if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
 String printHelpAction()
@@ -5534,8 +5360,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				/*#ifdef EVENTS_ENABLE
 								eventsFlags[eventNum] = false;
 				#endif*/
-			}
-		}
+	}
+}
 #endif
 #ifdef LOG_ENABLE
 		//save_log
@@ -5547,13 +5373,15 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 #endif
 		else
 		{
+#ifdef DEBUG_MODE
 			//Serial.print(F("Incorrect action: \""));
 			//Serial.print(tmpAction);
 			//Serial.println(quote);
+#endif
 		}
 		yield();
-	} while (action.length() > 0);
-}
+		} while (action.length() > 0);
+		}
 #endif
 
 #ifdef TEMPERATURE_SENSOR

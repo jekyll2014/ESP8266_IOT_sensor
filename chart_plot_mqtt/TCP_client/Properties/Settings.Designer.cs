@@ -190,5 +190,29 @@ namespace ChartPlotMQTT.Properties {
                 this["DbPassword"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("8080")]
+        public int RESTPort {
+            get {
+                return ((int)(this["RESTPort"]));
+            }
+            set {
+                this["RESTPort"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool keepLocalDb {
+            get {
+                return ((bool)(this["keepLocalDb"]));
+            }
+            set {
+                this["keepLocalDb"] = value;
+            }
+        }
     }
 }

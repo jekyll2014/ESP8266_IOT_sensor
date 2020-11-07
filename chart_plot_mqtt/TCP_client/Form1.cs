@@ -14,20 +14,28 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Reflection;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Security.Permissions;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
+using LiteDB;
 
 namespace ChartPlotMQTT
 {
     public partial class Form1 : Form
     {
         private string ipAddress = string.Empty;
-        private int ipPort = 1883;
+        private int ipPortMQTT = 1883;
+        private int ipPortRest = 8080;
         private string login = string.Empty;
         private string password = string.Empty;
         private string subscribeTopic = string.Empty;
@@ -36,6 +44,7 @@ namespace ChartPlotMQTT
         private bool autoReConnect;
         private volatile bool forcedDisconnect;
         private int keepTime = 60;
+        private readonly bool keepLocalDb = false;
 
         private static readonly IMqttNetLogger Logger = new MqttNetLogger();
         private readonly IMqttClient mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
@@ -100,7 +109,7 @@ namespace ChartPlotMQTT
             DbOpen();
             var options = new MqttClientOptionsBuilder()
                 .WithClientId(clientId + (checkBox_addTimeStamp.Enabled ? DateTime.Now.ToString(CultureInfo.InvariantCulture) : ""))
-                .WithTcpServer(ipAddress, ipPort)
+                .WithTcpServer(ipAddress, ipPortMQTT)
                 .WithCredentials(login, password)
                 .WithCleanSession()
                 .Build();
@@ -134,6 +143,8 @@ namespace ChartPlotMQTT
             mqttClient.DisconnectedHandler = new MqttClientDisconnectedHandlerDelegate(MqttDisconnectedHandler);
 
             forcedDisconnect = false;
+
+            //GetDataFromREST(keepTime);
 
             Invoke((MethodInvoker)delegate
             {
@@ -174,7 +185,7 @@ namespace ChartPlotMQTT
                 Msg("Disconnect error: " + ex);
             }
 
-            recordsDb?.Dispose();
+            if (keepLocalDb) recordsDb?.Dispose();
 
             Msg("Device disconnected");
             Invoke((MethodInvoker)delegate
@@ -266,7 +277,7 @@ namespace ChartPlotMQTT
 
             Invoke((MethodInvoker)delegate
             {
-                UpdateChart(stringsSet, recordTime);
+                UpdateChart(stringsSet, recordTime, keepLocalDb);
             });
         }
 
@@ -275,7 +286,7 @@ namespace ChartPlotMQTT
             var dataCollection = new List<LiteDbLocal.SensorDataRec>();
             try
             {
-                dataCollection = ImportJson(openFileDialog1.FileName);
+                dataCollection = ImportJsonFile(openFileDialog1.FileName);
             }
             catch (Exception ex)
             {
@@ -295,6 +306,72 @@ namespace ChartPlotMQTT
             TrackBar_max_Scroll(this, EventArgs.Empty);
 
             foreach (var record in dataCollection) UpdateChart(record, false);
+        }
+
+        private async Task<bool> GetDataFromREST(int time, int retryCount = 3)
+        {
+            //http://jekyll-server:8080/api/Sensors/GetLatestRecords?minutes=60
+
+            var baseUrl = "http://" + ipAddress + ":" + ipPortRest;
+            var servicePath = "/api/Sensors/GetRecords?minutes=" + time;
+
+            var credentials = new NetworkCredential(login, password);
+
+            using (var client = new HttpClient(new HttpClientHandler() { Credentials = credentials, PreAuthenticate = true }))
+            {
+                client.Timeout = TimeSpan.FromMinutes(1);
+                var resultContentString = "";
+                client.Timeout = TimeSpan.FromSeconds(30);
+                client.BaseAddress = new Uri(baseUrl);
+
+                var reqResult = false;
+                do
+                {
+                    retryCount--;
+                    try
+                    {
+                        var result = await client.GetAsync(servicePath).ConfigureAwait(true);
+
+                        result.EnsureSuccessStatusCode();
+
+                        var r = result.IsSuccessStatusCode;
+                        if (!r)
+                        {
+                            await Task.Delay(100);
+                            continue;
+                        }
+
+                        resultContentString = await result.Content.ReadAsStringAsync();
+                        reqResult = true;
+                    }
+                    catch (Exception exception)
+                    {
+                        //MessageBox.Show(exception.ToString(), "REST error");
+                        Msg("REST error: " + exception.Message.ToString());
+                    }
+                } while (retryCount > 0 && !reqResult);
+
+                if (!reqResult) return false;
+
+                if (string.IsNullOrEmpty(resultContentString)) return true;
+
+                var restoredRange = new List<LiteDbLocal.SensorDataRec>();
+                try
+                {
+                    restoredRange = ImportJsonString(resultContentString);
+                }
+                catch (Exception ex)
+                {
+                    Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                    //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                }
+                if (restoredRange != null)
+                    foreach (var record in restoredRange)
+                    {
+                        UpdateChart(record, false);
+                    }
+            }
+            return true;
         }
 
         #endregion
@@ -343,7 +420,7 @@ namespace ChartPlotMQTT
             }
         }
 
-        private bool ExportJson(IEnumerable<LiteDbLocal.SensorDataRec> data, string fileName, string item = null)
+        private bool ExportJsonFile(IEnumerable<LiteDbLocal.SensorDataRec> data, string fileName, string item = null)
         {
             var filteredData = new List<LiteDbLocal.SensorDataRec>();
             if (!string.IsNullOrEmpty(item))
@@ -377,7 +454,7 @@ namespace ChartPlotMQTT
             return true;
         }
 
-        private List<LiteDbLocal.SensorDataRec> ImportJson(string fileName)
+        private List<LiteDbLocal.SensorDataRec> ImportJsonFile(string fileName)
         {
             List<LiteDbLocal.SensorDataRec> newValues;
             var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>));
@@ -398,12 +475,37 @@ namespace ChartPlotMQTT
             return newValues;
         }
 
+        private List<LiteDbLocal.SensorDataRec> ImportJsonString(string data)
+        {
+            List<LiteDbLocal.SensorDataRec> newValues;
+            var settings = new DataContractJsonSerializerSettings
+            {
+                DateTimeFormat = new DateTimeFormat("yyyy-MM-ddTHH:mm:ss.FFFK")
+            };
+
+            var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>), settings);
+            try
+            {
+                using (var memo = new MemoryStream(Encoding.Unicode.GetBytes(data)))
+                {
+                    newValues = (List<LiteDbLocal.SensorDataRec>)jsonSerializer.ReadObject(memo);
+                }
+            }
+            catch (Exception ex)
+            {
+                Msg("JSON parse error: " + ex.Message + Environment.NewLine);
+                newValues = null;
+            }
+
+            return newValues;
+        }
+
         private void ParseIpAddress(string ipText)
         {
             if (string.IsNullOrEmpty(ipText))
             {
                 ipAddress = Settings.Default.DefaultAddress;
-                ipPort = Settings.Default.DefaultPort;
+                ipPortMQTT = Settings.Default.DefaultPort;
                 return;
             }
 
@@ -411,17 +513,17 @@ namespace ChartPlotMQTT
             if (portPosition > 0)
             {
                 ipAddress = ipText.Substring(0, portPosition);
-                if (!int.TryParse(ipText.Substring(portPosition + 1), out ipPort)) ipPort = Settings.Default.DefaultPort;
+                if (!int.TryParse(ipText.Substring(portPosition + 1), out ipPortMQTT)) ipPortMQTT = Settings.Default.DefaultPort;
             }
             else if (portPosition == 0)
             {
                 ipAddress = Settings.Default.DefaultAddress;
-                if (!int.TryParse(ipText.Substring(1), out ipPort)) ipPort = Settings.Default.DefaultPort;
+                if (!int.TryParse(ipText.Substring(1), out ipPortMQTT)) ipPortMQTT = Settings.Default.DefaultPort;
             }
             else
             {
                 ipAddress = ipText;
-                ipPort = Settings.Default.DefaultPort;
+                ipPortMQTT = Settings.Default.DefaultPort;
             }
         }
 
@@ -442,6 +544,7 @@ namespace ChartPlotMQTT
 
         private void DbOpen()
         {
+            if (!keepLocalDb) return;
             if (recordsDb == null || recordsDb.Disposed)
             {
                 if (string.IsNullOrEmpty(Settings.Default.DbPassword))
@@ -488,7 +591,7 @@ namespace ChartPlotMQTT
         }
 
         // extract string processing to ConvertStringsToSensorData()
-        private void UpdateChart(IDictionary<string, string> stringsSet, DateTime recordTime, bool saveToDb = true)
+        private void UpdateChart(IDictionary<string, string> stringsSet, DateTime recordTime, bool saveToDb)
         {
             var currentResult = new LiteDbLocal.SensorDataRec();
             if (stringsSet.TryGetValue("DeviceName", out var devName))
@@ -547,23 +650,28 @@ namespace ChartPlotMQTT
                 if (currentResult.Time >= minShowTime && currentResult.Time <= maxShowTime) AddNewPoint(fullValueType, currentResult.Time, value);
             }
 
-            if (saveToDb)
+            if (keepLocalDb && saveToDb)
             {
                 DbOpen();
                 currentResult.Id = recordsDb.AddRecord(currentResult);
             }
 
-            var time = DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0)).ToOADate();
+            minAllowedTime = DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0));
             foreach (var item in chart1.Series)
             {
+                item.Sort(PointSortOrder.Ascending, "X");
                 var points = item.Points;
-                while (points.Count > 0 && points.First().XValue < time) points.RemoveAt(0);
+                if (points != null && points.Count > 0)
+                {
+                    while (points.Count > 0 && points[0].XValue < minAllowedTime.ToOADate()) points.RemoveAt(0);
+                    TrackBar_min_Scroll(this, EventArgs.Empty);
+                }
             }
 
             chart1.Invalidate();
         }
 
-        private void UpdateChart(LiteDbLocal.SensorDataRec newData, bool saveToDb = true)
+        private void UpdateChart(LiteDbLocal.SensorDataRec newData, bool saveToDb)
         {
             if (newData.ValueList.Count <= 0) return;
 
@@ -607,18 +715,22 @@ namespace ChartPlotMQTT
                 }
             }
 
-            if (saveToDb)
+            if (keepLocalDb && saveToDb)
             {
                 DbOpen();
                 newData.Id = recordsDb.AddRecord(newData);
             }
 
-            var time = DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0)).ToOADate();
+            minAllowedTime = DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0));
             foreach (var item in chart1.Series)
             {
                 item.Sort(PointSortOrder.Ascending, "X");
                 var points = item.Points;
-                while (points.Count > 0 && points.First().XValue < time) points.RemoveAt(0);
+                if (points != null && points.Count > 0)
+                {
+                    while (points.Count > 0 && points[0].XValue < minAllowedTime.ToOADate()) points.RemoveAt(0);
+                    TrackBar_min_Scroll(this, EventArgs.Empty);
+                }
             }
 
             chart1.Invalidate();
@@ -731,6 +843,14 @@ namespace ChartPlotMQTT
             }
         }
 
+        [ReflectionPermission(SecurityAction.Demand, MemberAccess = true)]
+        void ResetExceptionState(Control control)
+        {
+            typeof(Control).InvokeMember("SetState", BindingFlags.NonPublic |
+                                                     BindingFlags.InvokeMethod | BindingFlags.Instance, null,
+                control, new object[] { 0x400000, false });
+        }
+
         #endregion
 
         #region GUI
@@ -738,7 +858,6 @@ namespace ChartPlotMQTT
         public Form1()
         {
             InitializeComponent();
-
             notifyIcon1.Visible = false;
             notifyIcon1.MouseDoubleClick += NotifyIcon1_MouseDoubleClick;
             Resize += Form1_Resize;
@@ -747,8 +866,10 @@ namespace ChartPlotMQTT
         private void Form1_Load(object sender, EventArgs e)
         {
             ipAddress = Settings.Default.DefaultAddress;
-            ipPort = Settings.Default.DefaultPort;
-            textBox_mqttServer.Text = ipAddress + ":" + ipPort;
+            ipPortMQTT = Settings.Default.DefaultPort;
+            textBox_mqttServer.Text = ipAddress + ":" + ipPortMQTT;
+            ipPortRest = Settings.Default.RESTPort;
+            textBox_restPort.Text = ipPortRest.ToString();
             textBox_login.Text = login = Settings.Default.DefaultLogin;
             textBox_password.Text = password = Settings.Default.DefaultPassword;
             textBox_publishTopic.Text = publishTopic = Settings.Default.DefaultPublishTopic;
@@ -766,10 +887,12 @@ namespace ChartPlotMQTT
             InitLog();
 
             // restore latest charts from database
+            /*
             DbOpen();
             var restoredRange = recordsDb.GetRecordsRange(DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0)), DateTime.Now);
             if (restoredRange != null)
                 foreach (var record in restoredRange) UpdateChart(record, false);
+            */
 
             if (autoConnect) Button_connect_Click(this, EventArgs.Empty);
         }
@@ -786,17 +909,17 @@ namespace ChartPlotMQTT
                 return;
             }
 
-
             forcedDisconnect = true;
             mqttClient.ApplicationMessageReceivedHandler = null;
             mqttClient.DisconnectedHandler = null;
             if (mqttClient.IsConnected) mqttClient.DisconnectAsync().ConfigureAwait(true);
             mqttClient.Dispose();
 
-            recordsDb?.Dispose();
+            if (keepLocalDb) recordsDb?.Dispose();
 
             Settings.Default.DefaultAddress = ipAddress;
-            Settings.Default.DefaultPort = ipPort;
+            Settings.Default.DefaultPort = ipPortMQTT;
+            Settings.Default.RESTPort = ipPortRest;
             Settings.Default.DefaultLogin = login;
             Settings.Default.DefaultPassword = password;
             Settings.Default.AutoConnect = autoConnect;
@@ -861,7 +984,8 @@ namespace ChartPlotMQTT
             if (maxY <= minY) maxY = minY + 1;
 
             textBox_maxValue.Text = maxY.ToString(CultureInfo.InvariantCulture);
-            chart1.ChartAreas[0].AxisY.Maximum = maxY;
+            chart1.ChartAreas[0].AxisY.Maximum = maxY > maxChartValue ? maxChartValue : maxY;
+            SetCursorInterval();
         }
 
         private void TextBox_minValue_Leave(object sender, EventArgs e)
@@ -877,7 +1001,7 @@ namespace ChartPlotMQTT
             if (minY >= maxY) minY = maxY - 1;
 
             textBox_minValue.Text = minY.ToString(CultureInfo.InvariantCulture);
-            chart1.ChartAreas[0].AxisY.Minimum = minY;
+            chart1.ChartAreas[0].AxisY.Minimum = minY < minChartValue? minChartValue : minY;
         }
 
         private void TrackBar_min_Scroll(object sender, EventArgs e)
@@ -939,10 +1063,11 @@ namespace ChartPlotMQTT
             saveFileDialog1.ShowDialog();
         }
 
-        private void SaveFileDialog1_FileOk(object sender, System.ComponentModel.CancelEventArgs e)
+        private async void SaveFileDialog1_FileOk(object sender, System.ComponentModel.CancelEventArgs e)
         {
             var startTime = DateTime.Now;
             var endTime = DateTime.Now;
+            // get them from sliders
             foreach (var item in chart1.Series)
             {
                 var points = item.Points;
@@ -958,18 +1083,74 @@ namespace ChartPlotMQTT
 
             if (endTime <= startTime) return;
 
-            DbOpen();
-            var restoredRange = recordsDb.GetRecordsRange(startTime, endTime);
+            /*DbOpen();
+            var restoredRange = recordsDb.GetRecordsRange(startTime, endTime);*/
 
-            if (restoredRange == null) return;
+            var baseUrl = "http://" + ipAddress + ":" + ipPortRest;
+            var servicePath = "/api/Sensors/GetRecords?startTime=" + startTime.ToString("yyyy-MM-ddTHH:mm:ss") + "&endTime=" + endTime.ToString("yyyy-MM-ddTHH:mm:ss");
 
-            try
+            var credentials = new NetworkCredential(login, password);
+
+            using (var client = new HttpClient(new HttpClientHandler() { Credentials = credentials }))
             {
-                var jsonData = ExportJson(restoredRange, saveFileDialog1.FileName, saveItem);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+                var resultContentString = "";
+                client.Timeout = TimeSpan.FromSeconds(30);
+                client.BaseAddress = new Uri(baseUrl);
+
+                var retryCount = 5;
+                var reqResult = false;
+                while (retryCount > 0 && !reqResult)
+                {
+                    try
+                    {
+                        var result = await client.GetAsync(servicePath).ConfigureAwait(true);
+
+                        if (!result.IsSuccessStatusCode)
+                        {
+                            retryCount--;
+                            await Task.Delay(100);
+                            continue;
+                        }
+
+                        resultContentString = await result.Content.ReadAsStringAsync().ConfigureAwait(true);
+                        reqResult = true;
+                    }
+                    catch (Exception exception)
+                    {
+                        Msg("REST error: " + exception.ToString());
+                        //MessageBox.Show(exception.ToString(), "REST error");
+                    }
+                }
+
+                var restoredRange = new List<LiteDbLocal.SensorDataRec>();
+                try
+                {
+                    restoredRange = ImportJsonString(resultContentString);
+                }
+                catch (Exception ex)
+                {
+                    Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                    //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                }
+
+                if (restoredRange != null)
+                    foreach (var record in restoredRange)
+                    {
+                        UpdateChart(record, false);
+                    }
+
+
+                if (restoredRange == null) return;
+
+                try
+                {
+                    var jsonData = ExportJsonFile(restoredRange, saveFileDialog1.FileName, saveItem);
+                }
+                catch (Exception ex)
+                {
+                    Msg("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+                    //MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+                }
             }
         }
 
@@ -1015,8 +1196,8 @@ namespace ChartPlotMQTT
                 textBox_maxValue.Enabled = false;
                 textBox_minValue.Enabled = false;
                 chart1.ResetAutoValues();
-                chart1.ChartAreas[0].AxisY.Maximum = double.NaN;
-                chart1.ChartAreas[0].AxisY.Minimum = double.NaN;
+                //chart1.ChartAreas[0].AxisY.Maximum = maxChartValue;
+                //chart1.ChartAreas[0].AxisY.Minimum = minChartValue;
                 chart1.ChartAreas[0].RecalculateAxesScale();
                 textBox_maxValue.Text = chart1.ChartAreas[0].AxisY.Maximum.ToString(CultureInfo.InvariantCulture);
                 textBox_minValue.Text = chart1.ChartAreas[0].AxisY.Minimum.ToString(CultureInfo.InvariantCulture);
@@ -1031,6 +1212,7 @@ namespace ChartPlotMQTT
                 textBox_minValue.Text = minShowValue.ToString(CultureInfo.InvariantCulture);
                 chart1.ChartAreas[0].AxisY.Maximum = maxShowValue;
                 chart1.ChartAreas[0].AxisY.Minimum = minShowValue;
+                SetCursorInterval();
             }
             else if (checkBox_autoRangeValue.CheckState == CheckState.Unchecked)
             {
@@ -1055,7 +1237,7 @@ namespace ChartPlotMQTT
         private void TextBox_mqttServer_Leave(object sender, EventArgs e)
         {
             ParseIpAddress(textBox_mqttServer.Text);
-            textBox_mqttServer.Text = ipAddress + ":" + ipPort;
+            textBox_mqttServer.Text = ipAddress + ":" + ipPortMQTT;
         }
 
         private void TextBox_subscribeTopic_Leave(object sender, EventArgs e)
@@ -1127,40 +1309,15 @@ namespace ChartPlotMQTT
 
         private void TextBox_keepTime_Leave(object sender, EventArgs e)
         {
-            var oldKeepTime = keepTime;
+            int.TryParse(textBox_keepTime.Text, out var newKeepTime);
+            if (newKeepTime == keepTime || newKeepTime <= 0)
+            {
+                textBox_keepTime.Text = keepTime.ToString();
+                return;
+            }
 
-            int.TryParse(textBox_keepTime.Text, out keepTime);
-            if (oldKeepTime == keepTime || keepTime <= 0) return;
-
+            keepTime = newKeepTime;
             textBox_keepTime.Text = keepTime.ToString();
-
-            var endTime = DateTime.Now;
-            var startTime = endTime.Subtract(new TimeSpan(0, keepTime, 0));
-
-            minShowTime = minAllowedTime = startTime;
-            trackBar_min.Value = trackBar_min.Minimum;
-            textBox_fromTime.Text = minShowTime.ToShortDateString() + " " + minShowTime.ToLongTimeString();
-            chart1.ChartAreas[0].AxisX.Minimum = minShowTime.ToOADate();
-            chart1.Invalidate();
-
-            maxShowTime = maxAllowedTime;
-            trackBar_max.Value = trackBar_max.Maximum;
-            textBox_toTime.Text = maxShowTime.ToShortDateString() + " " + maxShowTime.ToLongTimeString();
-            chart1.ChartAreas[0].AxisX.Maximum = maxShowTime.ToOADate();
-            chart1.Invalidate();
-
-            plotList.Clear();
-            InitChart();
-            checkedListBox_params.Items.Clear();
-
-            DbOpen();
-            var restoredRange = recordsDb.GetRecordsRange(startTime, endTime);
-            if (restoredRange != null)
-                foreach (var record in restoredRange)
-                {
-
-                    UpdateChart(record, false);
-                }
         }
 
         private void NotifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
@@ -1179,6 +1336,98 @@ namespace ChartPlotMQTT
             }
         }
 
+        private void Button_resetChart_Click(object sender, EventArgs e)
+        {
+            ResetExceptionState(chart1);
+        }
+
+        private void TextBox_restPort_Leave(object sender, EventArgs e)
+        {
+            var oldIpPortRest = ipPortRest;
+
+            int.TryParse(textBox_restPort.Text, out ipPortRest);
+            if (oldIpPortRest == ipPortRest) return;
+            if (ipPortRest <= 0) ipPortRest = 8080;
+            textBox_restPort.Text = ipPortRest.ToString();
+        }
+
+        private async void TextBox_keepTime_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = false;
+                int.TryParse(textBox_keepTime.Text, out int newKeepTime);
+                if (newKeepTime <= 0)
+                {
+                    textBox_keepTime.Text = keepTime.ToString();
+                    return;
+                }
+
+                if (newKeepTime != keepTime)
+                {
+                    keepTime = newKeepTime;
+                    textBox_keepTime.Text = keepTime.ToString();
+                }
+
+                textBox_keepTime.Enabled = false;
+                var result = await GetDataFromREST(keepTime).ConfigureAwait(true);
+
+                if (result)
+                {
+                    var endTime = DateTime.Now;
+                    var startTime = endTime.Subtract(new TimeSpan(0, keepTime, 0));
+
+                    minShowTime = minAllowedTime = startTime;
+                    trackBar_min.Value = trackBar_min.Minimum;
+                    textBox_fromTime.Text = minShowTime.ToShortDateString() + " " + minShowTime.ToLongTimeString();
+                    chart1.ChartAreas[0].AxisX.Minimum = minShowTime.ToOADate();
+
+                    maxShowTime = maxAllowedTime;
+                    trackBar_max.Value = trackBar_max.Maximum;
+                    textBox_toTime.Text = maxShowTime.ToShortDateString() + " " + maxShowTime.ToLongTimeString();
+                    chart1.ChartAreas[0].AxisX.Maximum = maxShowTime.ToOADate();
+                    chart1.Invalidate();
+
+                    //plotList.Clear();
+                    //InitChart();
+                    //checkedListBox_params.Items.Clear();
+
+                    Msg("Data loaded from server");
+                }
+                textBox_keepTime.Enabled = true;
+
+                chart1.Invalidate();
+            }
+        }
+
         #endregion
+
+        private void Chart1_MouseMove(object sender, MouseEventArgs e)
+        {
+            var mousePoint = new Point(e.X, e.Y);
+            chart1.ChartAreas[0].CursorY.SetCursorPixelPosition(mousePoint, true);
+            textBox_val.Text = chart1.ChartAreas[0].CursorY.Position.ToString();
+
+            /*chart1.ChartAreas[0].CursorX.SetCursorPixelPosition(mousePoint, true);
+            textBox_time.Text = chart1.ChartAreas[0].CursorX.Position.ToString();*/
+        }
+
+        private void SetCursorInterval()
+        {
+            var max = chart1.ChartAreas[0].AxisY.Maximum;
+            var min = chart1.ChartAreas[0].AxisY.Minimum;
+            var h = chart1.ChartAreas[0].Position.Height * chart1.Height / 100;
+            chart1.ChartAreas[0].CursorY.Interval = (max - min) / h;
+
+            /*max = chart1.ChartAreas[0].AxisX.Maximum;
+            min = chart1.ChartAreas[0].AxisX.Minimum;
+            h = chart1.ChartAreas[0].Position.Width * chart1.Width / 100;
+            chart1.ChartAreas[0].CursorX.Interval = (max - min) / h;*/
+        }
+
+        private void Chart1_CausesValidationChanged(object sender, EventArgs e)
+        {
+            //SetCursorInterval();
+        }
     }
 }

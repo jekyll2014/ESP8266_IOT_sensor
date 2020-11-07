@@ -24,8 +24,19 @@
     <ClInclude Include="__vm\.ESP8266_IOT_sensor.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ESP8266_IOT_sensor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="ESP8266_IOT_sensor.ino" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="mqtt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="define_globals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

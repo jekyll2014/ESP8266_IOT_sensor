@@ -1,4 +1,5 @@
 #pragma once
+#include "configuration.h"
 
 #define schedulesNumber  10
 #define eventsNumber  10
@@ -188,6 +189,9 @@
 #define OUT_ON true
 #define OUT_OFF false
 
+#define HARD_UART 0
+#define SOFT_UART 1
+
 #define WIFI_MODE_OFF 0
 #define WIFI_MODE_STA 1
 #define WIFI_MODE_AP 2
@@ -195,25 +199,24 @@
 #define WIFI_MODE_AUTO 4
 const String wifiModes[5] = { "Off", "Station", "Access point",  "Access point + Station", "Auto" };
 
+#define CHANNELS_NUMBER 8
 #define CHANNEL_UART 0
 #define CHANNEL_TELNET 1
 #define CHANNEL_MQTT 2
 #define CHANNEL_TELEGRAM 3
 #define CHANNEL_GSCRIPT 4
 #define CHANNEL_PUSHINGBOX 5
-#define CHANNEL_EMAIL 6
+#define CHANNEL_SMTP 6
 #define CHANNEL_GSM 7
-const String channels[8] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
+const String channels[CHANNELS_NUMBER] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
 
 const String pinModeList[4] = { "INPUT","OUTPUT","INPUT_PULLUP", "OFF" };
 
 const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
 
-bool inputs[PIN_NUMBER];
-
-uint16_t outputs[PIN_NUMBER];
-
-uint32_t InterruptCounter[PIN_NUMBER];
+extern bool inputs[PIN_NUMBER];
+extern uint16_t outputs[PIN_NUMBER];
+extern uint32_t InterruptCounter[PIN_NUMBER];
 
 struct sensorDataCollection
 {
@@ -298,18 +301,46 @@ struct sensorDataCollection
 #define DISPLAY_ENABLED
 #endif
 
+#if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE)
+#define GSM_ENABLE
 struct smsMessage
 {
 	bool IsAdmin;
 	String PhoneNumber;
 	String Message;
 };
-#if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE)
-#define GSM_ENABLE
 #endif
 
-#if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE) || defined(MH_Z19_UART_ENABLE)
-#define UART2_ENABLE
+#if defined(GSM_M590_ENABLE)
+#if GSM_M590_ENABLE == HARD_UART
+#define HARD_UART_ENABLE
+#elif GSM_M590_ENABLE == SOFT_UART
+#define SOFT_UART_ENABLE
+#endif
+#endif
+
+#if defined(GSM_SIM800_ENABLE)
+#if GSM_SIM800_ENABLE == HARD_UART
+#define HARD_UART_ENABLE
+#elif GSM_SIM800_ENABLE == SOFT_UART
+#define SOFT_UART_ENABLE
+#endif
+#endif
+
+#if defined(MH_Z19_UART_ENABLE)
+#if MH_Z19_UART_ENABLE == HARD_UART
+#define HARD_UART_ENABLE
+#elif MH_Z19_UART_ENABLE == SOFT_UART
+#define SOFT_UART_ENABLE
+#endif
+#endif
+
+#if defined(DEBUG_MODE)
+#if DEBUG_MODE == HARD_UART
+#define HARD_UART_ENABLE
+#elif DEBUG_MODE == SOFT_UART
+#define SOFT_UART_ENABLE
+#endif
 #endif
 
 #if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE) || defined(BMP180_ENABLE) || defined(SSD1306DISPLAY_ENABLE)
@@ -325,5 +356,9 @@ struct smsMessage
 #endif
 
 #if defined(GSM_ENABLE) && defined(MH_Z19_UART_ENABLE)
+#error "Only one device can use SoftUART"
+#endif
+
+#if defined(GSM_SIM800_ENABLE) && defined(MH_Z19_UART_ENABLE)
 #error "Only one device can use SoftUART"
 #endif
