@@ -21,13 +21,11 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Permissions;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
-using LiteDB;
 
 namespace ChartPlotMQTT
 {
@@ -44,7 +42,7 @@ namespace ChartPlotMQTT
         private bool autoReConnect;
         private volatile bool forcedDisconnect;
         private int keepTime = 60;
-        private readonly bool keepLocalDb = false;
+        private bool keepLocalDb;
 
         private static readonly IMqttNetLogger Logger = new MqttNetLogger();
         private readonly IMqttClient mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
@@ -542,6 +540,45 @@ namespace ChartPlotMQTT
             checkedListBox_params.Width = checkedListBox_params.PreferredSize.Width;
         }
 
+        private void SetCursorInterval()
+        {
+            var max = chart1.ChartAreas[0].AxisY.Maximum;
+            var min = chart1.ChartAreas[0].AxisY.Minimum;
+            var h = chart1.ChartAreas[0].Position.Height * chart1.Height / 100;
+            chart1.ChartAreas[0].CursorY.Interval = (max - min) / h;
+
+            max = chart1.ChartAreas[0].AxisX.Maximum;
+            min = chart1.ChartAreas[0].AxisX.Minimum;
+            var w = chart1.ChartAreas[0].Position.Width * chart1.Width / 100;
+            chart1.ChartAreas[0].CursorX.Interval = (max - min) / w;
+        }
+
+        private void RecheckMinMaxValue()
+        {
+            if (checkBox_autoRangeValue.CheckState == CheckState.Unchecked) return;
+
+            valueRangeSet = false;
+            for (var n = 0; n < plotList.Count; n++)
+            {
+                if (!plotList.GetActive(plotList.ItemName(n))) continue;
+
+                if (!valueRangeSet)
+                {
+                    maxShowValue = plotList.GetValueRange(n).MaxValue;
+                    minShowValue = plotList.GetValueRange(n).MinValue;
+                    valueRangeSet = true;
+                }
+                else if (plotList.GetValueRange(n).MinValue < minShowValue)
+                {
+                    minShowValue = plotList.GetValueRange(n).MinValue;
+                }
+                else if (plotList.GetValueRange(n).MaxValue > maxShowValue)
+                {
+                    maxShowValue = plotList.GetValueRange(n).MaxValue;
+                }
+            }
+        }
+
         private void DbOpen()
         {
             if (!keepLocalDb) return;
@@ -650,7 +687,7 @@ namespace ChartPlotMQTT
                 if (currentResult.Time >= minShowTime && currentResult.Time <= maxShowTime) AddNewPoint(fullValueType, currentResult.Time, value);
             }
 
-            if (keepLocalDb && saveToDb)
+            if (saveToDb)
             {
                 DbOpen();
                 currentResult.Id = recordsDb.AddRecord(currentResult);
@@ -715,7 +752,7 @@ namespace ChartPlotMQTT
                 }
             }
 
-            if (keepLocalDb && saveToDb)
+            if (saveToDb)
             {
                 DbOpen();
                 newData.Id = recordsDb.AddRecord(newData);
@@ -762,7 +799,8 @@ namespace ChartPlotMQTT
                     Enabled = active,
                     ChartType = SeriesChartType.Line,
                     XValueType = ChartValueType.DateTime,
-                    Color = plotColor
+                    Color = plotColor,
+                    MarkerStyle = MarkerStyle.None
                 };
 
                 chart1.Series.Add(series1);
@@ -775,6 +813,16 @@ namespace ChartPlotMQTT
                 minShowValue = value;
                 plotList.SetValueRange(valueType, new MinMaxValue { MinValue = value, MaxValue = value });
             }
+        }
+
+        private void RemovePlot(string item)
+        {
+            var itemNum = plotList.ItemNumber(item);
+
+            chart1.Series.RemoveAt(itemNum);
+            plotList.Remove(itemNum);
+            checkedListBox_params.Items.RemoveAt(itemNum);
+            ReCalculateCheckBoxSize();
         }
 
         private void AddNewPoint(string valueType, DateTime yValue, float xValue)
@@ -807,42 +855,6 @@ namespace ChartPlotMQTT
             chart1.Series[valueType].Points.AddXY(yValue, filteredXvalue);
         }
 
-        private void RemovePlot(string item)
-        {
-            var itemNum = plotList.ItemNumber(item);
-
-            chart1.Series.RemoveAt(itemNum);
-            plotList.Remove(itemNum);
-            checkedListBox_params.Items.RemoveAt(itemNum);
-            ReCalculateCheckBoxSize();
-        }
-
-        private void RecheckMinMaxValue()
-        {
-            if (checkBox_autoRangeValue.CheckState == CheckState.Unchecked) return;
-
-            valueRangeSet = false;
-            for (var n = 0; n < plotList.Count; n++)
-            {
-                if (!plotList.GetActive(plotList.ItemName(n))) continue;
-
-                if (!valueRangeSet)
-                {
-                    maxShowValue = plotList.GetValueRange(n).MaxValue;
-                    minShowValue = plotList.GetValueRange(n).MinValue;
-                    valueRangeSet = true;
-                }
-                else if (plotList.GetValueRange(n).MinValue < minShowValue)
-                {
-                    minShowValue = plotList.GetValueRange(n).MinValue;
-                }
-                else if (plotList.GetValueRange(n).MaxValue > maxShowValue)
-                {
-                    maxShowValue = plotList.GetValueRange(n).MaxValue;
-                }
-            }
-        }
-
         [ReflectionPermission(SecurityAction.Demand, MemberAccess = true)]
         void ResetExceptionState(Control control)
         {
@@ -867,7 +879,7 @@ namespace ChartPlotMQTT
         {
             ipAddress = Settings.Default.DefaultAddress;
             ipPortMQTT = Settings.Default.DefaultPort;
-            textBox_mqttServer.Text = ipAddress + ":" + ipPortMQTT;
+            textBox_mqttServer.Text = ipAddress + ":" + ipPortMQTT.ToString();
             ipPortRest = Settings.Default.RESTPort;
             textBox_restPort.Text = ipPortRest.ToString();
             textBox_login.Text = login = Settings.Default.DefaultLogin;
@@ -880,6 +892,7 @@ namespace ChartPlotMQTT
             checkBox_addTimeStamp.Checked = Settings.Default.AddTimeStamp;
             keepTime = Settings.Default.KeepTime;
             textBox_keepTime.Text = keepTime.ToString();
+            keepLocalDb = Settings.Default.keepLocalDb;
 
             plotList.Clear();
             InitChart();
@@ -887,12 +900,15 @@ namespace ChartPlotMQTT
             InitLog();
 
             // restore latest charts from database
-            /*
-            DbOpen();
-            var restoredRange = recordsDb.GetRecordsRange(DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0)), DateTime.Now);
-            if (restoredRange != null)
-                foreach (var record in restoredRange) UpdateChart(record, false);
-            */
+            if (keepLocalDb)
+            {
+                DbOpen();
+                var restoredRange =
+                    recordsDb.GetRecordsRange(DateTime.Now.Subtract(new TimeSpan(0, keepTime, 0)), DateTime.Now);
+                if (restoredRange != null)
+                    foreach (var record in restoredRange)
+                        UpdateChart(record, false);
+            }
 
             if (autoConnect) Button_connect_Click(this, EventArgs.Empty);
         }
@@ -959,18 +975,6 @@ namespace ChartPlotMQTT
             if (checkBox_hex.Checked) textBox_message.Text = Accessory.CheckHexString(textBox_message.Text);
         }
 
-        private void CheckedListBox_params_SelectedValueChanged(object sender, EventArgs e)
-        {
-            for (var i = 0; i < plotList.Count; i++)
-            {
-                var item = plotList.ItemName(i);
-                plotList.SetActive(checkedListBox_params.Items[i].ToString(), checkedListBox_params.GetItemChecked(i));
-                chart1.Series[item].Enabled = plotList.GetActive(item);
-            }
-
-            CheckBox_autoRangeValue_CheckStateChanged(this, EventArgs.Empty);
-        }
-
         private void TextBox_maxValue_Leave(object sender, EventArgs e)
         {
             textBox_maxValue.Text = textBox_maxValue.Text.Replace(".", CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
@@ -1001,7 +1005,8 @@ namespace ChartPlotMQTT
             if (minY >= maxY) minY = maxY - 1;
 
             textBox_minValue.Text = minY.ToString(CultureInfo.InvariantCulture);
-            chart1.ChartAreas[0].AxisY.Minimum = minY < minChartValue? minChartValue : minY;
+            chart1.ChartAreas[0].AxisY.Minimum = minY < minChartValue ? minChartValue : minY;
+            SetCursorInterval();
         }
 
         private void TrackBar_min_Scroll(object sender, EventArgs e)
@@ -1026,6 +1031,7 @@ namespace ChartPlotMQTT
             }
             textBox_fromTime.Text = minShowTime.ToShortDateString() + " " + minShowTime.ToLongTimeString();
             chart1.ChartAreas[0].AxisX.Minimum = minShowTime.ToOADate();
+            SetCursorInterval();
             chart1.Invalidate();
         }
 
@@ -1051,6 +1057,7 @@ namespace ChartPlotMQTT
             }
             textBox_toTime.Text = maxShowTime.ToShortDateString() + " " + maxShowTime.ToLongTimeString();
             chart1.ChartAreas[0].AxisX.Maximum = maxShowTime.ToOADate();
+            SetCursorInterval();
             chart1.Invalidate();
         }
 
@@ -1083,74 +1090,74 @@ namespace ChartPlotMQTT
 
             if (endTime <= startTime) return;
 
-            /*DbOpen();
-            var restoredRange = recordsDb.GetRecordsRange(startTime, endTime);*/
+            var restoredRange = new List<LiteDbLocal.SensorDataRec>();
 
-            var baseUrl = "http://" + ipAddress + ":" + ipPortRest;
-            var servicePath = "/api/Sensors/GetRecords?startTime=" + startTime.ToString("yyyy-MM-ddTHH:mm:ss") + "&endTime=" + endTime.ToString("yyyy-MM-ddTHH:mm:ss");
-
-            var credentials = new NetworkCredential(login, password);
-
-            using (var client = new HttpClient(new HttpClientHandler() { Credentials = credentials }))
+            if (keepLocalDb)
             {
-                var resultContentString = "";
-                client.Timeout = TimeSpan.FromSeconds(30);
-                client.BaseAddress = new Uri(baseUrl);
+                DbOpen();
+                restoredRange = recordsDb.GetRecordsRange(startTime, endTime);
+            }
+            else
+            {
+                var baseUrl = "http://" + ipAddress + ":" + ipPortRest;
+                var servicePath = "/api/Sensors/GetRecords?startTime=" + startTime.ToString("yyyy-MM-ddTHH:mm:ss") +
+                                  "&endTime=" + endTime.ToString("yyyy-MM-ddTHH:mm:ss");
 
-                var retryCount = 5;
-                var reqResult = false;
-                while (retryCount > 0 && !reqResult)
+                var credentials = new NetworkCredential(login, password);
+
+                using (var client = new HttpClient(new HttpClientHandler { Credentials = credentials }))
                 {
+                    var resultContentString = "";
+                    client.Timeout = TimeSpan.FromSeconds(30);
+                    client.BaseAddress = new Uri(baseUrl);
+
+                    var retryCount = 5;
+                    var reqResult = false;
+                    while (retryCount > 0 && !reqResult)
+                    {
+                        try
+                        {
+                            var result = await client.GetAsync(servicePath).ConfigureAwait(true);
+
+                            if (!result.IsSuccessStatusCode)
+                            {
+                                retryCount--;
+                                await Task.Delay(100);
+                                continue;
+                            }
+
+                            resultContentString = await result.Content.ReadAsStringAsync().ConfigureAwait(true);
+                            reqResult = true;
+                        }
+                        catch (Exception exception)
+                        {
+                            Msg("REST error: " + exception.ToString());
+                            //MessageBox.Show(exception.ToString(), "REST error");
+                        }
+                    }
+
                     try
                     {
-                        var result = await client.GetAsync(servicePath).ConfigureAwait(true);
-
-                        if (!result.IsSuccessStatusCode)
-                        {
-                            retryCount--;
-                            await Task.Delay(100);
-                            continue;
-                        }
-
-                        resultContentString = await result.Content.ReadAsStringAsync().ConfigureAwait(true);
-                        reqResult = true;
+                        restoredRange = ImportJsonString(resultContentString);
                     }
-                    catch (Exception exception)
+                    catch (Exception ex)
                     {
-                        Msg("REST error: " + exception.ToString());
-                        //MessageBox.Show(exception.ToString(), "REST error");
+                        Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                        //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
                     }
                 }
+            }
 
-                var restoredRange = new List<LiteDbLocal.SensorDataRec>();
-                try
-                {
-                    restoredRange = ImportJsonString(resultContentString);
-                }
-                catch (Exception ex)
-                {
-                    Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
-                    //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
-                }
+            if (restoredRange == null) return;
 
-                if (restoredRange != null)
-                    foreach (var record in restoredRange)
-                    {
-                        UpdateChart(record, false);
-                    }
-
-
-                if (restoredRange == null) return;
-
-                try
-                {
-                    var jsonData = ExportJsonFile(restoredRange, saveFileDialog1.FileName, saveItem);
-                }
-                catch (Exception ex)
-                {
-                    Msg("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
-                    //MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
-                }
+            try
+            {
+                var jsonData = ExportJsonFile(restoredRange, saveFileDialog1.FileName, saveItem);
+            }
+            catch (Exception ex)
+            {
+                Msg("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+                //MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
             }
         }
 
@@ -1195,12 +1202,13 @@ namespace ChartPlotMQTT
                 checkBox_autoRangeValue.Text = "AutoRange";
                 textBox_maxValue.Enabled = false;
                 textBox_minValue.Enabled = false;
-                chart1.ResetAutoValues();
-                //chart1.ChartAreas[0].AxisY.Maximum = maxChartValue;
-                //chart1.ChartAreas[0].AxisY.Minimum = minChartValue;
+                //chart1.ResetAutoValues();
+                chart1.ChartAreas[0].AxisY.Maximum = double.NaN;
+                chart1.ChartAreas[0].AxisY.Minimum = double.NaN;
                 chart1.ChartAreas[0].RecalculateAxesScale();
                 textBox_maxValue.Text = chart1.ChartAreas[0].AxisY.Maximum.ToString(CultureInfo.InvariantCulture);
                 textBox_minValue.Text = chart1.ChartAreas[0].AxisY.Minimum.ToString(CultureInfo.InvariantCulture);
+                //SetCursorInterval();
             }
             else if (checkBox_autoRangeValue.CheckState == CheckState.Indeterminate)
             {
@@ -1224,6 +1232,7 @@ namespace ChartPlotMQTT
                 textBox_minValue.Enabled = true;
                 TextBox_maxValue_Leave(this, EventArgs.Empty);
                 TextBox_minValue_Leave(this, EventArgs.Empty);
+                SetCursorInterval();
             }
         }
 
@@ -1304,7 +1313,11 @@ namespace ChartPlotMQTT
 
         private void Form1_SizeChanged(object sender, EventArgs e)
         {
-            if (tabControl1.SelectedIndex == 1) ReCalculateCheckBoxSize();
+            if (tabControl1.SelectedIndex == 1)
+            {
+                ReCalculateCheckBoxSize();
+                SetCursorInterval();
+            }
         }
 
         private void TextBox_keepTime_Leave(object sender, EventArgs e)
@@ -1400,34 +1413,35 @@ namespace ChartPlotMQTT
             }
         }
 
-        #endregion
-
         private void Chart1_MouseMove(object sender, MouseEventArgs e)
         {
             var mousePoint = new Point(e.X, e.Y);
             chart1.ChartAreas[0].CursorY.SetCursorPixelPosition(mousePoint, true);
-            textBox_val.Text = chart1.ChartAreas[0].CursorY.Position.ToString();
+            chart1.ChartAreas[0].AxisY.Title = "Value = " + chart1.ChartAreas[0].CursorY.Position.ToString("F3");
 
-            /*chart1.ChartAreas[0].CursorX.SetCursorPixelPosition(mousePoint, true);
-            textBox_time.Text = chart1.ChartAreas[0].CursorX.Position.ToString();*/
+            chart1.ChartAreas[0].CursorX.SetCursorPixelPosition(mousePoint, true);
+            chart1.ChartAreas[0].AxisX.Title = "Time = " + DateTime.FromOADate(chart1.ChartAreas[0].CursorX.Position).ToLongTimeString();
         }
 
-        private void SetCursorInterval()
+        private void CheckedListBox_params_ItemCheck(object sender, ItemCheckEventArgs e)
         {
-            var max = chart1.ChartAreas[0].AxisY.Maximum;
-            var min = chart1.ChartAreas[0].AxisY.Minimum;
-            var h = chart1.ChartAreas[0].Position.Height * chart1.Height / 100;
-            chart1.ChartAreas[0].CursorY.Interval = (max - min) / h;
-
-            /*max = chart1.ChartAreas[0].AxisX.Maximum;
-            min = chart1.ChartAreas[0].AxisX.Minimum;
-            h = chart1.ChartAreas[0].Position.Width * chart1.Width / 100;
-            chart1.ChartAreas[0].CursorX.Interval = (max - min) / h;*/
+            var item = checkedListBox_params.Items[e.Index].ToString();
+            var newValue = e.NewValue != CheckState.Unchecked;
+            plotList.SetActive(item, newValue);
+            chart1.Series[item].Enabled = newValue;
+            CheckBox_autoRangeValue_CheckStateChanged(this, EventArgs.Empty);
         }
 
-        private void Chart1_CausesValidationChanged(object sender, EventArgs e)
+        #endregion
+
+        private void checkedListBox_params_SelectedIndexChanged(object sender, EventArgs e)
         {
-            //SetCursorInterval();
+            var n = checkedListBox_params.SelectedItem.ToString();
+            foreach (var plot in chart1.Series)
+            {
+                if (n == plot.Name) plot.MarkerStyle = MarkerStyle.Diamond;
+                else plot.MarkerStyle = MarkerStyle.None;
+            }
         }
     }
 }

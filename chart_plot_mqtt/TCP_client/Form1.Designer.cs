@@ -29,10 +29,10 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea1 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.Title title1 = new System.Windows.Forms.DataVisualization.Charting.Title();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea5 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend5 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series5 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Title title5 = new System.Windows.Forms.DataVisualization.Charting.Title();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.textBox_dataLog = new System.Windows.Forms.TextBox();
             this.textBox_message = new System.Windows.Forms.TextBox();
@@ -84,10 +84,9 @@
             this.tabPage_chart = new System.Windows.Forms.TabPage();
             this.button_resetChart = new System.Windows.Forms.Button();
             this.label14 = new System.Windows.Forms.Label();
+            this.label15 = new System.Windows.Forms.Label();
             this.label13 = new System.Windows.Forms.Label();
-            this.label11 = new System.Windows.Forms.Label();
             this.textBox_keepTime = new System.Windows.Forms.TextBox();
-            this.textBox_val = new System.Windows.Forms.TextBox();
             this.notifyIcon1 = new System.Windows.Forms.NotifyIcon(this.components);
             ((System.ComponentModel.ISupportInitialize)(this.trackBar_max)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar_min)).BeginInit();
@@ -173,11 +172,11 @@
             // 
             this.trackBar_max.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.trackBar_max.Location = new System.Drawing.Point(6, 442);
+            this.trackBar_max.Location = new System.Drawing.Point(0, 442);
             this.trackBar_max.Maximum = 1000;
             this.trackBar_max.Minimum = 1;
             this.trackBar_max.Name = "trackBar_max";
-            this.trackBar_max.Size = new System.Drawing.Size(559, 45);
+            this.trackBar_max.Size = new System.Drawing.Size(565, 45);
             this.trackBar_max.TabIndex = 4;
             this.trackBar_max.Value = 1000;
             this.trackBar_max.Scroll += new System.EventHandler(this.TrackBar_max_Scroll);
@@ -186,11 +185,11 @@
             // 
             this.trackBar_min.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.trackBar_min.Location = new System.Drawing.Point(6, 407);
+            this.trackBar_min.Location = new System.Drawing.Point(0, 407);
             this.trackBar_min.Maximum = 1000;
             this.trackBar_min.Minimum = 1;
             this.trackBar_min.Name = "trackBar_min";
-            this.trackBar_min.Size = new System.Drawing.Size(559, 45);
+            this.trackBar_min.Size = new System.Drawing.Size(565, 45);
             this.trackBar_min.TabIndex = 3;
             this.trackBar_min.Value = 1;
             this.trackBar_min.Scroll += new System.EventHandler(this.TrackBar_min_Scroll);
@@ -230,7 +229,7 @@
             this.checkBox_autoRangeValue.AutoSize = true;
             this.checkBox_autoRangeValue.Checked = true;
             this.checkBox_autoRangeValue.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox_autoRangeValue.Location = new System.Drawing.Point(102, 4);
+            this.checkBox_autoRangeValue.Location = new System.Drawing.Point(204, 4);
             this.checkBox_autoRangeValue.Name = "checkBox_autoRangeValue";
             this.checkBox_autoRangeValue.Size = new System.Drawing.Size(80, 17);
             this.checkBox_autoRangeValue.TabIndex = 8;
@@ -242,7 +241,7 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(244, 5);
+            this.label4.Location = new System.Drawing.Point(158, 5);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(40, 13);
             this.label4.TabIndex = 9;
@@ -259,7 +258,8 @@
             this.checkedListBox_params.Name = "checkedListBox_params";
             this.checkedListBox_params.Size = new System.Drawing.Size(115, 49);
             this.checkedListBox_params.TabIndex = 5;
-            this.checkedListBox_params.SelectedValueChanged += new System.EventHandler(this.CheckedListBox_params_SelectedValueChanged);
+            this.checkedListBox_params.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.CheckedListBox_params_ItemCheck);
+            this.checkedListBox_params.SelectedIndexChanged += new System.EventHandler(this.checkedListBox_params_SelectedIndexChanged);
             this.checkedListBox_params.KeyDown += new System.Windows.Forms.KeyEventHandler(this.CheckedListBox_params_KeyDown);
             this.checkedListBox_params.MouseUp += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_params_MouseUp);
             // 
@@ -319,11 +319,12 @@
             // textBox_maxValue
             // 
             this.textBox_maxValue.Enabled = false;
-            this.textBox_maxValue.Location = new System.Drawing.Point(188, 2);
+            this.textBox_maxValue.Location = new System.Drawing.Point(102, 2);
             this.textBox_maxValue.Name = "textBox_maxValue";
             this.textBox_maxValue.Size = new System.Drawing.Size(50, 20);
             this.textBox_maxValue.TabIndex = 1;
             this.textBox_maxValue.Text = "0";
+            this.textBox_maxValue.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
             this.textBox_maxValue.KeyUp += new System.Windows.Forms.KeyEventHandler(this.TextBox_maxValue_KeyUp);
             this.textBox_maxValue.Leave += new System.EventHandler(this.TextBox_maxValue_Leave);
             // 
@@ -332,53 +333,52 @@
             this.chart1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            chartArea1.AxisX.Crossing = -1.7976931348623157E+308D;
-            chartArea1.AxisX.Interval = 1D;
-            chartArea1.AxisX.LabelStyle.Interval = 0D;
-            chartArea1.AxisX.LabelStyle.IntervalOffset = 0D;
-            chartArea1.AxisX.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisX.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisX.MajorGrid.Interval = 0D;
-            chartArea1.AxisX.MajorGrid.IntervalOffset = 0D;
-            chartArea1.AxisX.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisX.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisX.MajorTickMark.Interval = 0D;
-            chartArea1.AxisX.MajorTickMark.IntervalOffset = 0D;
-            chartArea1.AxisX.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisX.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.LabelStyle.Interval = 0D;
-            chartArea1.AxisY.LabelStyle.IntervalOffset = 0D;
-            chartArea1.AxisY.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.MajorGrid.Interval = 0D;
-            chartArea1.AxisY.MajorGrid.IntervalOffset = 0D;
-            chartArea1.AxisY.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.MajorTickMark.Interval = 0D;
-            chartArea1.AxisY.MajorTickMark.IntervalOffset = 0D;
-            chartArea1.AxisY.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.AxisY.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea1.Name = "ChartArea1";
-            this.chart1.ChartAreas.Add(chartArea1);
+            chartArea5.AxisX.Crossing = -1.7976931348623157E+308D;
+            chartArea5.AxisX.Interval = 1D;
+            chartArea5.AxisX.LabelStyle.Interval = 0D;
+            chartArea5.AxisX.LabelStyle.IntervalOffset = 0D;
+            chartArea5.AxisX.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisX.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisX.MajorGrid.Interval = 0D;
+            chartArea5.AxisX.MajorGrid.IntervalOffset = 0D;
+            chartArea5.AxisX.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisX.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisX.MajorTickMark.Interval = 0D;
+            chartArea5.AxisX.MajorTickMark.IntervalOffset = 0D;
+            chartArea5.AxisX.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisX.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.LabelStyle.Interval = 0D;
+            chartArea5.AxisY.LabelStyle.IntervalOffset = 0D;
+            chartArea5.AxisY.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.MajorGrid.Interval = 0D;
+            chartArea5.AxisY.MajorGrid.IntervalOffset = 0D;
+            chartArea5.AxisY.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.MajorTickMark.Interval = 0D;
+            chartArea5.AxisY.MajorTickMark.IntervalOffset = 0D;
+            chartArea5.AxisY.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.AxisY.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea5.Name = "ChartArea1";
+            this.chart1.ChartAreas.Add(chartArea5);
             this.chart1.IsSoftShadows = false;
-            legend1.Name = "Legend1";
-            this.chart1.Legends.Add(legend1);
+            legend5.Name = "Legend1";
+            this.chart1.Legends.Add(legend5);
             this.chart1.Location = new System.Drawing.Point(0, 0);
             this.chart1.Name = "chart1";
-            series1.ChartArea = "ChartArea1";
-            series1.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series1.CustomProperties = "EmptyPointValue=Zero";
-            series1.Legend = "Legend1";
-            series1.Name = "Series1";
-            this.chart1.Series.Add(series1);
+            series5.ChartArea = "ChartArea1";
+            series5.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series5.CustomProperties = "EmptyPointValue=Zero";
+            series5.Legend = "Legend1";
+            series5.Name = "Series1";
+            this.chart1.Series.Add(series5);
             this.chart1.Size = new System.Drawing.Size(726, 416);
             this.chart1.SuppressExceptions = true;
             this.chart1.TabIndex = 6;
             this.chart1.Text = "chart1";
-            title1.Alignment = System.Drawing.ContentAlignment.TopRight;
-            title1.Name = "Title1";
-            this.chart1.Titles.Add(title1);
-            this.chart1.CausesValidationChanged += new System.EventHandler(this.Chart1_CausesValidationChanged);
+            title5.Alignment = System.Drawing.ContentAlignment.TopRight;
+            title5.Name = "Title1";
+            this.chart1.Titles.Add(title5);
             this.chart1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.Chart1_MouseMove);
             // 
             // checkBox_autoScroll
@@ -667,14 +667,13 @@
             this.tabPage_chart.Controls.Add(this.checkedListBox_params);
             this.tabPage_chart.Controls.Add(this.textBox_toTime);
             this.tabPage_chart.Controls.Add(this.label14);
+            this.tabPage_chart.Controls.Add(this.label15);
             this.tabPage_chart.Controls.Add(this.label13);
-            this.tabPage_chart.Controls.Add(this.label11);
             this.tabPage_chart.Controls.Add(this.label5);
             this.tabPage_chart.Controls.Add(this.label4);
             this.tabPage_chart.Controls.Add(this.trackBar_min);
             this.tabPage_chart.Controls.Add(this.textBox_keepTime);
             this.tabPage_chart.Controls.Add(this.textBox_minValue);
-            this.tabPage_chart.Controls.Add(this.textBox_val);
             this.tabPage_chart.Controls.Add(this.textBox_maxValue);
             this.tabPage_chart.Controls.Add(this.chart1);
             this.tabPage_chart.Location = new System.Drawing.Point(4, 22);
@@ -694,6 +693,7 @@
             this.button_resetChart.TabIndex = 14;
             this.button_resetChart.Text = "Reset chart";
             this.button_resetChart.UseVisualStyleBackColor = true;
+            this.button_resetChart.Visible = false;
             this.button_resetChart.Click += new System.EventHandler(this.Button_resetChart_Click);
             // 
             // label14
@@ -705,44 +705,35 @@
             this.label14.TabIndex = 13;
             this.label14.Text = "minutes";
             // 
+            // label15
+            // 
+            this.label15.AutoSize = true;
+            this.label15.Location = new System.Drawing.Point(395, 5);
+            this.label15.Name = "label15";
+            this.label15.Size = new System.Drawing.Size(26, 13);
+            this.label15.TabIndex = 12;
+            this.label15.Text = "min.";
+            // 
             // label13
             // 
             this.label13.AutoSize = true;
-            this.label13.Location = new System.Drawing.Point(316, 5);
+            this.label13.Location = new System.Drawing.Point(290, 5);
             this.label13.Name = "label13";
-            this.label13.Size = new System.Drawing.Size(51, 13);
+            this.label13.Size = new System.Drawing.Size(62, 13);
             this.label13.TabIndex = 12;
-            this.label13.Text = "Keep last";
-            // 
-            // label11
-            // 
-            this.label11.AutoSize = true;
-            this.label11.Location = new System.Drawing.Point(3, 30);
-            this.label11.Name = "label11";
-            this.label11.Size = new System.Drawing.Size(34, 13);
-            this.label11.TabIndex = 10;
-            this.label11.Text = "Value";
+            this.label13.Text = "Show latest";
             // 
             // textBox_keepTime
             // 
-            this.textBox_keepTime.Location = new System.Drawing.Point(373, 2);
+            this.textBox_keepTime.Location = new System.Drawing.Point(358, 2);
             this.textBox_keepTime.MaxLength = 4;
             this.textBox_keepTime.Name = "textBox_keepTime";
             this.textBox_keepTime.Size = new System.Drawing.Size(31, 20);
             this.textBox_keepTime.TabIndex = 2;
             this.textBox_keepTime.Text = "0";
+            this.textBox_keepTime.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             this.textBox_keepTime.KeyDown += new System.Windows.Forms.KeyEventHandler(this.TextBox_keepTime_KeyDown);
             this.textBox_keepTime.Leave += new System.EventHandler(this.TextBox_keepTime_Leave);
-            // 
-            // textBox_val
-            // 
-            this.textBox_val.Enabled = false;
-            this.textBox_val.Location = new System.Drawing.Point(43, 27);
-            this.textBox_val.Name = "textBox_val";
-            this.textBox_val.ReadOnly = true;
-            this.textBox_val.Size = new System.Drawing.Size(94, 20);
-            this.textBox_val.TabIndex = 11;
-            this.textBox_val.Text = "0";
             // 
             // notifyIcon1
             // 
@@ -835,8 +826,7 @@
         private System.Windows.Forms.Button button_resetChart;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.TextBox textBox_restPort;
-        private System.Windows.Forms.TextBox textBox_val;
-        private System.Windows.Forms.Label label11;
+        private System.Windows.Forms.Label label15;
     }
 }
 

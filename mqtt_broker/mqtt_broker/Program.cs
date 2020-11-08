@@ -199,8 +199,9 @@ namespace MqttBroker
             {
                 stringsSet = jss.Deserialize<Dictionary<string, string>>(tmpStr);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                LogToScreen("Deserialize error: " + e);
                 return;
             }
 

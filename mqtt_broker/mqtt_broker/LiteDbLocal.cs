@@ -41,15 +41,7 @@ namespace MqttBroker
         {
             if (record == null) return -1;
 
-            try
-            {
-                return _sensors.Insert(record);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            return _sensors.Insert(record);
         }
 
         public void RemoveRecord(int id)

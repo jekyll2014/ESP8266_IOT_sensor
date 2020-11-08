@@ -89,38 +89,38 @@ namespace ChartPlotMQTT
             return record;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsByDevice(string deviceName)
+        public List<SensorDataRec> GetRecordsByDevice(string deviceName)
         {
-            var records = sensors.Find(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal));
+            var records = sensors.Find(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).ToList();
 
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
+        public List<SensorDataRec> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
         {
             var records = sensors.Find(
                 x => deviceNameList.Contains(x.DeviceName)
                      && x.Time > startTime
-                     && x.Time < endTime);
+                     && x.Time < endTime).ToList();
 
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
+        public List<SensorDataRec> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
         {
             var records = sensors.Find(
                 x => x.DeviceName == deviceName
                      && x.Time > startTime
-                     && x.Time < endTime);
+                     && x.Time < endTime).ToList();
 
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(DateTime startTime, DateTime endTime)
+        public List<SensorDataRec> GetRecordsRange(DateTime startTime, DateTime endTime)
         {
             var records = sensors.Find(
                 x => x.Time > startTime
-                     && x.Time < endTime);
+                     && x.Time < endTime).ToList();
             if (records == null || !records.Any()) return null;
 
             return records;
@@ -131,7 +131,7 @@ namespace ChartPlotMQTT
             var list = new List<string>();
             if (sensors.Count() <= 0) return list;
 
-            var results = sensors.Find(x => true);
+            var results = sensors.Find(x => true).Distinct();
             foreach (var n in results)
                 if (!list.Contains(n.DeviceName)) list.Add(n.DeviceName);
             return list;
