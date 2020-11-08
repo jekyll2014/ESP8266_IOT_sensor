@@ -26,6 +26,9 @@ namespace MqttBroker
         private static bool _verboseLog;
         private static bool _dbNotStarted;
         public static LiteDbLocal RecordsDb;
+        private static readonly string User = Settings.Default.User;
+        private static readonly string Pass = Settings.Default.Password;
+        private static readonly string DeviceName = "DeviceName";
 
         private static async Task Main()
         {
@@ -46,18 +49,19 @@ namespace MqttBroker
                 _dbNotStarted = true;
             }
 
-            // Setup client validator.
+            // Setup MQTT server settings
             var optionsBuilder = new MqttServerOptionsBuilder()
                 .WithConnectionValidator(MqttConnectHandler)
                 .WithSubscriptionInterceptor(MqttSubscribeHandler)
                 .WithApplicationMessageInterceptor(MqttPublishHandler)
+                .WithUnsubscriptionInterceptor(new MqttUnSubscribeHandler())
                 .WithConnectionBacklog(100)
                 .WithDefaultEndpointPort(Settings.Default.MQTTPort);
 
             var mqttServer = new MqttFactory().CreateMqttServer();
-            //mqttServer.ApplicationMessageReceivedHandler = new DataReceiveHandler();
             mqttServer.ClientDisconnectedHandler = new MqttDisconnectHandler();
-            mqttServer.ClientUnsubscribedTopicHandler = new MqttUnsubscribeHandler();
+
+            // MQTT server start
             try
             {
                 await mqttServer.StartAsync(optionsBuilder.Build()).ConfigureAwait(true);
@@ -70,63 +74,63 @@ namespace MqttBroker
             }
 
             // REST API start
-            var restConfig = new HttpSelfHostConfiguration(Settings.Default.RESTHost + ":" + Settings.Default.RESTPort);
-            restConfig.Routes.MapHttpRoute(
-                "API Default",
-                "api/{controller}/{action}/{id}",
-                new { id = RouteParameter.Optional });
-            restConfig.MapHttpAttributeRoutes();
-            restConfig.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
-            restConfig.TransferMode = TransferMode.StreamedResponse;
-            restConfig.ClientCredentialType = HttpClientCredentialType.Basic;
-            restConfig.UserNamePasswordValidator = new RestUserValidator();
-            /*var f = restConfig.Formatters;
-            f.JsonFormatter.UseDataContractJsonSerializer = true;
-            f.JsonFormatter.SerializerSettings.DateFormatHandling = DateFormatHandling.MicrosoftDateFormat;*/
-            var restServer = new HttpSelfHostServer(restConfig);
+            using (var restConfig =
+                new HttpSelfHostConfiguration(Settings.Default.RESTHost + ":" + Settings.Default.RESTPort))
+            {
+                restConfig.Routes.MapHttpRoute(
+                    "API Default",
+                    "api/{controller}/{action}/{id}",
+                    new { id = RouteParameter.Optional });
+                restConfig.MapHttpAttributeRoutes();
+                restConfig.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
+                restConfig.TransferMode = TransferMode.StreamedResponse;
+                restConfig.ClientCredentialType = HttpClientCredentialType.Basic;
+                restConfig.UserNamePasswordValidator = new RestUserValidator();
+                /*var f = restConfig.Formatters;
+                f.JsonFormatter.UseDataContractJsonSerializer = true;
+                f.JsonFormatter.SerializerSettings.DateFormatHandling = DateFormatHandling.MicrosoftDateFormat;*/
+                using (var restServer = new HttpSelfHostServer(restConfig))
+                {
+                    try
+                    {
+                        restServer.OpenAsync().Wait();
+                        LogToScreen("REST: started at: " + Settings.Default.RESTHost + ":" + Settings.Default.RESTPort);
+                    }
+                    catch (Exception e)
+                    {
+                        LogToScreen("REST: server start error: " + e);
+                        restStarted = false;
+                    }
 
-            try
-            {
-                restServer.OpenAsync().Wait();
-                LogToScreen("REST: started at: " + Settings.Default.RESTHost + ":" + Settings.Default.RESTPort);
-            }
-            catch (Exception e)
-            {
-                LogToScreen("REST: server start error: " + e);
-                restStarted = false;
+                    if (!mqttStarted)
+                    {
+                        LogToScreen("Can't start MQTT server.");
+                    }
+
+                    if (!restStarted)
+                    {
+                        LogToScreen("Can't start REST server.");
+                    }
+
+                    if (!mqttStarted || !restStarted)
+                    {
+                        LogToScreen("Closing application...");
+                        await mqttServer.StopAsync().ConfigureAwait(false);
+                        RecordsDb?.Dispose();
+                        return;
+                    }
+
+                    var resp = "";
+                    while (resp?.ToLowerInvariant() != "exit")
+                    {
+                        LogToScreen("Enter \"exit\" to quit.");
+                        resp = Console.ReadLine();
+                    }
+                }
             }
 
-            if (!mqttStarted)
-            {
-                LogToScreen("Can't start MQTT server.");
-            }
-            if (!restStarted)
-            {
-                LogToScreen("Can't start REST server.");
-                restServer.Dispose();
-                restConfig.Dispose();
-                restServer.Dispose();
-            }
-            if (!mqttStarted || !restStarted)
-            {
-                LogToScreen("Closing application...");
-                RecordsDb?.Dispose();
-                return;
-            }
-
-            var resp = "";
-            while (resp?.ToUpperInvariant() != "EXIT")
-            {
-                LogToScreen("Enter \"exit\" to quit.");
-                resp = Console.ReadLine();
-            }
-
-            await restServer.CloseAsync().ConfigureAwait(false);
             await mqttServer.StopAsync().ConfigureAwait(false);
             RecordsDb?.Dispose();
-            restServer.Dispose();
-            restConfig.Dispose();
-            restServer.Dispose();
         }
 
         private static void MqttConnectHandler(MqttConnectionValidatorContext c)
@@ -138,7 +142,7 @@ namespace MqttBroker
                 return;
             }
 
-            if (!IsNullOrEmpty(Settings.Default.User) && c.Username != Settings.Default.User || !IsNullOrEmpty(Settings.Default.Password) && c.Password != Settings.Default.Password)
+            if (!IsNullOrEmpty(User) && c.Username != User || !IsNullOrEmpty(Pass) && c.Password != Pass)
             {
                 LogToScreen("MQTT: Client " + c.ClientId + " username or password not valid");
                 c.ReasonCode = MqttConnectReasonCode.BadUserNameOrPassword;
@@ -152,11 +156,18 @@ namespace MqttBroker
 
         private static async void MqttPublishHandler(MqttApplicationMessageInterceptorContext c)
         {
-            if (c == null || c.ApplicationMessage == null || c.ApplicationMessage.Payload == null || c.ApplicationMessage.Payload.Length == 0) return;
+            if (c == null || c.ApplicationMessage == null || c.ApplicationMessage.Payload == null ||
+                c.ApplicationMessage.Payload.Length == 0)
+            {
+                c.AcceptPublish = false;
+                return;
+            }
+
             if (_verboseLog)
             {
                 LogToScreen("MQTT: Client " + c.ClientId + " posted to: " + c.ApplicationMessage.Topic);
             }
+
             await Task.Run(() => { Mqtt_DataReceived(c.ApplicationMessage.Payload, c.ApplicationMessage.Topic); }).ConfigureAwait(true);
             c.AcceptPublish = true;
         }
@@ -165,25 +176,6 @@ namespace MqttBroker
         {
             LogToScreen("MQTT: Client " + c.ClientId + " subscribed to: " + c.TopicFilter.Topic);
             c.AcceptSubscription = true;
-        }
-
-        private class MqttDisconnectHandler : IMqttServerClientDisconnectedHandler
-        {
-            public Task HandleClientDisconnectedAsync(MqttServerClientDisconnectedEventArgs eventArgs)
-            {
-                LogToScreen("MQTT: Client " + eventArgs.ClientId + " disconnected" + Environment.NewLine);
-                return null;
-            }
-        }
-
-        private class MqttUnsubscribeHandler : IMqttServerClientUnsubscribedTopicHandler
-        {
-            public Task HandleClientUnsubscribedTopicAsync(MqttServerClientUnsubscribedTopicEventArgs eventArgs)
-            {
-                    LogToScreen("MQTT: Client " + eventArgs.ClientId + " unsubscribed from: " + eventArgs.TopicFilter + Environment.NewLine);
-
-                return null;
-            }
         }
 
         private static void Mqtt_DataReceived(byte[] payload, string topic)
@@ -201,9 +193,46 @@ namespace MqttBroker
             }
             catch (Exception e)
             {
-                LogToScreen("Deserialize error: " + e);
+                if (_verboseLog) LogToScreen("Deserialize error: " + e);
+                //throw;
                 return;
             }
+
+            // save to DB if exists
+            if (_dbNotStarted) return;
+
+            var currentResult = new LiteDbLocal.SensorDataRec();
+            if (stringsSet.TryGetValue(DeviceName, out var devName))
+            {
+                stringsSet.Remove(DeviceName);
+
+                currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
+                currentResult.DeviceName = devName;
+                currentResult.Time = DateTime.Now;
+            }
+            else
+            {
+                if (_verboseLog) LogToScreen("Message parse error: No device name found");
+                return;
+            }
+
+            var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+            foreach (var item in stringsSet)
+            {
+                var newValue = new LiteDbLocal.ValueItemRec();
+
+                var v = "";
+                v = floatSeparator == "," ? item.Value.Replace(".", floatSeparator) : v.Replace(",", floatSeparator);
+
+                if (!float.TryParse(v, out var value)) continue;
+
+                //add result to log
+                newValue.Value = value;
+                newValue.ValueType = item.Key;
+                currentResult.ValueList.Add(newValue);
+            }
+
+            RecordsDb.AddRecord(currentResult);
 
             // save to log if needed
             if (_verboseLog)
@@ -216,41 +245,25 @@ namespace MqttBroker
                 }
                 LogToScreen(resultStr + Environment.NewLine);
             }
+        }
 
-            // save to DB if exists
-            if (_dbNotStarted) return;
-
-            var currentResult = new LiteDbLocal.SensorDataRec();
-            if (stringsSet.TryGetValue("DeviceName", out var devName))
+        private class MqttUnSubscribeHandler : IMqttServerUnsubscriptionInterceptor
+        {
+            public Task InterceptUnsubscriptionAsync(MqttUnsubscriptionInterceptorContext context)
             {
-                stringsSet.Remove("DeviceName");
-
-                currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
-                currentResult.DeviceName = devName;
-                currentResult.Time = DateTime.Now;
+                LogToScreen("MQTT: Client " + context.ClientId + " unsubscribed from: " + context.Topic + Environment.NewLine);
+                context.AcceptUnsubscription = true;
+                return null;
             }
-            else
+        }
+
+        private class MqttDisconnectHandler : IMqttServerClientDisconnectedHandler
+        {
+            public Task HandleClientDisconnectedAsync(MqttServerClientDisconnectedEventArgs eventArgs)
             {
-                return;
+                LogToScreen("MQTT: Client " + eventArgs.ClientId + " disconnected" + Environment.NewLine);
+                return null;
             }
-
-            foreach (var item in stringsSet)
-            {
-                var newValue = new LiteDbLocal.ValueItemRec();
-
-                var v = "";
-                var floatSeparatore = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-                v = floatSeparatore == "," ? item.Value.Replace(".", floatSeparatore) : v.Replace(",", floatSeparatore);
-
-                if (!float.TryParse(v, out var value)) continue;
-
-                //add result to log
-                newValue.Value = value;
-                newValue.ValueType = item.Key;
-                currentResult.ValueList.Add(newValue);
-            }
-
-            RecordsDb.AddRecord(currentResult);
         }
 
         private class RestUserValidator : UserNamePasswordValidator
@@ -259,8 +272,8 @@ namespace MqttBroker
             {
                 LogToScreen("REST connect request: " + userName);
 
-                if (!IsNullOrEmpty(Settings.Default.User) && userName != Settings.Default.User
-                    || !IsNullOrEmpty(Settings.Default.Password) && password != Settings.Default.Password)
+                if (!IsNullOrEmpty(User) && userName != User
+                    || !IsNullOrEmpty(Pass) && password != Pass)
                 {
                     LogToScreen("REST Result: username or password not valid");
                     throw new SecurityTokenException("Unknown Username or Password");
@@ -274,7 +287,7 @@ namespace MqttBroker
             {
                 Console.WriteLine(message);
             }
-            catch (IOException IOException)
+            catch (IOException)
             {
                 // TODO: Handle the System.IO.IOException
             }

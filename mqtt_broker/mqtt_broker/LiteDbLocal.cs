@@ -129,7 +129,7 @@ namespace MqttBroker
         }
 
         // Protected implementation of Dispose pattern.
-        protected void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             if (Disposed) return;
 

@@ -1432,8 +1432,6 @@ namespace ChartPlotMQTT
             CheckBox_autoRangeValue_CheckStateChanged(this, EventArgs.Empty);
         }
 
-        #endregion
-
         private void checkedListBox_params_SelectedIndexChanged(object sender, EventArgs e)
         {
             var n = checkedListBox_params.SelectedItem.ToString();
@@ -1443,5 +1441,8 @@ namespace ChartPlotMQTT
                 else plot.MarkerStyle = MarkerStyle.None;
             }
         }
+
+        #endregion
+
     }
 }
