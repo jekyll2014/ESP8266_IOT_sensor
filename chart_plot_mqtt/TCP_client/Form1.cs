@@ -87,8 +87,23 @@ namespace ChartPlotMQTT
 
         private readonly PlotItems plotList = new PlotItems();
 
-        private const int MaxLogLength = 4096;
-        private readonly StringBuilder log = new StringBuilder();
+        private TextLogger.TextLogger _logger;
+
+        private enum DataDirection
+        {
+            Received,
+            Sent,
+            Info,
+            Error
+        }
+
+        private readonly Dictionary<byte, string> _directions = new Dictionary<byte, string>()
+        {
+            {(byte)DataDirection.Received, "<<"},
+            {(byte)DataDirection.Sent,">>"},
+            {(byte)DataDirection.Info,"**"},
+            {(byte)DataDirection.Error,"!!"}
+        };
 
         private string saveItem = "";
 
@@ -114,17 +129,17 @@ namespace ChartPlotMQTT
             try
             {
                 await mqttClient.ConnectAsync(options, CancellationToken.None).ConfigureAwait(true);
-                Msg("Device connected");
+                _logger.AddText("Device connected", (byte)DataDirection.Info, DateTime.Now);
                 // Subscribe to a topic
                 if (subscribeTopic.Length > 0)
                 {
                     await mqttClient.SubscribeAsync(new MqttTopicFilterBuilder().WithTopic(subscribeTopic).Build()).ConfigureAwait(false);
-                    Msg("Topic subscribed");
+                    _logger.AddText("Topic subscribed", (byte)DataDirection.Info, DateTime.Now);
                 }
             }
             catch (Exception ex)
             {
-                Msg("Exception: " + ex.Message);
+                _logger.AddText("Exception: " + ex.Message, (byte)DataDirection.Error, DateTime.Now);
                 Invoke((MethodInvoker)delegate
                 {
                     button_connect.Text = "Connect";
@@ -142,8 +157,6 @@ namespace ChartPlotMQTT
 
             forcedDisconnect = false;
 
-            //GetDataFromREST(keepTime);
-
             Invoke((MethodInvoker)delegate
             {
                 button_connect.Text = "Connect";
@@ -158,7 +171,8 @@ namespace ChartPlotMQTT
             if (autoReConnect && !forcedDisconnect)
             {
                 Task.Delay(10000);
-                Msg("Device disconnected. Reconnecting...");
+                _logger.AddText("Device disconnected. Reconnecting...", (byte)DataDirection.Error, DateTime.Now);
+
                 Button_connect_Click(this, EventArgs.Empty);
             }
             else
@@ -180,12 +194,12 @@ namespace ChartPlotMQTT
             }
             catch (Exception ex)
             {
-                Msg("Disconnect error: " + ex);
+                _logger.AddText("Disconnect error: " + ex, (byte)DataDirection.Error, DateTime.Now);
             }
 
             if (keepLocalDb) recordsDb?.Dispose();
 
-            Msg("Device disconnected");
+            _logger.AddText("Device disconnected", (byte)DataDirection.Info, DateTime.Now);
             Invoke((MethodInvoker)delegate
            {
                button_connect.Enabled = true;
@@ -215,25 +229,25 @@ namespace ChartPlotMQTT
                 }
                 catch (Exception ex)
                 {
-                    Msg("Write error: " + ex);
+                    _logger.AddText("Write error: " + ex, (byte)DataDirection.Error, DateTime.Now);
                 }
 
-                string tmpStr;
+                string tmpStr = "[" + publishTopic + "] ";
                 if (checkBox_hex.Checked)
-                    tmpStr = "[" + publishTopic + "]>> [" + Accessory.ConvertByteArrayToHex(outStream.ToArray()) + "]" + Environment.NewLine;
+                    tmpStr += "[" + Accessory.ConvertByteArrayToHex(outStream.ToArray()) + "]" + Environment.NewLine;
                 else
-                    tmpStr = "[" + publishTopic + "]>> " + Encoding.ASCII.GetString(outStream.ToArray()) + Environment.NewLine;
+                    tmpStr += Encoding.ASCII.GetString(outStream.ToArray()) + Environment.NewLine;
 
-                AddTextToLog(tmpStr);
+                _logger.AddText(tmpStr, (byte)DataDirection.Sent, DateTime.Now, TextLogger.TextLogger.TextFormat.AutoReplaceHex);
             }
             else
             {
-                Msg("not connected");
+                _logger.AddText("...not connected", (byte)DataDirection.Error, DateTime.Now);
                 Button_disconnect_Click(this, EventArgs.Empty);
 
                 if (autoReConnect && !forcedDisconnect)
                 {
-                    Msg("Reconnecting...");
+                    _logger.AddText("Reconnecting...", (byte)DataDirection.Info, DateTime.Now);
                     Button_connect_Click(this, EventArgs.Empty);
                 }
             }
@@ -256,17 +270,17 @@ namespace ChartPlotMQTT
                 return;
             }
 
+            tmpStr = "";
             if (checkBox_hex.Checked)
             {
-                tmpStr = "[" + e.ApplicationMessage.Topic + "]<< " + Accessory.ConvertStringToHex(tmpStr) + Environment.NewLine;
+                tmpStr = "[" + e.ApplicationMessage.Topic + "] " + Accessory.ConvertStringToHex(tmpStr) + Environment.NewLine;
             }
             else
             {
-                tmpStr = "";
                 foreach (var s in stringsSet)
-                    tmpStr += "[" + e.ApplicationMessage.Topic + "]<< " + s.Key + "=" + s.Value + Environment.NewLine;
+                    tmpStr += "[" + e.ApplicationMessage.Topic + "] " + s.Key + "=" + s.Value + Environment.NewLine;
             }
-            AddTextToLog(tmpStr);
+            _logger.AddText(tmpStr, (byte)DataDirection.Received, DateTime.Now, TextLogger.TextLogger.TextFormat.AutoReplaceHex);
 
             var recordTime = DateTime.Now;
 
@@ -344,8 +358,7 @@ namespace ChartPlotMQTT
                     }
                     catch (Exception exception)
                     {
-                        //MessageBox.Show(exception.ToString(), "REST error");
-                        Msg("REST error: " + exception.Message.ToString());
+                        _logger.AddText("REST error: " + exception.Message.ToString(), (byte)DataDirection.Error, DateTime.Now);
                     }
                 } while (retryCount > 0 && !reqResult);
 
@@ -360,8 +373,7 @@ namespace ChartPlotMQTT
                 }
                 catch (Exception ex)
                 {
-                    Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
-                    //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                    _logger.AddText("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message, (byte)DataDirection.Error, DateTime.Now);
                 }
                 if (restoredRange != null)
                     foreach (var record in restoredRange)
@@ -375,48 +387,6 @@ namespace ChartPlotMQTT
         #endregion
 
         #region Helpers
-
-        private void Msg(string message)
-        {
-            AddTextToLog("!!! " + message + Environment.NewLine);
-        }
-
-        private delegate void SetTextCallback1(string text);
-
-        private void AddTextToLog(string text)
-        {
-            text = Accessory.FilterZeroChar(text);
-            if (textBox_dataLog.InvokeRequired)
-            {
-                SetTextCallback1 d = AddTextToLog;
-                BeginInvoke(d, text);
-            }
-            else
-            {
-                var pos = textBox_dataLog.SelectionStart;
-
-                if (text.Length + log.Length > MaxLogLength)
-                {
-                    var toRemove = log.Length + text.Length - MaxLogLength;
-                    log.Remove(0, toRemove);
-                    pos -= toRemove;
-                    if (pos < 0) pos = 0;
-                }
-                log.Append(text);
-                textBox_dataLog.Text = log.ToString();
-
-                if (checkBox_autoScroll.Checked)
-                {
-                    textBox_dataLog.SelectionStart = textBox_dataLog.Text.Length;
-                    textBox_dataLog.ScrollToCaret();
-                }
-                else
-                {
-                    textBox_dataLog.SelectionStart = pos;
-                    textBox_dataLog.ScrollToCaret();
-                }
-            }
-        }
 
         private bool ExportJsonFile(IEnumerable<LiteDbLocal.SensorDataRec> data, string fileName, string item = null)
         {
@@ -446,7 +416,7 @@ namespace ChartPlotMQTT
             }
             catch (Exception ex)
             {
-                Msg("JSON parse error: " + ex.Message + Environment.NewLine);
+                _logger.AddText("JSON parse error: " + ex.Message + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
                 return false;
             }
             return true;
@@ -466,7 +436,7 @@ namespace ChartPlotMQTT
             }
             catch (Exception ex)
             {
-                Msg("JSON parse error: " + ex.Message + Environment.NewLine);
+                _logger.AddText("JSON parse error: " + ex.Message + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
                 newValues = null;
             }
 
@@ -491,7 +461,7 @@ namespace ChartPlotMQTT
             }
             catch (Exception ex)
             {
-                Msg("JSON parse error: " + ex.Message + Environment.NewLine);
+                _logger.AddText("JSON parse error: " + ex.Message + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
                 newValues = null;
             }
 
@@ -894,6 +864,28 @@ namespace ChartPlotMQTT
             textBox_keepTime.Text = keepTime.ToString();
             keepLocalDb = Settings.Default.keepLocalDb;
 
+            _logger = new TextLogger.TextLogger(this)
+            {
+                Channels = _directions,
+                FilterZeroChar = false,
+            };
+            textBox_dataLog.DataBindings.Add("Text", _logger, "Text", false, DataSourceUpdateMode.OnPropertyChanged);
+
+            _logger.LineTimeLimit = 100;
+            _logger.LineLimit = 500;
+
+            _logger.DefaultTextFormat = checkBox_hex.Checked
+                ? TextLogger.TextLogger.TextFormat.Hex
+                : TextLogger.TextLogger.TextFormat.AutoReplaceHex;
+
+            _logger.DefaultTimeFormat = TextLogger.TextLogger.TimeFormat.LongTime;
+
+            _logger.DefaultDateFormat = TextLogger.TextLogger.DateFormat.ShortDate;
+
+            _logger.AutoScroll = checkBox_autoScroll.Checked;
+
+            CheckBox_autoScroll_CheckedChanged(null, EventArgs.Empty);
+
             plotList.Clear();
             InitChart();
             checkedListBox_params.Items.Clear();
@@ -1131,8 +1123,7 @@ namespace ChartPlotMQTT
                         }
                         catch (Exception exception)
                         {
-                            Msg("REST error: " + exception.ToString());
-                            //MessageBox.Show(exception.ToString(), "REST error");
+                            _logger.AddText("REST error: " + exception.ToString(), (byte)DataDirection.Error, DateTime.Now);
                         }
                     }
 
@@ -1142,8 +1133,7 @@ namespace ChartPlotMQTT
                     }
                     catch (Exception ex)
                     {
-                        Msg("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
-                        //MessageBox.Show("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message);
+                        _logger.AddText("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message, (byte)DataDirection.Error, DateTime.Now);
                     }
                 }
             }
@@ -1156,8 +1146,7 @@ namespace ChartPlotMQTT
             }
             catch (Exception ex)
             {
-                Msg("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
-                //MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
+                _logger.AddText("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message, (byte)DataDirection.Error, DateTime.Now);
             }
         }
 
@@ -1349,11 +1338,6 @@ namespace ChartPlotMQTT
             }
         }
 
-        private void Button_resetChart_Click(object sender, EventArgs e)
-        {
-            ResetExceptionState(chart1);
-        }
-
         private void TextBox_restPort_Leave(object sender, EventArgs e)
         {
             var oldIpPortRest = ipPortRest;
@@ -1405,7 +1389,7 @@ namespace ChartPlotMQTT
                     //InitChart();
                     //checkedListBox_params.Items.Clear();
 
-                    Msg("Data loaded from server");
+                    _logger.AddText("Data loaded from server", (byte)DataDirection.Info, DateTime.Now);
                 }
                 textBox_keepTime.Enabled = true;
 
@@ -1432,13 +1416,36 @@ namespace ChartPlotMQTT
             CheckBox_autoRangeValue_CheckStateChanged(this, EventArgs.Empty);
         }
 
-        private void checkedListBox_params_SelectedIndexChanged(object sender, EventArgs e)
+        private void CheckedListBox_params_SelectedIndexChanged(object sender, EventArgs e)
         {
             var n = checkedListBox_params.SelectedItem.ToString();
             foreach (var plot in chart1.Series)
             {
                 if (n == plot.Name) plot.MarkerStyle = MarkerStyle.Diamond;
                 else plot.MarkerStyle = MarkerStyle.None;
+            }
+        }
+
+        private void CheckBox_autoScroll_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox_autoScroll.Checked)
+            {
+                _logger.AutoScroll = true;
+                textBox_dataLog.TextChanged += TextBox_dataLog_TextChanged;
+            }
+            else
+            {
+                _logger.AutoScroll = false;
+                textBox_dataLog.TextChanged -= TextBox_dataLog_TextChanged;
+            }
+        }
+
+        private void TextBox_dataLog_TextChanged(object sender, EventArgs e)
+        {
+            if (checkBox_autoScroll.Checked)
+            {
+                textBox_dataLog.SelectionStart = textBox_dataLog.Text.Length;
+                textBox_dataLog.ScrollToCaret();
             }
         }
 

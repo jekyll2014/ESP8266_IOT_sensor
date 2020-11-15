@@ -29,10 +29,10 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea5 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend5 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series5 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            System.Windows.Forms.DataVisualization.Charting.Title title5 = new System.Windows.Forms.DataVisualization.Charting.Title();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series2 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            System.Windows.Forms.DataVisualization.Charting.Title title2 = new System.Windows.Forms.DataVisualization.Charting.Title();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.textBox_dataLog = new System.Windows.Forms.TextBox();
             this.textBox_message = new System.Windows.Forms.TextBox();
@@ -82,8 +82,6 @@
             this.checkBox_autoConnect = new System.Windows.Forms.CheckBox();
             this.checkBox_addTimeStamp = new System.Windows.Forms.CheckBox();
             this.tabPage_chart = new System.Windows.Forms.TabPage();
-            this.button_resetChart = new System.Windows.Forms.Button();
-            this.label14 = new System.Windows.Forms.Label();
             this.label15 = new System.Windows.Forms.Label();
             this.label13 = new System.Windows.Forms.Label();
             this.textBox_keepTime = new System.Windows.Forms.TextBox();
@@ -109,6 +107,7 @@
             this.textBox_dataLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.textBox_dataLog.Size = new System.Drawing.Size(714, 359);
             this.textBox_dataLog.TabIndex = 21;
+            this.textBox_dataLog.TextChanged += new System.EventHandler(this.TextBox_dataLog_TextChanged);
             // 
             // textBox_message
             // 
@@ -259,7 +258,7 @@
             this.checkedListBox_params.Size = new System.Drawing.Size(115, 49);
             this.checkedListBox_params.TabIndex = 5;
             this.checkedListBox_params.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.CheckedListBox_params_ItemCheck);
-            this.checkedListBox_params.SelectedIndexChanged += new System.EventHandler(this.checkedListBox_params_SelectedIndexChanged);
+            this.checkedListBox_params.SelectedIndexChanged += new System.EventHandler(this.CheckedListBox_params_SelectedIndexChanged);
             this.checkedListBox_params.KeyDown += new System.Windows.Forms.KeyEventHandler(this.CheckedListBox_params_KeyDown);
             this.checkedListBox_params.MouseUp += new System.Windows.Forms.MouseEventHandler(this.CheckedListBox_params_MouseUp);
             // 
@@ -333,52 +332,52 @@
             this.chart1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            chartArea5.AxisX.Crossing = -1.7976931348623157E+308D;
-            chartArea5.AxisX.Interval = 1D;
-            chartArea5.AxisX.LabelStyle.Interval = 0D;
-            chartArea5.AxisX.LabelStyle.IntervalOffset = 0D;
-            chartArea5.AxisX.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisX.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisX.MajorGrid.Interval = 0D;
-            chartArea5.AxisX.MajorGrid.IntervalOffset = 0D;
-            chartArea5.AxisX.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisX.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisX.MajorTickMark.Interval = 0D;
-            chartArea5.AxisX.MajorTickMark.IntervalOffset = 0D;
-            chartArea5.AxisX.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisX.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.LabelStyle.Interval = 0D;
-            chartArea5.AxisY.LabelStyle.IntervalOffset = 0D;
-            chartArea5.AxisY.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.MajorGrid.Interval = 0D;
-            chartArea5.AxisY.MajorGrid.IntervalOffset = 0D;
-            chartArea5.AxisY.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.MajorTickMark.Interval = 0D;
-            chartArea5.AxisY.MajorTickMark.IntervalOffset = 0D;
-            chartArea5.AxisY.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.AxisY.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
-            chartArea5.Name = "ChartArea1";
-            this.chart1.ChartAreas.Add(chartArea5);
+            chartArea2.AxisX.Crossing = -1.7976931348623157E+308D;
+            chartArea2.AxisX.Interval = 1D;
+            chartArea2.AxisX.LabelStyle.Interval = 0D;
+            chartArea2.AxisX.LabelStyle.IntervalOffset = 0D;
+            chartArea2.AxisX.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisX.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisX.MajorGrid.Interval = 0D;
+            chartArea2.AxisX.MajorGrid.IntervalOffset = 0D;
+            chartArea2.AxisX.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisX.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisX.MajorTickMark.Interval = 0D;
+            chartArea2.AxisX.MajorTickMark.IntervalOffset = 0D;
+            chartArea2.AxisX.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisX.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.LabelStyle.Interval = 0D;
+            chartArea2.AxisY.LabelStyle.IntervalOffset = 0D;
+            chartArea2.AxisY.LabelStyle.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.LabelStyle.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.MajorGrid.Interval = 0D;
+            chartArea2.AxisY.MajorGrid.IntervalOffset = 0D;
+            chartArea2.AxisY.MajorGrid.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.MajorGrid.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.MajorTickMark.Interval = 0D;
+            chartArea2.AxisY.MajorTickMark.IntervalOffset = 0D;
+            chartArea2.AxisY.MajorTickMark.IntervalOffsetType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.AxisY.MajorTickMark.IntervalType = System.Windows.Forms.DataVisualization.Charting.DateTimeIntervalType.Auto;
+            chartArea2.Name = "ChartArea1";
+            this.chart1.ChartAreas.Add(chartArea2);
             this.chart1.IsSoftShadows = false;
-            legend5.Name = "Legend1";
-            this.chart1.Legends.Add(legend5);
+            legend2.Name = "Legend1";
+            this.chart1.Legends.Add(legend2);
             this.chart1.Location = new System.Drawing.Point(0, 0);
             this.chart1.Name = "chart1";
-            series5.ChartArea = "ChartArea1";
-            series5.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            series5.CustomProperties = "EmptyPointValue=Zero";
-            series5.Legend = "Legend1";
-            series5.Name = "Series1";
-            this.chart1.Series.Add(series5);
+            series2.ChartArea = "ChartArea1";
+            series2.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
+            series2.CustomProperties = "EmptyPointValue=Zero";
+            series2.Legend = "Legend1";
+            series2.Name = "Series1";
+            this.chart1.Series.Add(series2);
             this.chart1.Size = new System.Drawing.Size(726, 416);
             this.chart1.SuppressExceptions = true;
             this.chart1.TabIndex = 6;
             this.chart1.Text = "chart1";
-            title5.Alignment = System.Drawing.ContentAlignment.TopRight;
-            title5.Name = "Title1";
-            this.chart1.Titles.Add(title5);
+            title2.Alignment = System.Drawing.ContentAlignment.TopRight;
+            title2.Name = "Title1";
+            this.chart1.Titles.Add(title2);
             this.chart1.MouseMove += new System.Windows.Forms.MouseEventHandler(this.Chart1_MouseMove);
             // 
             // checkBox_autoScroll
@@ -393,6 +392,7 @@
             this.checkBox_autoScroll.TabIndex = 13;
             this.checkBox_autoScroll.Text = "Autoscroll";
             this.checkBox_autoScroll.UseVisualStyleBackColor = true;
+            this.checkBox_autoScroll.CheckedChanged += new System.EventHandler(this.CheckBox_autoScroll_CheckedChanged);
             // 
             // button_clearLog
             // 
@@ -655,7 +655,6 @@
             // 
             // tabPage_chart
             // 
-            this.tabPage_chart.Controls.Add(this.button_resetChart);
             this.tabPage_chart.Controls.Add(this.label7);
             this.tabPage_chart.Controls.Add(this.button_saveLog);
             this.tabPage_chart.Controls.Add(this.button_loadLog);
@@ -666,7 +665,6 @@
             this.tabPage_chart.Controls.Add(this.textBox_fromTime);
             this.tabPage_chart.Controls.Add(this.checkedListBox_params);
             this.tabPage_chart.Controls.Add(this.textBox_toTime);
-            this.tabPage_chart.Controls.Add(this.label14);
             this.tabPage_chart.Controls.Add(this.label15);
             this.tabPage_chart.Controls.Add(this.label13);
             this.tabPage_chart.Controls.Add(this.label5);
@@ -683,27 +681,6 @@
             this.tabPage_chart.TabIndex = 1;
             this.tabPage_chart.Text = "Chart";
             this.tabPage_chart.UseVisualStyleBackColor = true;
-            // 
-            // button_resetChart
-            // 
-            this.button_resetChart.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.button_resetChart.Location = new System.Drawing.Point(408, 0);
-            this.button_resetChart.Name = "button_resetChart";
-            this.button_resetChart.Size = new System.Drawing.Size(75, 23);
-            this.button_resetChart.TabIndex = 14;
-            this.button_resetChart.Text = "Reset chart";
-            this.button_resetChart.UseVisualStyleBackColor = true;
-            this.button_resetChart.Visible = false;
-            this.button_resetChart.Click += new System.EventHandler(this.Button_resetChart_Click);
-            // 
-            // label14
-            // 
-            this.label14.AutoSize = true;
-            this.label14.Location = new System.Drawing.Point(410, 5);
-            this.label14.Name = "label14";
-            this.label14.Size = new System.Drawing.Size(43, 13);
-            this.label14.TabIndex = 13;
-            this.label14.Text = "minutes";
             // 
             // label15
             // 
@@ -819,11 +796,9 @@
         private System.Windows.Forms.TextBox textBox1;
         private System.Windows.Forms.Label label12;
         private System.Windows.Forms.CheckBox checkBox_addTimeStamp;
-        private System.Windows.Forms.Label label14;
         private System.Windows.Forms.Label label13;
         private System.Windows.Forms.TextBox textBox_keepTime;
         private System.Windows.Forms.NotifyIcon notifyIcon1;
-        private System.Windows.Forms.Button button_resetChart;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.TextBox textBox_restPort;
         private System.Windows.Forms.Label label15;

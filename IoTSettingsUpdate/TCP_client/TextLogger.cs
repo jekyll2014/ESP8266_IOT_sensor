@@ -1,82 +1,111 @@
-﻿using System;
+﻿/*
+        private TextLogger _logger;
+
+        private enum DataDirection
+        {
+            Received,
+            Sent,
+            SignalIn,
+            SignalOut,
+            Error
+        }
+
+        private readonly Dictionary<byte, string> _directions = new Dictionary<byte, string>()
+        {
+            {(byte)DataDirection.Received, "<<"},
+            {(byte)DataDirection.Sent,">>"},
+            {(byte)DataDirection.SignalIn,"*<"},
+            {(byte)DataDirection.SignalOut,"*>"},
+            {(byte)DataDirection.Error,"!!"}
+        };
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            _logger = new TextLogger(this)
+            {
+                Channels = _directions,
+                FilterZeroChar = false,
+            };
+            textBox_terminal.DataBindings.Add("Text", _logger, "Text", false, DataSourceUpdateMode.OnPropertyChanged);
+
+            _logger.LineTimeLimit = 100;
+            _logger.LineLimit = 500;
+            _logger.AutoSave = true;
+            _logger.LogFileName = "log.txt";
+
+            _logger.DefaultTextFormat = checkBox_hexTerminal.Checked
+                ? TextLogger.TextFormat.Hex
+                : TextLogger.TextFormat.AutoReplaceHex;
+
+            _logger.DefaultTimeFormat =
+                checkBox_saveTime.Checked ? TextLogger.TimeFormat.LongTime : TextLogger.TimeFormat.None;
+
+            _logger.DefaultDateFormat =
+                checkBox_saveTime.Checked ? TextLogger.DateFormat.ShortDate : TextLogger.DateFormat.None;
+
+            _logger.AutoScroll = checkBox_autoscroll.Checked;
+
+            CheckBox_autoscroll_CheckedChanged(null, EventArgs.Empty);
+        }
+
+        private void Button_Clear_Click(object sender, EventArgs e)
+        {
+            _logger.Clear();
+        }
+
+        private void Button_closeport_Click(object sender, EventArgs e)
+        {
+            _logger.RefreshStop();
+        }
+
+        private void CheckBox_saveTo_CheckedChanged(object sender, EventArgs e)
+        {
+            _logger.AutoSave = checkBox_saveTo.Checked;
+        }
+
+        private void TextBox_saveTo_Leave(object sender, EventArgs e)
+        {
+            _logger.LogFileName = textBox_saveTo.Text;
+        }
+
+        private void CheckBox_autoscroll_CheckedChanged(object sender, EventArgs e)
+        {
+            if (checkBox_autoscroll.Checked)
+            {
+                _logger.AutoScroll = true;
+                textBox_terminal.TextChanged += TextBox_terminal_TextChanged;
+            }
+            else
+            {
+                _logger.AutoScroll = false;
+                textBox_terminal.TextChanged -= TextBox_terminal_TextChanged;
+            }
+        }
+
+        private void TextBox_terminal_TextChanged(object sender, EventArgs e)
+        {
+            if (checkBox_autoScroll.Checked)
+            {
+                textBox_terminal.SelectionStart = textBox_terminal.Text.Length;
+                textBox_terminal.ScrollToCaret();
+            }
+        }
+
+*/
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
 
-namespace IoTSettingsUpdate
+namespace TextLogger
 {
     public class TextLogger : IDisposable, INotifyPropertyChanged
     {
         // ring buffer for strings
-        // string complete timeout
         // string length limit
-        // Time/date format combine
-
-        public bool noScreenOutput = false;
-        public int LinesLimit = 500;
-        public string LogFileName = "";
-        public bool AutoSave = false;
-        public bool AutoScroll = true;
-        public bool FilterZeroChar = true;
-        public TextFormat DefaultTextFormat = TextFormat.PlainText; //Text, HEX, Auto (change non-readable to <HEX>)
-        public TimeFormat DefaultTimeFormat = TimeFormat.LongTime;
-
-        private delegate void SetTextCallback(string text);
-
-        private readonly Form mainForm;
-        private readonly TextBox _textBox;
-        private readonly List<string> _logBuffer = new List<string>();
-        private StringBuilder _unfinishedString = new StringBuilder();
-        private int selStart;
-        private volatile bool textChanged;
-        private Timer formTimer;
-
-        public List<string> Channels = new List<string> { "" };
-
-        private byte _prevChannel;
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected void OnPropertyChanged()
-        {
-            textChanged = true;
-            mainForm?.Invoke((MethodInvoker)delegate
-           {
-               PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Text"));
-           });
-        }
-
-        public string Text => ToString();
-
-        public TextLogger(Form mainForm, TextBox textBox = null)
-        {
-            this.mainForm = mainForm;
-            _textBox = textBox;
-        }
-
-        public void TimerStart(int delay)
-        {
-            if (mainForm != null && _textBox != null)
-            {
-                formTimer = new Timer();
-                formTimer.Tick += FormTimer_Tick;
-                formTimer.Interval = delay;
-                formTimer.Start();
-            }
-        }
-
-        public void TimerStop()
-        {
-            formTimer?.Stop();
-            formTimer?.Dispose();
-        }
-
-        private void FormTimer_Tick(object sender, EventArgs e)
-        {
-            UpdateDisplay();
-        }
 
         public enum TextFormat
         {
@@ -88,66 +117,199 @@ namespace IoTSettingsUpdate
 
         public enum TimeFormat
         {
+            None,
             Default,
             ShortTime,
-            LongTime,
+            LongTime
+        }
+
+        public enum DateFormat
+        {
+            None,
+            Default,
             ShortDate,
             LongDate,
-            Full
         }
 
-        public bool AddText(string text, byte channel = 0, TextFormat textTextFormat = TextFormat.Default,
-            TimeFormat timeFormat = TimeFormat.Default)
+        private readonly object _textOutThreadLock = new object();
+
+        public bool NoScreenOutput = false;
+        public int LineLimit = 0;
+        public int CharLimit = 0;
+        public int LineTimeLimit = 0;
+        public string LogFileName = "";
+        public bool AutoSave = false;
+        public bool AutoScroll = true;
+        public bool FilterZeroChar = true;
+        public TextFormat DefaultTextFormat = TextFormat.AutoReplaceHex; //Text, HEX, Auto (change non-readable to <HEX>)
+        public TimeFormat DefaultTimeFormat = TimeFormat.LongTime;
+        public DateFormat DefaultDateFormat = DateFormat.ShortDate;
+        public Dictionary<byte, string> Channels = new Dictionary<byte, string>();
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private readonly Form _mainForm;
+        private readonly TextBox _textBox;
+        private int _selStart, _selLength;
+        private volatile bool _textChanged;
+        private Timer _refreshTimer;
+        private byte _prevChannel;
+        private DateTime _lastEvent = DateTime.Now;
+
+        protected void OnPropertyChanged()
         {
-            return AddText(text, DateTime.MinValue, channel, textTextFormat, timeFormat);
+            _textChanged = true;
+            _mainForm?.Invoke((MethodInvoker)delegate
+           {
+               PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Text"));
+           });
         }
 
-        public bool AddText(string text, byte channel = 0, TimeFormat timeFormat = TimeFormat.Default,
-            TextFormat textTextFormat = TextFormat.Default)
+        public string Text { get; private set; } = "";
+
+        public TextLogger(Form mainForm, TextBox textBox = null)
         {
-            return AddText(text, DateTime.MinValue, channel, textTextFormat, timeFormat);
+            this._mainForm = mainForm;
+            this._textBox = textBox;
         }
 
-        public bool AddText(string text, DateTime logTime, byte channel = 0, TextFormat textFormat = TextFormat.Default,
-            TimeFormat timeFormat = TimeFormat.Default)
+        public void RefreshStart(int delay)
+        {
+            if (_mainForm != null && _textBox != null)
+            {
+                _refreshTimer = new Timer();
+                _refreshTimer.Tick += RefreshTimerTick;
+                _refreshTimer.Interval = delay;
+                _refreshTimer.Start();
+            }
+        }
+
+        public void RefreshStop()
+        {
+            if (_refreshTimer == null) return;
+
+            _refreshTimer.Tick -= RefreshTimerTick;
+            _refreshTimer?.Stop();
+            _refreshTimer?.Dispose();
+        }
+
+        public bool AddText(string text, byte channel)
+        {
+            return AddText(text, channel, DateTime.MinValue, TextFormat.Default, TimeFormat.Default, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime)
+        {
+            return AddText(text, channel, eventTime, TextFormat.Default, TimeFormat.Default, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime, TimeFormat timeFormat)
+        {
+            return AddText(text, channel, eventTime, TextFormat.Default, timeFormat, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime, DateFormat dateFormat)
+        {
+            return AddText(text, channel, eventTime, TextFormat.Default, TimeFormat.Default, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime, TextFormat textTextFormat, TimeFormat timeFormat)
+        {
+            return AddText(text, channel, eventTime, textTextFormat, timeFormat, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime, TextFormat textTextFormat, DateFormat dateFormat)
+        {
+            return AddText(text, channel, eventTime, textTextFormat, TimeFormat.Default, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, DateTime eventTime, TimeFormat timeFormat, DateFormat dateFormat)
+        {
+            return AddText(text, channel, eventTime, TextFormat.Default, timeFormat, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, TextFormat textTextFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, textTextFormat, TimeFormat.Default, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, TimeFormat timeFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, TextFormat.Default, timeFormat, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, DateFormat dateFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, TextFormat.Default, TimeFormat.Default, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, TextFormat textTextFormat, TimeFormat timeFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, textTextFormat, timeFormat, DateFormat.Default);
+        }
+
+        public bool AddText(string text, byte channel, TextFormat textTextFormat, DateFormat dateFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, textTextFormat, TimeFormat.Default, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, TimeFormat timeFormat, DateFormat dateFormat)
+        {
+            return AddText(text, channel, DateTime.MinValue, TextFormat.Default, timeFormat, dateFormat);
+        }
+
+        public bool AddText(string text, byte channel, DateTime logTime, TextFormat textFormat,
+            TimeFormat timeFormat = TimeFormat.Default, DateFormat dateFormat = DateFormat.Default)
         {
             if (text == null || text.Length <= 0) return true;
 
             var tmpStr = new StringBuilder();
+            var continueString = false;
             if (channel != _prevChannel)
             {
-                if (_unfinishedString.Length > 0)
-                    AddText(Environment.NewLine, logTime, _prevChannel, textFormat, timeFormat);
                 _prevChannel = channel;
             }
-
-            if (logTime != DateTime.MinValue)
+            else if (LineTimeLimit > 0)
             {
-                if (timeFormat == TimeFormat.Default)
-                    timeFormat = DefaultTimeFormat;
+                var t = (int)logTime.Subtract(_lastEvent).TotalMilliseconds;
+                if (t <= LineTimeLimit)
+                    continueString = true;
 
-                if (timeFormat == TimeFormat.Full)
-                    tmpStr.Append(logTime.ToShortDateString() + " " + logTime.ToLongTimeString() + "." +
-                                  logTime.Millisecond.ToString("D3") + " ");
-
-                else if (timeFormat == TimeFormat.LongTime)
-                    tmpStr.Append(logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
-
-                else if (timeFormat == TimeFormat.LongDate)
-                    tmpStr.Append(logTime.ToLongDateString() + " ");
-
-                else if (timeFormat == TimeFormat.ShortTime)
-                    tmpStr.Append(logTime.ToShortTimeString() + " ");
-
-                else if (timeFormat == TimeFormat.ShortDate)
-                    tmpStr.Append(logTime.ToShortDateString() + " ");
+                _lastEvent = logTime;
             }
 
-            if (channel >= Channels.Count) channel = 0;
+            if (!continueString)
+            {
+                tmpStr.Append(Environment.NewLine);
+                if (logTime != DateTime.MinValue)
+                {
+                    if (dateFormat == DateFormat.Default)
+                        dateFormat = DefaultDateFormat;
 
-            if (!string.IsNullOrEmpty(Channels[channel])) tmpStr.Append(Channels[channel] + " ");
+                    if (dateFormat == DateFormat.LongDate)
+                        tmpStr.Append(logTime.ToLongDateString() + " ");
+                    else if (dateFormat == DateFormat.ShortDate)
+                        tmpStr.Append(logTime.ToShortDateString() + " ");
+
+                    if (timeFormat == TimeFormat.Default)
+                        timeFormat = DefaultTimeFormat;
+
+                    if (timeFormat == TimeFormat.LongTime)
+                        tmpStr.Append(logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
+
+                    else if (timeFormat == TimeFormat.ShortTime)
+                        tmpStr.Append(logTime.ToShortTimeString() + " ");
+                }
+
+                if (Channels.ContainsKey(channel))
+                {
+                    if (!string.IsNullOrEmpty(Channels[channel])) tmpStr.Append(Channels[channel] + " ");
+                }
+            }
 
             if (textFormat == TextFormat.Default) textFormat = DefaultTextFormat;
+
+            if (FilterZeroChar)
+                text = Accessory.FilterZeroChar(text);
 
             if (textFormat == TextFormat.PlainText)
             {
@@ -156,50 +318,82 @@ namespace IoTSettingsUpdate
             else if (textFormat == TextFormat.Hex)
             {
                 tmpStr.Append(Accessory.ConvertStringToHex(text));
-                tmpStr.Append("\r\n");
             }
             else if (textFormat == TextFormat.AutoReplaceHex)
             {
                 tmpStr.Append(ReplaceUnprintable(text));
-                tmpStr.Append("\r\n");
             }
 
-            var inputStrings = ConvertTextToStringArray(tmpStr.ToString(), ref _unfinishedString);
-            return AddTextToBuffer(inputStrings);
+            return AddTextToBuffer(tmpStr.ToString());
         }
 
-        private bool AddTextToBuffer(IList<string> text)
+        public override string ToString()
         {
-            if (text == null || text.Count <= 0) return false;
-            //lock (_textOutThreadLock)
-            {
-                if (FilterZeroChar)
-                    for (var i = 0; i < text.Count; i++)
-                        text[i] = Accessory.FilterZeroChar(text[i]);
+            return Text;
+        }
 
+        public void Clear()
+        {
+            Text = "";
+            _selStart = 0;
+            OnPropertyChanged();
+        }
+
+        public void Dispose()
+        {
+            RefreshStop();
+        }
+
+        private bool AddTextToBuffer(string text)
+        {
+            if (text == null || text.Length <= 0) return false;
+            lock (_textOutThreadLock)
+            {
                 if (AutoSave && !string.IsNullOrEmpty(LogFileName))
                 {
-                    foreach (var t in text)
-                    {
-                        File.AppendAllText(LogFileName, t + Environment.NewLine);
-                    }
+                    File.AppendAllText(LogFileName, text);
                 }
 
-                if (noScreenOutput) return true;
+                if (NoScreenOutput) return true;
 
-                if (_textBox != null) selStart = _textBox.SelectionStart;
 
-                _logBuffer.AddRange(text);
-                if (_logBuffer.Count >= LinesLimit)
+                Text += text;
+
+                var textSizeReduced = 0;
+                if (CharLimit > 0 && Text.Length > CharLimit)
                 {
-                    while (_logBuffer.Count >= LinesLimit)
+                    textSizeReduced = Text.Length - CharLimit;
+                }
+
+                if (LineLimit > 0)
+                {
+                    if (GetLinesCount(Text, LineLimit, out var pos))
                     {
-                        if (_textBox != null) selStart -= _logBuffer[0].Length;
-                        _logBuffer.RemoveAt(0);
+                        if (pos > textSizeReduced)
+                            textSizeReduced = pos;
                     }
                 }
 
-                if (_textBox != null && selStart < 0) selStart = 0;
+                if (textSizeReduced > 0)
+                {
+                    Text = Text.Substring(textSizeReduced);
+                }
+
+                if (_textBox != null && !AutoScroll)
+                {
+                    _mainForm?.Invoke((MethodInvoker)delegate
+                   {
+                       _selStart = _textBox.SelectionStart;
+                       _selLength = _textBox.SelectionLength;
+                   });
+                    _selStart -= textSizeReduced;
+                    if (_selStart < 0)
+                    {
+                        _selLength += _selStart;
+                        _selStart = 0;
+                        if (_selLength < 0) _selLength = 0;
+                    }
+                }
 
                 OnPropertyChanged();
             }
@@ -209,11 +403,10 @@ namespace IoTSettingsUpdate
 
         private void UpdateDisplay()
         {
-            if (_textBox != null && textChanged)
-                mainForm?.Invoke((MethodInvoker)delegate
+            if (_textBox != null && _textChanged)
+                _mainForm?.Invoke((MethodInvoker)delegate
                {
-                    //var posLength = _textBox.SelectionLength;
-                    _textBox.Text = ToString();
+                   _textBox.Text = Text;
                    if (AutoScroll)
                    {
                        _textBox.SelectionStart = _textBox.Text.Length;
@@ -221,26 +414,16 @@ namespace IoTSettingsUpdate
                    }
                    else
                    {
-                       _textBox.SelectionStart = selStart;
-                        //_textBox.SelectionLength = posLength;
-                        _textBox.ScrollToCaret();
+                       _textBox.SelectionStart = _selStart;
+                       _textBox.SelectionLength = _selLength;
+                       _textBox.ScrollToCaret();
                    }
 
-                   textChanged = false;
+                   _textChanged = false;
                });
         }
 
-        public override string ToString()
-        {
-            var tmpTxt = new StringBuilder();
-            foreach (var str in _logBuffer) tmpTxt.Append(str + Environment.NewLine);
-
-            tmpTxt.Append(_unfinishedString);
-
-            return tmpTxt.ToString();
-        }
-
-        private static string[] ConvertTextToStringArray(string data, ref StringBuilder nonComplete)
+        private static bool GetLinesCount(string data, int lineLimit, out int pos)
         {
             var divider = new HashSet<char>
             {
@@ -248,20 +431,23 @@ namespace IoTSettingsUpdate
                 '\n'
             };
 
-            var stringCollection = new List<string>();
-
-            foreach (var t in data)
-                if (divider.Contains(t))
+            var lineCount = 0;
+            pos = 0;
+            for (var i = data.Length - 1; i >= 0; i--)
+            {
+                if (divider.Contains(data[i])) // check 2 divider 
                 {
-                    if (nonComplete.Length > 0) stringCollection.Add(nonComplete.ToString());
-                    nonComplete.Clear();
-                }
-                else
-                {
-                    if (!divider.Contains(t)) nonComplete.Append(t);
+                    lineCount++;
+                    if (i - 1 >= 0 && divider.Contains(data[i - 1])) i--;
                 }
 
-            return stringCollection.ToArray();
+                if (lineCount >= lineLimit)
+                {
+                    pos = i + 1;
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static string ReplaceUnprintable(string text, bool leaveCrLf = true)
@@ -271,9 +457,9 @@ namespace IoTSettingsUpdate
             for (var i = 0; i < text.Length; i++)
             {
                 var c = text[i];
-                if (char.IsControl(c) && !(leaveCrLf && (c == '\r' || c == '\n')))
+                if (char.IsControl(c) && !(leaveCrLf && (c == '\r' || c == '\n' || c == '\t')))
                 {
-                    str.Append("<" + Accessory.ConvertStringToHex(c.ToString()) + ">");
+                    str.Append("<0x" + Accessory.ConvertStringToHex(c.ToString()).Trim() + ">");
                     if (c == '\n') str.Append("\n");
                 }
                 else
@@ -285,17 +471,10 @@ namespace IoTSettingsUpdate
             return str.ToString();
         }
 
-        public void Clear()
+        private void RefreshTimerTick(object sender, EventArgs e)
         {
-            _logBuffer.Clear();
-            selStart = 0;
-            _unfinishedString.Clear();
-            OnPropertyChanged();
+            UpdateDisplay();
         }
 
-        public void Dispose()
-        {
-            TimerStop();
-        }
     }
 }
