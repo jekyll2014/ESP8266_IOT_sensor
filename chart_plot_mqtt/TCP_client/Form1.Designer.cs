@@ -86,6 +86,7 @@
             this.label13 = new System.Windows.Forms.Label();
             this.textBox_keepTime = new System.Windows.Forms.TextBox();
             this.notifyIcon1 = new System.Windows.Forms.NotifyIcon(this.components);
+            this.timer_reconnect = new System.Windows.Forms.Timer(this.components);
             ((System.ComponentModel.ISupportInitialize)(this.trackBar_max)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBar_min)).BeginInit();
             this.contextMenuStrip_item.SuspendLayout();
@@ -177,6 +178,8 @@
             this.trackBar_max.Name = "trackBar_max";
             this.trackBar_max.Size = new System.Drawing.Size(565, 45);
             this.trackBar_max.TabIndex = 4;
+            this.trackBar_max.TickFrequency = 10;
+            this.trackBar_max.TickStyle = System.Windows.Forms.TickStyle.TopLeft;
             this.trackBar_max.Value = 1000;
             this.trackBar_max.Scroll += new System.EventHandler(this.TrackBar_max_Scroll);
             // 
@@ -184,12 +187,13 @@
             // 
             this.trackBar_min.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.trackBar_min.Location = new System.Drawing.Point(0, 407);
+            this.trackBar_min.Location = new System.Drawing.Point(0, 421);
             this.trackBar_min.Maximum = 1000;
             this.trackBar_min.Minimum = 1;
             this.trackBar_min.Name = "trackBar_min";
             this.trackBar_min.Size = new System.Drawing.Size(565, 45);
             this.trackBar_min.TabIndex = 3;
+            this.trackBar_min.TickFrequency = 10;
             this.trackBar_min.Value = 1;
             this.trackBar_min.Scroll += new System.EventHandler(this.TrackBar_min_Scroll);
             // 
@@ -722,6 +726,11 @@
             this.notifyIcon1.Visible = true;
             this.notifyIcon1.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.NotifyIcon1_MouseDoubleClick);
             // 
+            // timer_reconnect
+            // 
+            this.timer_reconnect.Interval = 10000;
+            this.timer_reconnect.Tick += new System.EventHandler(this.Timer_reconnect_Tick);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -802,6 +811,7 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.TextBox textBox_restPort;
         private System.Windows.Forms.Label label15;
+        private System.Windows.Forms.Timer timer_reconnect;
     }
 }
 

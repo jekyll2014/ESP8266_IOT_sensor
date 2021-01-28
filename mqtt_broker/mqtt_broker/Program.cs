@@ -28,7 +28,7 @@ namespace MqttBroker
         public static LiteDbLocal RecordsDb;
         private static readonly string User = Settings.Default.User;
         private static readonly string Pass = Settings.Default.Password;
-        private static readonly string DeviceName = "DeviceName";
+        private const string DeviceName = "DeviceName";
 
         private static async Task Main()
         {

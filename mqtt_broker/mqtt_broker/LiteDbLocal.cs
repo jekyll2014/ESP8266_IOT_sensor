@@ -9,7 +9,7 @@ namespace MqttBroker
 {
     public class LiteDbLocal : IDisposable
     {
-        private readonly LiteDatabase db;
+        private readonly LiteDatabase _db;
         private readonly ILiteCollection<SensorDataRec> _sensors;
 
         [DataContract]
@@ -30,8 +30,8 @@ namespace MqttBroker
 
         public LiteDbLocal(string dbFileName, string collectionName)
         {
-            db = new LiteDatabase(dbFileName);
-            _sensors = db.GetCollection<SensorDataRec>(collectionName);
+            _db = new LiteDatabase(dbFileName);
+            _sensors = _db.GetCollection<SensorDataRec>(collectionName);
             _sensors.EnsureIndex(x => x.Time);
         }
 
@@ -101,8 +101,6 @@ namespace MqttBroker
             var records = _sensors.Find(
                 x => x.Time > startTime
                      && x.Time < endTime);
-            if (records == null || !records.Any()) return null;
-
             return records;
         }
 
@@ -136,7 +134,7 @@ namespace MqttBroker
             if (disposing)
                 //db.Shrink();
                 //db.Rebuild();
-                db.Dispose();
+                _db.Dispose();
             Disposed = true;
         }
     }
