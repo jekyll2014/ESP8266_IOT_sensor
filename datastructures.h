@@ -1,11 +1,6 @@
 #pragma once
 #include "configuration.h"
 
-#define schedulesNumber  10
-#define eventsNumber  10
-#define telegramUsersNumber  10
-#define gsmUsersNumber  10
-
 // EEPROM config string position and size
 #define DEVICE_NAME_addr	0
 #define DEVICE_NAME_size	20
@@ -68,16 +63,16 @@
 #define SLEEP_ENABLE_size	1
 
 #define EVENTS_TABLE_addr	SLEEP_ENABLE_addr + SLEEP_ENABLE_size
-#define EVENTS_TABLE_size	100 * eventsNumber
+#define EVENTS_TABLE_size	100 * EVENTS_NUMBER
 
 #define EVENTS_ENABLE_addr	EVENTS_TABLE_addr + EVENTS_TABLE_size
 #define EVENTS_ENABLE_size	1
 
 #define SCHEDULER_TABLE_addr	EVENTS_ENABLE_addr + EVENTS_ENABLE_size
-#define SCHEDULER_TABLE_size	100 * schedulesNumber
+#define SCHEDULER_TABLE_size	100 * SCHEDULES_NUMBER
 
 #define SCHEDULER_LASTRUN_TABLE_addr	SCHEDULER_TABLE_addr + SCHEDULER_TABLE_size
-#define SCHEDULER_LASTRUN_TABLE_size	schedulesNumber * 4
+#define SCHEDULER_LASTRUN_TABLE_size	SCHEDULES_NUMBER * 4
 
 #define SCHEDULER_ENABLE_addr	SCHEDULER_LASTRUN_TABLE_addr + SCHEDULER_LASTRUN_TABLE_size
 #define SCHEDULER_ENABLE_size	1
@@ -137,7 +132,7 @@
 #define TELEGRAM_TOKEN_size	50
 
 #define TELEGRAM_USERS_TABLE_addr	TELEGRAM_TOKEN_addr + TELEGRAM_TOKEN_size
-#define TELEGRAM_USERS_TABLE_size	telegramUsersNumber * 20
+#define TELEGRAM_USERS_TABLE_size	TELEGRAM_USERS_NUMBER * 20
 
 #define TELEGRAM_ENABLE_addr	TELEGRAM_USERS_TABLE_addr + TELEGRAM_USERS_TABLE_size
 #define TELEGRAM_ENABLE_size	1
@@ -176,7 +171,7 @@
 #define GSCRIPT_ENABLE_size	1
 
 #define GSM_USERS_TABLE_addr	GSCRIPT_ENABLE_addr + GSCRIPT_ENABLE_size
-#define GSM_USERS_TABLE_size	gsmUsersNumber * 15
+#define GSM_USERS_TABLE_size	GSM_USERS_NUMBER * 15
 
 #define GSM_ENABLE_addr	GSM_USERS_TABLE_addr + GSM_USERS_TABLE_size
 #define GSM_ENABLE_size	1
@@ -208,75 +203,12 @@ const String wifiModes[5] = { "Off", "Station", "Access point",  "Access point +
 #define CHANNEL_PUSHINGBOX 5
 #define CHANNEL_SMTP 6
 #define CHANNEL_GSM 7
+
 const String channels[CHANNELS_NUMBER] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
 
 const String pinModeList[4] = { "INPUT","OUTPUT","INPUT_PULLUP", "OFF" };
 
 const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
-
-extern bool inputs[PIN_NUMBER];
-extern uint16_t outputs[PIN_NUMBER];
-extern uint32_t InterruptCounter[PIN_NUMBER];
-
-struct sensorDataCollection
-{
-	int year;
-	uint8_t month;
-	uint8_t day;
-	uint8_t hour;
-	uint8_t minute;
-	uint8_t second;
-
-#ifdef AMS2320_ENABLE
-	float ams_temp;
-	float ams_humidity;
-#endif
-
-#ifdef HTU21D_ENABLE
-	float htu21d_temp;
-	float htu21d_humidity;
-#endif
-
-#ifdef BME280_ENABLE
-	float bme280_temp;
-	float bme280_humidity;
-	float bme280_pressure;
-#endif
-
-#ifdef BMP180_ENABLE
-	float bmp180_temp;
-	float bmp180_humidity;
-	float bmp180_pressure;
-#endif
-
-#ifdef DS18B20_ENABLE
-	float ds1820_temp;
-#endif
-
-#ifdef DHT_ENABLE
-	float dht_temp;
-	float dht_humidity;
-#endif
-
-#ifdef MH_Z19_UART_ENABLE
-	int mh_temp;
-	int mh_uart_co2;
-#endif
-
-#ifdef MH_Z19_PPM_ENABLE
-	int mh_ppm_co2;
-#endif
-
-#ifdef ADC_ENABLE
-	int adc;
-#endif
-
-	uint32_t InterruptCounters[PIN_NUMBER];
-
-	bool inputs[PIN_NUMBER];
-
-	bool outputs[PIN_NUMBER];
-};
 
 //D1=05, D2=04, D3=00, D4=02, D5=14, D6=12, D7=13, D8=15, reverse to binary order
 //pins             D=87654321
