@@ -141,9 +141,7 @@ Add:
 	delay (1000); 
 	noTone(Passive_buzzer);
 - Unify outbound message queue
-- unify command and action string processing
++ unify command and action string processing
 - implement I2c, 1Wire scan
-- retry sensor read on fail
-- set sensor reactivation timeout after fail
 - refactor code to split into separate files
 - allow use HW UART for GSM modem and sensors

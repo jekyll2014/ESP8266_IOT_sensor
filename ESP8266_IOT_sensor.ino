@@ -13,7 +13,6 @@
 		 co2<>x
 	 actions:
 		 send_telegram
-
 		 send_mail=address;message
 		 send_pushingbox
 		 send_GScript
@@ -29,9 +28,8 @@ Planned features:
  - telegram
 	- set TELEGRAM_URL "api.telegram.org"
 	- set TELEGRAM_IP "149.154.167.198"
-	- set TELEGRAM_PORT 443\
+	- set TELEGRAM_PORT 443
 	- setFingerprint
-	- use SSL
 	- show simple keyboard
  - temperature/humidity offset setting
  - Amazon Alexa integration
@@ -40,6 +38,7 @@ Planned features:
  - GoogleScript service - memory allocation problem
  - DEBUG mode verbose serial output
  - option to use UART for GPRS/sensors
+ - GSM_MODEM status (connection state, network name)
  - SMS message paging
  - improve SMS management
  - make common outbound message queue for all channels
@@ -48,7 +47,6 @@ Planned features:
  /*
  Sensors to be supported:
 	- BMP280
-	- AHT10
 	- ACS712 (A0)
  */
 
@@ -57,8 +55,10 @@ Planned features:
 #include <EEPROM.h>
 #include "configuration.h"
 #include "datastructures.h"
-#include "actions.h"
 #include "commands.h"
+#include "actions.h"
+#include "events.h"
+#include "schedules.h"
 #include "ESP8266_IOT_sensor.h"
 #include <TimeLib.h>
 
@@ -113,16 +113,16 @@ OneWire oneWire(ONEWIRE_DATA);
 #include "Adafruit_Sensor.h"
 #include "Adafruit_AM2320.h"
 
-Adafruit_AM2320 am2320 = Adafruit_AM2320();
-bool am2320_enable = true;
+Adafruit_AM2320 am2320;
+bool am2320_enable;
 #endif
 
 // HTU21D I2C temperature + humidity sensor
 #ifdef HTU21D_ENABLE
 #include "Adafruit_HTU21DF.h"
 
-Adafruit_HTU21DF htu21d = Adafruit_HTU21DF();
-bool htu21d_enable = true;
+Adafruit_HTU21DF htu21d;
+bool htu21d_enable;
 #endif
 
 // BME280 I2C temperature + humidity + pressure sensor
@@ -130,10 +130,8 @@ bool htu21d_enable = true;
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 
-#define BME280_ADDRESS 0xF6
-
 Adafruit_BME280 bme280;
-bool bme280_enable = true;
+bool bme280_enable;
 #endif
 
 // BMP180 I2C temperature + pressure sensor
@@ -141,7 +139,7 @@ bool bme280_enable = true;
 #include <Adafruit_BMP085.h>
 
 Adafruit_BMP085 bmp180;
-bool bmp180_enable = true;
+bool bmp180_enable;
 #endif
 
 // HTU21D I2C temperature + humidity sensor
@@ -149,7 +147,7 @@ bool bmp180_enable = true;
 #include "Adafruit_AHTX0.h"
 
 Adafruit_AHTX0 ahtx0;
-bool ahtx0_enable = true;
+bool ahtx0_enable;
 #endif
 
 // DS18B20 OneWire temperature sensor
@@ -157,7 +155,7 @@ bool ahtx0_enable = true;
 #include "DallasTemperature.h"
 
 DallasTemperature ds1820(&oneWire);
-bool ds1820_enable = true;
+bool ds1820_enable;
 #endif
 
 // DHT11/DHT21(AM2301)/DHT22(AM2302, AM2321) temperature + humidity sensor
@@ -165,7 +163,7 @@ bool ds1820_enable = true;
 #include "DHT.h"
 
 DHT dht(DHT_PIN, DHT_ENABLE);
-bool dht_enable = true;
+bool dht_enable;
 #endif
 
 // MH-Z19 CO2 sensor via UART
@@ -188,7 +186,6 @@ int co2SerialRead()
 	//const int STATUS_SERIAL_NOT_CONFIGURED = -7;
 
 	//unsigned long lastRequest = 0;
-
 	uart2.begin(mhz19UartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 	uart2.flush();
 	delay(50);
@@ -208,6 +205,7 @@ int co2SerialRead()
 		delay(100);  // wait a short moment to avoid false reading
 		if (waited++ > 10) {
 			uart2.flush();
+			uart2.end();
 			return STATUS_NO_RESPONSE;
 		}
 	}
@@ -231,7 +229,6 @@ int co2SerialRead()
 	if (skip)
 	{
 #ifdef DEBUG_MODE
-		Serial.println();
 #endif
 	}
 
@@ -241,12 +238,14 @@ int co2SerialRead()
 		if (count < 9)
 		{
 			uart2.flush();
+			uart2.end();
 			return STATUS_INCOMPLETE;
 		}
 	}
 	else
 	{
 		uart2.flush();
+		uart2.end();
 		return STATUS_INCOMPLETE;
 	}
 
@@ -255,6 +254,7 @@ int co2SerialRead()
 	if (response[8] != check) {
 		mhtemp_s = STATUS_CHECKSUM_MISMATCH;
 		uart2.flush();
+		uart2.end();
 		return STATUS_CHECKSUM_MISMATCH;
 	}
 	uart2.flush();
@@ -332,9 +332,6 @@ uint8_t displayState = 0;
 #ifdef SSD1306DISPLAY_ENABLE
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
-
-#define I2C_ADDRESS 0x3C
-#define RST_PIN -1
 
 const uint8_t* font = fixed_bold10x15;  // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
@@ -474,27 +471,23 @@ String getEvent(uint8_t n)
 
 void processEvent(uint8_t eventNum)
 {
-	String event = getEvent(eventNum);
 	if (eventsFlags[eventNum]) return;
-	//conditions:
-	//	value<=>x; adc, temp, hum, co2,
-	//	input?=0/1/c;
-	//	output?=0/1/c;
-	//	counter?>x;
-	String condition = event.substring(0, event.indexOf(':'));
-	condition.trim();
-	if (condition.length() <= 0) return;
-	condition.toLowerCase();
-	event = event.substring(event.indexOf(':') + 1);
-	if (condition.startsWith(F("input")))
+
+	String event = getEvent(eventNum);
+	commandTokens cmd = parseCommand(event, ':', 1, false);
+	event = "";
+	cmd.command.toLowerCase();
+
+	// input?=0/1/c;
+	if (cmd.command.startsWith(EVENT_INPUT))
 	{
 		if (INPUT_PINS > 0)
 		{
-			int t = condition.indexOf('=');
-			if (t >= 6 && t < condition.length() - 1)
+			int t = cmd.command.indexOf('=');
+			if (t >= 6 && t < cmd.command.length() - 1)
 			{
-				uint8_t outNum = condition.substring(5, t).toInt();
-				String outStateStr = condition.substring(t + 1);
+				uint8_t outNum = cmd.command.substring(5, t).toInt();
+				String outStateStr = cmd.command.substring(t + 1);
 				bool outState = OUT_OFF;
 				const String cTxt = F("c");
 				if (outStateStr != cTxt)
@@ -510,23 +503,31 @@ void processEvent(uint8_t eventNum)
 						if (inputs[outNum - 1] != digitalRead(pins[outNum - 1]))
 						{
 							inputs[outNum - 1] = digitalRead(pins[outNum - 1]);
-							ProcessAction(event, eventNum, true);
+							ProcessAction(cmd.arguments[0], eventNum, true);
 						}
 					}
-					else if (outState == digitalRead(pins[outNum - 1])) ProcessAction(event, eventNum, true);
+					else if (outState == digitalRead(pins[outNum - 1])) ProcessAction(cmd.arguments[0], eventNum, true);
+				}
+				else
+				{
+#ifdef DEBUG_MODE
+					Serial.print(F("Incorrect input #"));
+					Serial.println(String(outNum));
+#endif
 				}
 			}
 		}
 	}
-	else if (condition.startsWith(F("output")))
+	// output?=0/1/c;
+	else if (cmd.command.startsWith(EVENT_OUTPUT))
 	{
 		if (OUTPUT_PINS > 0)
 		{
-			int t = condition.indexOf('=');
-			if (t >= 7 && t < condition.length() - 1)
+			int t = cmd.command.indexOf('=');
+			if (t >= 7 && t < cmd.command.length() - 1)
 			{
-				uint8_t outNum = condition.substring(6, t).toInt();
-				String outStateStr = condition.substring(t + 1);
+				uint8_t outNum = cmd.command.substring(6, t).toInt();
+				String outStateStr = cmd.command.substring(t + 1);
 				uint16_t outState = OUT_OFF;
 				const String cTxt = F("c");
 				if (outStateStr != cTxt)
@@ -541,45 +542,47 @@ void processEvent(uint8_t eventNum)
 					{
 						if (outputs[outNum - 1] != digitalRead(pins[outNum - 1]))
 						{
-							ProcessAction(event, eventNum, true);
+							ProcessAction(cmd.arguments[0], eventNum, true);
 						}
 					}
-					else if (outState == digitalRead(pins[outNum - 1])) ProcessAction(event, eventNum, true);
+					else if (outState == digitalRead(pins[outNum - 1])) ProcessAction(cmd.arguments[0], eventNum, true);
 				}
 				else
 				{
 #ifdef DEBUG_MODE
-					//Serial.print(F("\r\nIncorrect output: "));
-					//Serial.println(String(outNum));
+					Serial.print(F("Incorrect output #"));
+					Serial.println(String(outNum));
 #endif
 				}
 			}
 		}
 	}
-	else if (condition.startsWith(F("counter")))
+	// counter?>x;
+	else if (cmd.command.startsWith(EVENT_COUNTER))
 	{
 		if (INTERRUPT_PINS > 0)
 		{
-			int t = condition.indexOf('>');
-			if (t >= 8 && t < condition.length() - 1)
+			int t = cmd.command.indexOf('>');
+			if (t >= 8 && t < cmd.command.length() - 1)
 			{
-				uint8_t outNum = condition.substring(7, t).toInt();
-				String outStateStr = condition.substring(t + 1);
+				uint8_t outNum = cmd.command.substring(7, t).toInt();
+				String outStateStr = cmd.command.substring(t + 1);
 				uint32_t outState = outStateStr.toInt();
 				if (outNum >= 1 && outNum <= PIN_NUMBER && bitRead(OUTPUT_PINS, outNum - 1))
 				{
-					if (InterruptCounter[outNum - 1] > outState) ProcessAction(event, eventNum, true);
+					if (InterruptCounter[outNum - 1] > outState) ProcessAction(cmd.arguments[0], eventNum, true);
 				}
 			}
 		}
 	}
 
 #ifdef ADC_ENABLE
-	else if (condition.startsWith(F("adc")) && condition.length() > 4)
+	// adc<>x;
+	else if (cmd.command.startsWith(EVENT_ADC) && cmd.command.length() > 4)
 	{
 		uint16_t adcValue = getAdc();
-		char operation = condition[3];
-		uint16_t value = condition.substring(4).toInt();
+		char operation = cmd.command[3];
+		uint16_t value = cmd.command.substring(4).toInt();
 		if ((operation == '>' && adcValue > value) || (operation == '<' && adcValue < value))
 		{
 			ProcessAction(event, eventNum, true);
@@ -588,55 +591,58 @@ void processEvent(uint8_t eventNum)
 #endif
 
 #ifdef TEMPERATURE_SENSOR
-	else if (condition.startsWith(F("temperature")) && condition.length() > 12)
+	// temperature<>x;
+	else if (cmd.command.startsWith(EVENT_TEMPERATURE) && cmd.command.length() > 12)
 	{
-		char oreration = condition[11];
-		int value = condition.substring(12).toInt();
+		char oreration = cmd.command[11];
+		int value = cmd.command.substring(12).toInt();
 		sensorDataCollection sensorData = collectData();
 		int temperatureNow = (int)getTemperature(sensorData);
 		if (oreration == '>' && temperatureNow > value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 		else if (oreration == '<' && temperatureNow < value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 	}
 #endif
 
 #ifdef HUMIDITY_SENSOR
-	else if (condition.startsWith(F("humidity")) && condition.length() > 9)
+	// humidity<>x;
+	else if (cmd.command.startsWith(EVENT_HUMIDITY) && cmd.command.length() > 9)
 	{
-		char oreration = condition[8];
-		int value = condition.substring(9).toInt();
+		char oreration = cmd.command[8];
+		int value = cmd.command.substring(9).toInt();
 		sensorDataCollection sensorData = collectData();
 		int humidityNow = (int)getTemperature(sensorData);
 		if (oreration == '>' && humidityNow > value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 		else if (oreration == '<' && humidityNow < value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 	}
 #endif
 
 #ifdef CO2_SENSOR
-	else if (condition.startsWith(F("co2")) && condition.length() > 4)
+	// co2<>x;
+	else if (cmd.command.startsWith(EVENT_CO2) && cmd.command.length() > 4)
 	{
-		char oreration = condition[3];
-		int value = condition.substring(4).toInt();
+		char oreration = cmd.command[3];
+		int value = cmd.command.substring(4).toInt();
 		sensorDataCollection sensorData = collectData();
 		int co2Now = getTemperature(sensorData);
 		if (oreration == '>' && co2Now > value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 		else if (oreration == '<' && co2Now < value)
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 	}
 #endif
@@ -691,12 +697,6 @@ String printHelpSchedule()
 
 void processSchedule(uint8_t scheduleNum)
 {
-	//conditions:
-	//	start daily - daily@hh:mm;action1;action2;...
-	//	start weekly - weekly@week_day.hh:mm;action1;action2;...
-	//	monthly - monthly@month_day.hh:mm;action1;action2;...
-	//	start date - date@yyyy.mm.dd.hh:mm;action1;action2;...
-
 	String schedule = getSchedule(scheduleNum);
 
 	if (schedule.length() == 0) return;
@@ -716,7 +716,8 @@ void processSchedule(uint8_t scheduleNum)
 
 	uint32_t execTime = readScheduleExecTime(scheduleNum);
 
-	if (condition.startsWith(F("daily@")) && time.length() == 5)
+	//	start daily - daily@hh:mm;action1;action2;...
+	if (condition.startsWith(SHEDULE_DAILY) && time.length() == 5)
 	{
 		uint8_t _hr = time.substring(0, 2).toInt();
 		uint8_t _min = time.substring(3, 5).toInt();
@@ -734,7 +735,8 @@ void processSchedule(uint8_t scheduleNum)
 			if (readScheduleExecTime(scheduleNum) < plannedTime && hour() >= _hr && minute() >= _min) ProcessAction(schedule, scheduleNum, false);
 		}
 	}
-	else if (condition.startsWith(F("weekly@")) && time.length() == 7)
+	//	start weekly - weekly@week_day hh:mm;action1;action2;...
+	else if (condition.startsWith(SHEDULE_WEEKLY) && time.length() == 7)
 	{
 		uint8_t _weekDay = time.substring(0, 1).toInt();
 		uint8_t _hr = time.substring(2, 4).toInt();
@@ -754,7 +756,8 @@ void processSchedule(uint8_t scheduleNum)
 			if (readScheduleExecTime(scheduleNum) < plannedTime && weekday() == _weekDay && hour() >= _hr && minute() >= _min) ProcessAction(schedule, scheduleNum, false);
 		}
 	}
-	else if (condition.startsWith(F("monthly@")) && time.length() == 8)
+	//	monthly - monthly@month_day hh:mm;action1;action2;...
+	else if (condition.startsWith(SHEDULE_MONTHLY) && time.length() == 8)
 	{
 		uint8_t _day = time.substring(0, 2).toInt();
 		uint8_t _hr = time.substring(3, 5).toInt();
@@ -773,7 +776,8 @@ void processSchedule(uint8_t scheduleNum)
 			if (readScheduleExecTime(scheduleNum) < plannedTime && day() >= _day && hour() >= _hr && minute() >= _min) ProcessAction(schedule, scheduleNum, false);
 		}
 	}
-	else if (condition.startsWith(F("once@")) && time.length() == 16 && execTime == 0)
+	//	start date - once@yyyy.mm.dd hh:mm;action1;action2;...
+	else if (condition.startsWith(SHEDULE_ONCE) && time.length() == 16 && execTime == 0)
 	{
 		uint8_t _yr = time.substring(0, 4).toInt();
 		uint8_t _month = time.substring(5, 7).toInt();
@@ -1848,80 +1852,6 @@ void setup()
 	restartNTP();
 #endif
 
-#ifdef AMS2320_ENABLE
-	am2320 = Adafruit_AM2320(&Wire);
-	if (!am2320.begin())
-	{
-		am2320_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find AMS2320 sensor!"));
-#endif
-	}
-#endif
-
-#ifdef HTU21D_ENABLE
-	htu21d = Adafruit_HTU21DF();
-	if (!htu21d.begin())
-	{
-		htu21d_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find HTU21D sensor!"));
-#endif
-	}
-#endif
-
-#ifdef AHTx0_ENABLE
-	if (!ahtx0.begin())
-	{
-		ahtx0_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find AHTx0 sensor!"));
-#endif
-	}
-#endif
-
-#ifdef BME280_ENABLE
-	if (!bme280.begin(BME280_ADDRESS))
-	{
-		bme280_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find BME280 sensor!"));
-#endif
-	}
-#endif
-
-#ifdef BMP180_ENABLE	
-	if (!bmp180.begin())
-	{
-		bmp180_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find BMP180 sensor!"));
-#endif
-	}
-#endif
-
-#ifdef DS18B20_ENABLE
-	ds1820.begin();
-	if (ds1820.getDS18Count() <= 0)
-	{
-		ds1820_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find DS18B20 sensor!"));
-#endif
-	}
-#endif
-
-#ifdef DHT_ENABLE
-	dht.begin();
-	if (!dht.read())
-	{
-		dht_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find DHT sensor!"));
-#endif
-	}
-#endif
-
 #ifdef MH_Z19_UART_ENABLE
 	co2_uart_avg[0] = co2_uart_avg[1] = co2_uart_avg[2] = co2SerialRead();
 #endif
@@ -1939,11 +1869,6 @@ void setup()
 	display.showNumberDec(0, false);
 #endif
 
-#ifdef SSD1306DISPLAY_ENABLE
-	i2c.setClock(400000L);
-	oled.begin(&Adafruit128x64, I2C_ADDRESS);
-	oled.setFont(font);
-#endif
 #endif
 
 	//setting pin modes
@@ -2228,15 +2153,15 @@ void loop()
 		}
 		uartCommand = "";
 	}
-	yield();
 #endif
+	yield();
 	//process data from HTTP/Telnet/MQTT/TELEGRAM if available
 	if (WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0)
 	{
 #ifdef HTTP_ENABLE
 		if (httpServerEnable) http_server.handleClient();
 #endif
-
+		yield();
 #ifdef TELNET_ENABLE
 		if (telnetEnable)
 		{
@@ -2300,9 +2225,8 @@ void loop()
 			}
 		}
 #endif
-
-		yield();
 	}
+	yield();
 	if (WiFi.status() == WL_CONNECTED)
 	{
 #ifdef MQTT_ENABLE
@@ -2356,6 +2280,28 @@ void loop()
 #endif
 				}
 			}
+		}
+	}
+#endif
+	yield();
+#ifdef EVENTS_ENABLE
+	if (eventsEnable)
+	{
+		for (uint8_t i = 0; i < EVENTS_NUMBER; i++)
+		{
+			processEvent(i);
+			yield();
+		}
+	}
+#endif
+	yield();
+#ifdef SCHEDULER_ENABLE
+	if (schedulerEnable && timeIsSet)
+	{
+		for (uint8_t i = 0; i < SCHEDULES_NUMBER; i++)
+		{
+			processSchedule(i);
+			yield();
 		}
 	}
 #endif
@@ -2423,6 +2369,10 @@ void loop()
 #endif
 
 #ifdef SSD1306DISPLAY_ENABLE
+			i2c.setClock(400000L);
+			oled.begin(&Adafruit128x64, SSD1306DISPLAY_ENABLE);
+			oled.setFont(font);
+
 			oled.clear();
 			String tmpStr = "";
 			uint8_t n = 0;
@@ -2490,28 +2440,6 @@ void loop()
 	}
 #endif
 	yield();
-#ifdef EVENTS_ENABLE
-	if (eventsEnable)
-	{
-		for (uint8_t i = 0; i < EVENTS_NUMBER; i++)
-		{
-			processEvent(i);
-			yield();
-		}
-	}
-#endif
-
-#ifdef SCHEDULER_ENABLE
-	if (schedulerEnable && timeIsSet)
-	{
-		for (uint8_t i = 0; i < SCHEDULES_NUMBER; i++)
-		{
-			processSchedule(i);
-			yield();
-		}
-	}
-#endif
-
 #ifdef SLEEP_ENABLE
 	if (sleepEnable && millis() > uint32_t(activeStart + activeTimeOut_ms))
 	{
@@ -2675,7 +2603,7 @@ bool add_signal_pin(uint8_t pin)
 }
 
 // input string format: ****nn="****",nnn,"****",nnn
-commandTokens parseCommand(String& commandString)
+commandTokens parseCommand(String& commandString, char cmd_divider, char arg_divider, bool findIndex)
 {
 	commandTokens params;
 	params.index = -1;
@@ -2683,13 +2611,13 @@ commandTokens parseCommand(String& commandString)
 
 	if (commandString.length() <= 0) return params;
 
-	int equalSignPos = commandString.indexOf('=');
+	int equalSignPos = commandString.indexOf(cmd_divider);
 	if (equalSignPos > 0)
 	{
 		int lastIndex = equalSignPos + 1;
 		do // get argument tokens
 		{
-			int t = commandString.indexOf(',', lastIndex);
+			int t = commandString.indexOf(arg_divider, lastIndex);
 			if (t > equalSignPos)
 			{
 				params.arguments[params.tokensNumber] = commandString.substring(lastIndex, t);
@@ -2711,18 +2639,20 @@ commandTokens parseCommand(String& commandString)
 	}
 
 	int cmdEnd = equalSignPos - 1;
-	for (cmdEnd; cmdEnd >= 0; cmdEnd--)
+	if (findIndex)
 	{
-		if (commandString[cmdEnd] < '0' || commandString[cmdEnd] > '9')
+		for (cmdEnd; cmdEnd >= 0; cmdEnd--)
 		{
-			cmdEnd++;
-			break;
+			if (commandString[cmdEnd] < '0' || commandString[cmdEnd] > '9')
+			{
+				cmdEnd++;
+				break;
+			}
+			yield();
 		}
-		yield();
+		// get command index
+		if (cmdEnd < equalSignPos) params.index = commandString.substring(cmdEnd, equalSignPos).toInt();
 	}
-
-	// get command index
-	if (cmdEnd < equalSignPos) params.index = commandString.substring(cmdEnd, equalSignPos).toInt();
 
 	// get command name
 	if (cmdEnd > 0) params.command = commandString.substring(0, cmdEnd);
@@ -3509,6 +3439,56 @@ String printStatus(bool toJson = false)
 	str += delimiter;
 #endif
 
+#ifdef AMS2320_ENABLE
+	str += F("AMS2320 found");
+	str += eq;
+	str += String(am2320_enable);
+	str += delimiter;
+#endif
+
+#ifdef HTU21D_ENABLE
+	str += F("HTU21D found");
+	str += eq;
+	str += String(htu21d_enable);
+	str += delimiter;
+#endif
+
+#ifdef BME280_ENABLE
+	str += F("BME280 found");
+	str += eq;
+	str += String(bme280_enable);
+	str += delimiter;
+#endif
+
+#ifdef BMP180_ENABLE
+	str += F("BMP180 found");
+	str += eq;
+	str += String(bmp180_enable);
+	str += delimiter;
+#endif
+
+#ifdef AHTx0_ENABLE
+	str += F("AHTx0 found");
+	str += eq;
+	str += String(ahtx0_enable);
+	str += delimiter;
+#endif
+
+#ifdef DS18B20_ENABLE
+	str += F("DS18B20 found");
+	str += eq;
+	str += String(ds1820_enable);
+	str += delimiter;
+#endif
+
+#ifdef DHT_ENABLE
+	str += F("DHT found");
+	str += eq;
+	str += String(dht_enable);
+	str += delimiter;
+#endif
+
+
 	str += F("Free memory");
 	str += eq;
 	str += String(ESP.getFreeHeap());
@@ -3675,24 +3655,51 @@ sensorDataCollection collectData()
 	sensorData.second = second();
 
 #ifdef AMS2320_ENABLE
-	if (am2320_enable)
+	am2320 = Adafruit_AM2320(&Wire);
+	if (!am2320.begin())
 	{
+		am2320_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find AMS2320 sensor!"));
+#endif
+	}
+	else
+	{
+		am2320_enable = true;
 		sensorData.ams_humidity = am2320.readHumidity();
 		sensorData.ams_temp = am2320.readTemperature();
+		if (sensorData.ams_temp == NAN) am2320_enable = false;
 	}
 #endif
 
 #ifdef HTU21D_ENABLE
-	if (htu21d_enable)
+	htu21d = Adafruit_HTU21DF();
+	if (!htu21d.begin())
 	{
+		htu21d_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find HTU21D sensor!"));
+#endif
+	}
+	else
+	{
+		htu21d_enable = true;
 		sensorData.htu21d_humidity = htu21d.readHumidity();
 		sensorData.htu21d_temp = htu21d.readTemperature();
 	}
 #endif
 
 #ifdef BME280_ENABLE
-	if (bme280_enable)
+	if (!bme280.begin(BME280_ENABLE))
 	{
+		bme280_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find BME280 sensor!"));
+#endif
+	}
+	else
+	{
+		bme280_enable = true;
 		sensorData.bme280_humidity = bme280.readHumidity();
 		sensorData.bme280_temp = bme280.readTemperature();
 		sensorData.bme280_pressure = bme280.readPressure();
@@ -3700,16 +3707,32 @@ sensorDataCollection collectData()
 #endif
 
 #ifdef BMP180_ENABLE
-	if (bmp180_enable)
+	if (!bmp180.begin())
 	{
+		bmp180_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find BMP180 sensor!"));
+#endif
+	}
+	else
+	{
+		bmp180_enable = true;
 		sensorData.bmp180_temp = bmp180.readTemperature();
 		sensorData.bmp180_pressure = bmp180.readPressure();
 	}
 #endif
 
 #ifdef AHTx0_ENABLE
-	if (ahtx0_enable)
+	if (!ahtx0.begin())
 	{
+		ahtx0_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find AHTx0 sensor!"));
+#endif
+	}
+	else
+	{
+		ahtx0_enable = true;
 		sensors_event_t humidity, temp;
 		ahtx0.getEvent(&humidity, &temp);
 		sensorData.ahtx0_humidity = humidity.relative_humidity;
@@ -3718,8 +3741,17 @@ sensorDataCollection collectData()
 #endif
 
 #ifdef DS18B20_ENABLE
-	if (ds1820_enable)
+	ds1820.begin();
+	if (ds1820.getDS18Count() <= 0)
 	{
+		ds1820_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find DS18B20 sensor!"));
+#endif
+	}
+	else
+	{
+		ds1820_enable = true;
 		ds1820.requestTemperatures();
 		delay(5);
 		sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
@@ -3733,8 +3765,17 @@ sensorDataCollection collectData()
 #endif
 
 #ifdef DHT_ENABLE
-	if (dht_enable)
+	dht.begin();
+	if (!dht.read())
 	{
+		dht_enable = false;
+#ifdef DEBUG_MODE
+		Serial.println(F("Can't find DHT sensor!"));
+#endif
+	}
+	else
+	{
+		dht_enable = true;
 		sensorData.dht_humidity = dht.readHumidity();
 		sensorData.dht_temp = dht.readTemperature();
 	}
@@ -4006,11 +4047,12 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 
 String processCommand(String& command, uint8_t channel, bool isAdmin)
 {
-	commandTokens cmd = parseCommand(command);
+	commandTokens cmd = parseCommand(command, '=', ',', true);
 	cmd.command.toLowerCase();
 	String str = "";
 	str.reserve(2048);
 	if (channel == CHANNEL_GSM) str += F("^");
+
 	if (cmd.command == CMD_GET_SENSOR)
 	{
 		sensorDataCollection sensorData = collectData();
@@ -4932,7 +4974,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			else
 			{
 				str = REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];				
+				str += cmd.arguments[0];
 			}
 		}
 #endif
@@ -5036,8 +5078,10 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
 			{
+				int t = command.indexOf('=');
+				command = command.substring(t + 1);
 				uint16_t m = EVENTS_TABLE_size / EVENTS_NUMBER;
-				writeConfigString(EVENTS_TABLE_addr + cmd.index * m, m, cmd.arguments[0]);
+				writeConfigString(EVENTS_TABLE_addr + cmd.index * m, m, command);
 				str += REPLY_SET_EVENT;
 				str += String(cmd.index);
 				str += F(" is now: ");
@@ -5115,8 +5159,10 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			if (cmd.index >= 0 && cmd.index < SCHEDULES_NUMBER)
 			{
+				int t = command.indexOf('=');
+				command = command.substring(t + 1);
 				uint16_t m = SCHEDULER_TABLE_size / SCHEDULES_NUMBER;
-				writeConfigString(SCHEDULER_TABLE_addr + cmd.index * m, m, cmd.arguments[0]);
+				writeConfigString(SCHEDULER_TABLE_addr + cmd.index * m, m, command);
 				writeScheduleExecTime(cmd.index, 0);
 				str += REPLY_SET_SCHEDULE;
 				str += String(cmd.index);
@@ -5161,7 +5207,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeScheduleExecTime(cmd.index, 0);
 				str += REPLY_CLEAR_SCHEDULE_EXEC_TIME;
 				str += String(cmd.index);
-				str += F(" reset");				
+				str += F(" reset");
 			}
 			else
 			{
@@ -5257,7 +5303,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			tmpAction = action;
 			action = "";
 		}
-		commandTokens cmd = parseCommand(tmpAction);
+		commandTokens cmd = parseCommand(tmpAction, '=', ',', true);
 		//command=****
 		if (cmd.command == ACTION_COMMAND)
 		{
@@ -5513,9 +5559,9 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			Serial.print(tmpAction);
 			Serial.println(quote);
 #endif
-	}
+		}
 		yield();
-} while (action.length() > 0);
+	} while (action.length() > 0);
 }
 #endif
 

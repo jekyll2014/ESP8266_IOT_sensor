@@ -25,12 +25,12 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 // **** SENSORS
 
 #define ADC_ENABLE
-//#define AMS2320_ENABLE
-#define HTU21D_ENABLE
-//#define BME280_ENABLE							0xF6
-//#define BMP180_ENABLE
-#define DS18B20_ENABLE
-//#define AHTx0_ENABLE //not tested yet
+#define AMS2320_ENABLE						0x5C
+#define HTU21D_ENABLE							0x40
+#define BME280_ENABLE							0xF6
+#define BMP180_ENABLE							0x77
+#define DS18B20_ENABLE						0x28
+#define AHTx0_ENABLE							0x38 //not tested yet
 
 //#define DHT_ENABLE								DHT11 //DHT11, DHT21, DHT22
 //#define DHT_PIN										14 //D5
@@ -43,7 +43,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 //#define TM1637_CLK								04 //D2
 //#define TM1637_DIO								14 //D5
 
-//#define SSD1306DISPLAY_ENABLE
+//#define SSD1306DISPLAY_ENABLE			0x3C
 
 //#define GSM_M590_ENABLE						SOFT_UART //HARD_UART //not implemented yet
 //#define GSM_SIM800_ENABLE					SOFT_UART //HARD_UART //not implemented yet

@@ -297,6 +297,7 @@ String parseSensorReport(sensorDataCollection&, String, bool);
 // Command processing
 String processCommand(String&, uint8_t, bool);
 void ProcessAction(String&, uint8_t, bool);
+commandTokens parseCommand(String&, char, char, bool);
 
 // Sensors
 #ifdef TEMPERATURE_SENSOR

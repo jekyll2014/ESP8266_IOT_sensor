@@ -33,6 +33,12 @@
     <ClInclude Include="commands.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="events.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="schedules.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="ESP8266_IOT_sensor.ino" />
