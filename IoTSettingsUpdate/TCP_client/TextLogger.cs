@@ -103,7 +103,7 @@ using System.Windows.Forms;
 
 using Timer = System.Windows.Forms.Timer;
 
-namespace TextLogger
+namespace TextLoggerHelper
 {
     public class TextLogger : IDisposable, INotifyPropertyChanged
     {
@@ -139,7 +139,7 @@ namespace TextLogger
         public bool NoScreenOutput = false;
         public int LineLimit = 0;
         public int CharLimit = 0;
-        public int LineTimeLimit = 0;
+        public int LineTimeLimit = 100;
         public string LogFileName = "";
         public bool AutoSave = false;
         public bool AutoScroll = true;
@@ -150,8 +150,8 @@ namespace TextLogger
         public Dictionary<byte, string> Channels = new Dictionary<byte, string>();
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private readonly Form _mainForm;
-        private readonly TextBox _textBox;
+        private Form _mainForm;
+        private TextBox _textBox;
         private int _selStart, _selLength;
         private volatile bool _textChanged;
         private Timer _refreshTimer;
@@ -265,69 +265,75 @@ namespace TextLogger
         {
             if (text == null || text.Length <= 0) return true;
 
-            var tmpStr = new StringBuilder();
-            var continueString = false;
-            if (channel != _prevChannel)
+            var result = false;
+            LockWithTimeout(_textOutThreadLock, () =>
             {
-                _prevChannel = channel;
-            }
-            else if (LineTimeLimit > 0)
-            {
-                var t = (int)logTime.Subtract(_lastEvent).TotalMilliseconds;
-                if (t <= LineTimeLimit)
-                    continueString = true;
+                var continueString = false;
+                if (channel != _prevChannel)
+                {
+                    _prevChannel = channel;
+                }
+                else if (LineTimeLimit > 0)
+                {
+                    var t = (int)logTime.Subtract(_lastEvent).TotalMilliseconds;
+                    if (t <= LineTimeLimit)
+                        continueString = true;
+                }
 
                 _lastEvent = logTime;
-            }
-
-            if (!continueString)
-            {
-                tmpStr.Append(Environment.NewLine);
-                if (logTime != DateTime.MinValue)
+                var tmpStr = new StringBuilder();
+                if (!continueString)
                 {
-                    if (dateFormat == DateFormat.Default)
-                        dateFormat = DefaultDateFormat;
+                    tmpStr.Append(Environment.NewLine);
+                    if (logTime != DateTime.MinValue)
+                    {
+                        if (dateFormat == DateFormat.Default)
+                            dateFormat = DefaultDateFormat;
 
-                    if (dateFormat == DateFormat.LongDate)
-                        tmpStr.Append(logTime.ToLongDateString() + " ");
-                    else if (dateFormat == DateFormat.ShortDate)
-                        tmpStr.Append(logTime.ToShortDateString() + " ");
+                        if (dateFormat == DateFormat.LongDate)
+                            tmpStr.Append(logTime.ToLongDateString() + " ");
+                        else if (dateFormat == DateFormat.ShortDate)
+                            tmpStr.Append(logTime.ToShortDateString() + " ");
 
-                    if (timeFormat == TimeFormat.Default)
-                        timeFormat = DefaultTimeFormat;
+                        if (timeFormat == TimeFormat.Default)
+                            timeFormat = DefaultTimeFormat;
 
-                    if (timeFormat == TimeFormat.LongTime)
-                        tmpStr.Append(logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
+                        if (timeFormat == TimeFormat.LongTime)
+                            tmpStr.Append(logTime.ToLongTimeString() + "." + logTime.Millisecond.ToString("D3") + " ");
 
-                    else if (timeFormat == TimeFormat.ShortTime)
-                        tmpStr.Append(logTime.ToShortTimeString() + " ");
+                        else if (timeFormat == TimeFormat.ShortTime)
+                            tmpStr.Append(logTime.ToShortTimeString() + " ");
+                    }
+
+                    if (Channels.ContainsKey(channel))
+                    {
+                        if (!string.IsNullOrEmpty(Channels[channel])) tmpStr.Append(Channels[channel] + " ");
+                    }
                 }
 
-                if (Channels.ContainsKey(channel))
+                if (textFormat == TextFormat.Default)
+                    textFormat = DefaultTextFormat;
+
+                if (FilterZeroChar)
+                    text = Accessory.FilterZeroChar(text);
+
+                if (textFormat == TextFormat.PlainText)
                 {
-                    if (!string.IsNullOrEmpty(Channels[channel])) tmpStr.Append(Channels[channel] + " ");
+                    tmpStr.Append(text);
                 }
-            }
+                else if (textFormat == TextFormat.Hex)
+                {
+                    tmpStr.Append(Accessory.ConvertStringToHex(text));
+                }
+                else if (textFormat == TextFormat.AutoReplaceHex)
+                {
+                    tmpStr.Append(ReplaceUnprintable(text));
+                }
 
-            if (textFormat == TextFormat.Default) textFormat = DefaultTextFormat;
+                result = AddTextToBuffer(tmpStr.ToString());
+            }, 5000);
 
-            if (FilterZeroChar)
-                text = Accessory.FilterZeroChar(text);
-
-            if (textFormat == TextFormat.PlainText)
-            {
-                tmpStr.Append(text);
-            }
-            else if (textFormat == TextFormat.Hex)
-            {
-                tmpStr.Append(Accessory.ConvertStringToHex(text));
-            }
-            else if (textFormat == TextFormat.AutoReplaceHex)
-            {
-                tmpStr.Append(ReplaceUnprintable(text));
-            }
-
-            return AddTextToBuffer(tmpStr.ToString());
+            return result;
         }
 
         public override string ToString()
@@ -342,72 +348,90 @@ namespace TextLogger
             OnPropertyChanged();
         }
 
+        private bool _disposed = false;
+
+        ~TextLogger() => Dispose(false);
+
         public void Dispose()
         {
-            RefreshStop();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                RefreshStop();
+            }
+
+            Text = null;
+            _mainForm = null;
+            _textBox = null;
+            _disposed = true;
         }
 
         private bool AddTextToBuffer(string text)
         {
             if (text == null || text.Length <= 0) return false;
-            //lock (_textOutThreadLock)
-            LockWithTimeout(_textOutThreadLock, () =>
+            if (AutoSave && !string.IsNullOrEmpty(LogFileName))
             {
-                if (AutoSave && !string.IsNullOrEmpty(LogFileName))
+                try
                 {
-                    try
+                    File.AppendAllText(LogFileName, text);
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show(e.Message);
+                }
+            }
+
+            if (!NoScreenOutput)
+            {
+                Text += text;
+
+                var textSizeReduced = 0;
+                if (CharLimit > 0 && Text.Length > CharLimit)
+                {
+                    textSizeReduced = Text.Length - CharLimit;
+                }
+
+                if (LineLimit > 0)
+                {
+                    if (GetLinesCount(Text, LineLimit, out var pos))
                     {
-                        File.AppendAllText(LogFileName, text);
-                    }
-                    catch (Exception e)
-                    {
-                        MessageBox.Show(e.Message);
+                        if (pos > textSizeReduced)
+                            textSizeReduced = pos;
                     }
                 }
 
-                if (!NoScreenOutput)
+                if (textSizeReduced > 0)
                 {
-                    Text += text;
-
-                    var textSizeReduced = 0;
-                    if (CharLimit > 0 && Text.Length > CharLimit)
-                    {
-                        textSizeReduced = Text.Length - CharLimit;
-                    }
-
-                    if (LineLimit > 0)
-                    {
-                        if (GetLinesCount(Text, LineLimit, out var pos))
-                        {
-                            if (pos > textSizeReduced)
-                                textSizeReduced = pos;
-                        }
-                    }
-
-                    if (textSizeReduced > 0)
-                    {
-                        Text = Text.Substring(textSizeReduced);
-                    }
-
-                    if (_textBox != null && !AutoScroll)
-                    {
-                        _mainForm?.Invoke((MethodInvoker)delegate
-                       {
-                           _selStart = _textBox.SelectionStart;
-                           _selLength = _textBox.SelectionLength;
-                       });
-                        _selStart -= textSizeReduced;
-                        if (_selStart < 0)
-                        {
-                            _selLength += _selStart;
-                            _selStart = 0;
-                            if (_selLength < 0) _selLength = 0;
-                        }
-                    }
-
-                    OnPropertyChanged();
+                    Text = Text.Substring(textSizeReduced);
                 }
-            }, 5000);
+
+                if (_textBox != null && !AutoScroll)
+                {
+                    _mainForm?.Invoke((MethodInvoker)delegate
+                   {
+                       _selStart = _textBox.SelectionStart;
+                       _selLength = _textBox.SelectionLength;
+                   });
+                    _selStart -= textSizeReduced;
+                    if (_selStart < 0)
+                    {
+                        _selLength += _selStart;
+                        _selStart = 0;
+                        if (_selLength < 0) _selLength = 0;
+                    }
+                }
+
+                OnPropertyChanged();
+            }
 
             return true;
         }

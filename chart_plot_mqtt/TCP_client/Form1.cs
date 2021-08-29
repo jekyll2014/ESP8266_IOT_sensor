@@ -297,9 +297,9 @@ namespace ChartPlotMQTT
 
             var recordTime = DateTime.Now;
 
-            foreach (var s in stringsSet)
+            /*foreach (var s in stringsSet)
                 if (s.Key == "Time" && DateTime.TryParse(s.Value, out recordTime))
-                    break;
+                    break;*/
 
             Invoke((MethodInvoker)delegate { UpdateChart(stringsSet, recordTime, _keepLocalDb); });
         }
@@ -604,6 +604,61 @@ namespace ChartPlotMQTT
                 control, new object[] { 0x400000, false });
         }
 
+        private string MacToString(byte[] mac)
+        {
+            if (mac.Length != 6) return "";
+
+            return string.Format("X2", mac[0])
+                   + string.Format("X2", mac[1])
+                   + string.Format("X2", mac[2])
+                   + string.Format("X2", mac[3])
+                   + string.Format("X2", mac[4])
+                   + string.Format("X2", mac[5]);
+        }
+
+        private byte[] MacFromString(string macStr)
+        {
+            var macTokens = new List<string>();
+            if (macStr.Length == 12)
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    macTokens.Add(macStr.Substring(i * 2, 2));
+                }
+            }
+            else if (macStr.Contains(':'))
+            {
+                macTokens.AddRange(macStr.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+            else if (macStr.Contains('.'))
+            {
+                macTokens.AddRange(macStr.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+            else if (macStr.Contains(' '))
+            {
+                macTokens.AddRange(macStr.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+
+            var mac = new byte[] { 0, 0, 0, 0, 0, 0 };
+            if (macTokens.Count == 6)
+            {
+
+                for (var i = 0; i < macTokens.Count; i++)
+                {
+                    if (macTokens[i].Length > 2
+                        && byte.TryParse(macTokens[i],
+                            NumberStyles.HexNumber,
+                            CultureInfo.InvariantCulture,
+                            out mac[i]))
+                    {
+                        return new byte[6] { 0, 0, 0, 0, 0, 0 };
+                    }
+                }
+            }
+
+            return mac;
+        }
+
         #endregion
 
         #region Chart plot
@@ -658,8 +713,46 @@ namespace ChartPlotMQTT
                     _minAllowedTime = recordTime;
                 }
 
-                currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
+                if (!currentResult.ValueList.Any())
+                    currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
+
                 currentResult.DeviceName = devName;
+                currentResult.Time = recordTime;
+
+                if (trackBar_max.Value == trackBar_max.Maximum)
+                {
+                    _maxShowTime = _maxAllowedTime;
+                    textBox_toTime.Text =
+                        _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
+                }
+            }
+            else if (stringsSet.TryGetValue("DeviceMAC", out var devMac))
+            {
+                stringsSet.Remove("DeviceMAC");
+
+                if (!_initTimeSet)
+                {
+                    _maxAllowedTime = recordTime;
+                    _minAllowedTime = recordTime.AddMilliseconds(-1);
+                    _initTimeSet = true;
+                    textBox_fromTime.Text =
+                        _minAllowedTime.ToShortDateString() + " " + _minAllowedTime.ToLongTimeString();
+                }
+                else if (recordTime > _maxAllowedTime)
+                {
+                    _maxAllowedTime = recordTime;
+                }
+                else if (recordTime < _minAllowedTime)
+                {
+                    _minAllowedTime = recordTime;
+                }
+
+                if (!currentResult.ValueList.Any())
+                {
+                    currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
+                }
+
+                currentResult.DeviceMAC = MacFromString(devMac);
                 currentResult.Time = recordTime;
 
                 if (trackBar_max.Value == trackBar_max.Maximum)

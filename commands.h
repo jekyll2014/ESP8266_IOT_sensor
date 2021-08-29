@@ -67,6 +67,7 @@
 #define CMD_NTP_SERVER									F("ntp_server") //ntp_server
 #define CMD_NTP_TIME_ZONE								F("ntp_time_zone") //ntp_time_zone
 #define CMD_NTP_REFRESH_DELAY						F("ntp_refresh_delay") //ntp_refresh_delay
+#define CMD_NTP_REFRESH_PERIOD					F("ntp_refresh_period") //ntp_refresh_period
 #define CMD_NTP_ENABLE									F("ntp_enable") //ntp_enable
 #define CMD_SET_EVENT										F("set_event") //set_event
 #define CMD_EVENTS_ENABLE								F("events_enable") //events_enable
@@ -136,6 +137,7 @@
 #define REPLY_NTP_SERVER								F("New NTP server = \"") //
 #define REPLY_NTP_TIME_ZONE							F("New NTP time zone = \"") //
 #define REPLY_NTP_REFRESH_DELAY					F("New NTP refresh delay = \"") //
+#define REPLY_NTP_REFRESH_PERIOD				F("New NTP refresh period = \"") //
 #define REPLY_NTP_ENABLE								F("NTP ") //
 #define REPLY_SET_EVENT									F("New event #") //
 #define REPLY_EVENTS_ENABLE							F("Events ") //

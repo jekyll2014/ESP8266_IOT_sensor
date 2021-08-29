@@ -86,7 +86,10 @@
 #define NTP_REFRESH_DELAY_addr	NTP_TIME_ZONE_addr + NTP_TIME_ZONE_size
 #define NTP_REFRESH_DELAY_size	5
 
-#define NTP_ENABLE_addr	NTP_REFRESH_DELAY_addr + NTP_REFRESH_DELAY_size
+#define NTP_REFRESH_PERIOD_addr	NTP_REFRESH_DELAY_addr + NTP_REFRESH_DELAY_size
+#define NTP_REFRESH_PERIOD_size	7
+
+#define NTP_ENABLE_addr	NTP_REFRESH_PERIOD_addr + NTP_REFRESH_PERIOD_size
 #define NTP_ENABLE_size	1
 
 #define TELNET_PORT_addr	NTP_ENABLE_addr + NTP_ENABLE_size
@@ -175,6 +178,9 @@
 
 #define GSM_ENABLE_addr	GSM_USERS_TABLE_addr + GSM_USERS_TABLE_size
 #define GSM_ENABLE_size	1
+
+#define FINAL_CRC_addr	GSM_ENABLE_addr + GSM_ENABLE_size
+#define FINAL_CRC_size	2
 
 #define RADIO_STOP 0
 #define RADIO_CONNECTING 1

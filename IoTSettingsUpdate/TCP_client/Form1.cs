@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using TextLoggerHelper;
 
 using IoTSettingsUpdate.Properties;
 
@@ -62,7 +63,7 @@ namespace IoTSettingsUpdate
             {(byte)DataDirection.Note,"**"}
         };
 
-        private TextLogger.TextLogger _logger;
+        private TextLogger _logger;
 
         private volatile List<string> _inputStrings = new List<string>();
         private volatile bool _waitReply;
@@ -368,7 +369,7 @@ namespace IoTSettingsUpdate
                             (byte)DataDirection.Error, DateTime.Now);
                     }
 
-                ProcessInput(data);
+                ProcessInput(data.ToArray());
             }
             else
             {
@@ -495,18 +496,18 @@ namespace IoTSettingsUpdate
             return dict;
         }
 
-        private void ProcessInput(IReadOnlyCollection<byte> data)
+        private void ProcessInput(byte[] data)
         {
-            if (data == null || data.Count == 0) return;
+            if (data == null || data.Length == 0) return;
+
+            var incomingStr = Encoding.Default.GetString(data.ToArray());
+            _logger.AddText(incomingStr, (byte)DataDirection.Received, DateTime.Now);
 
             var stringsCollection = ConvertBytesToStrings(data, ref _unparsedData);
-            var logText = new StringBuilder();
             foreach (var s in stringsCollection)
             {
                 if (_waitReply) _inputStrings.Add(s);
-                logText.Append(s + Environment.NewLine);
             }
-            _logger.AddText(logText.ToString(), (byte)DataDirection.Received, DateTime.Now);
         }
 
         private bool WaitForReply(string stringStart, int timeout)
@@ -762,14 +763,15 @@ namespace IoTSettingsUpdate
             _stringsDivider.AddRange(Settings.Default.StringsDivider);
 
             SerialPopulate();
-            _logger = new TextLogger.TextLogger(this)
+            _logger = new TextLogger(this)
             {
                 FilterZeroChar = true,
                 AutoSave = true,
                 AutoScroll = checkBox_autoScroll.Checked,
-                DefaultTextFormat = TextLogger.TextLogger.TextFormat.PlainText,
-                DefaultTimeFormat = TextLogger.TextLogger.TimeFormat.LongTime,
-                LogFileName = "loader.log"
+                DefaultTextFormat = TextLogger.TextFormat.PlainText,
+                DefaultTimeFormat = TextLogger.TimeFormat.LongTime,
+                LogFileName = "loader.log",
+                LineTimeLimit = 500
             };
             _logger.Channels = _directions;
 
@@ -816,9 +818,9 @@ namespace IoTSettingsUpdate
         private void CheckBox_hex_CheckedChanged(object sender, EventArgs e)
         {
             if (checkBox_hex.Checked)
-                _logger.DefaultTextFormat = TextLogger.TextLogger.TextFormat.Hex;
+                _logger.DefaultTextFormat = TextLogger.TextFormat.Hex;
             else
-                _logger.DefaultTextFormat = TextLogger.TextLogger.TextFormat.AutoReplaceHex;
+                _logger.DefaultTextFormat = TextLogger.TextFormat.AutoReplaceHex;
         }
 
         private void ComboBox_portname1_DropDown(object sender, EventArgs e)
