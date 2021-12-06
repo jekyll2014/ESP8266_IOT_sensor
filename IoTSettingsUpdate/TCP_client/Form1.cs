@@ -657,7 +657,7 @@ namespace IoTSettingsUpdate
             return str.ToString();
         }
 
-        private async Task<Dictionary<IPAddress, string>> PingAddress(byte[] addressBytes, int num, int netPort, int pingTimeout = 1000, int dataTimeOut = 10000)
+        private async Task<Dictionary<IPAddress, string>> PingAddress(byte[] addressBytes, int num, int netPort, int pingTimeout = 3000, int dataTimeOut = 20000)
         {
             var ping = new Ping();
             addressBytes[3] = (byte)num;
@@ -673,7 +673,7 @@ namespace IoTSettingsUpdate
             {
                 try
                 {
-                    await tmpSocket.ConnectAsync(destIp, netPort).ConfigureAwait(true);
+                    tmpSocket.Connect(destIp, netPort);
                     tmpSocket.ReceiveTimeout = pingTimeout;
                     tmpSocket.SendTimeout = pingTimeout;
                     tmpSocket.Client.ReceiveTimeout = pingTimeout;
@@ -688,7 +688,7 @@ namespace IoTSettingsUpdate
                             var outData = Encoding.ASCII.GetBytes("get_status\r\n");
                             try
                             {
-                                await tmpStream.WriteAsync(outData, 0, outData.Length).ConfigureAwait(true);
+                                tmpStream.Write(outData, 0, outData.Length);
                             }
                             catch (Exception ex)
                             {
@@ -710,7 +710,7 @@ namespace IoTSettingsUpdate
                                 try
                                 {
                                     var inStream = new byte[tmpSocket.Available];
-                                    await tmpStream.ReadAsync(inStream, 0, inStream.Length).ConfigureAwait(true);
+                                    tmpStream.Read(inStream, 0, inStream.Length);
                                     data.AddRange(inStream);
                                     break;
                                 }
