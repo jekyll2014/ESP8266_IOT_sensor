@@ -28,6 +28,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using LiteDB;
+using static ChartPlotMQTT.LiteDbLocal;
 
 namespace ChartPlotMQTT
 {
@@ -391,8 +392,76 @@ namespace ChartPlotMQTT
                 }
 
                 if (restoredRange != null)
-                    foreach (var record in restoredRange)
-                        UpdateChart(record, false);
+                {
+                    var screenWidth = System.Windows.Forms.SystemInformation.PrimaryMonitorSize.Width;
+                    var ratio = restoredRange.Count / screenWidth;
+                    if (ratio < 1) ratio = 1;
+                    var counter = 0;
+                    var valueIndex = -1;
+                    SensorDataRec accumulatedRecord = new SensorDataRec()
+                    {
+                        ValueList = new List<ValueItemRec>()
+                    };
+                    var recordTimes = new DateTime[ratio];
+                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName))
+                    {
+                        foreach (var record in recordsGroup.OrderBy(n => n.Time))
+                        {
+                            if (counter >= ratio)
+                            {
+                                counter = 0;
+                                if (accumulatedRecord != null)
+                                {
+                                    if (ratio == 1) accumulatedRecord.Time = recordTimes[0];
+                                    else accumulatedRecord.Time = recordTimes.Min().AddSeconds(recordTimes.Max().Subtract(recordTimes.Min()).TotalSeconds / 2);
+
+                                    UpdateChart(accumulatedRecord, false);
+                                }
+
+                                accumulatedRecord = new SensorDataRec
+                                {
+                                    DeviceMAC = record.DeviceMAC,
+                                    DeviceName = record.DeviceName,
+                                    ValueList = new List<ValueItemRec>()
+                                };
+                            }
+
+                            if (ratio == 1)
+                            {
+                                recordTimes[0] = record.Time;
+                                accumulatedRecord.ValueList = record.ValueList;
+                            }
+                            else
+                            {
+                                recordTimes[counter] = record.Time;
+
+                                foreach (var sensor in record.ValueList)
+                                {
+                                    valueIndex = -1;
+                                    for (int i = 0; i < accumulatedRecord.ValueList.Count; i++)
+                                        if (accumulatedRecord.ValueList[i].ValueType == sensor.ValueType)
+                                        {
+                                            valueIndex = i;
+                                            break;
+                                        }
+                                    if (valueIndex == -1)
+                                    {
+                                        accumulatedRecord.ValueList.Add(sensor);
+                                    }
+                                    else
+                                    {
+                                        accumulatedRecord.ValueList[valueIndex].Value += sensor.Value;
+                                        accumulatedRecord.ValueList[valueIndex].Value /= 2;
+                                    }
+                                }
+                            }
+
+                            counter++;
+                        }
+                    }
+
+                    if (accumulatedRecord.ValueList != null && accumulatedRecord.ValueList.Count > 0) UpdateChart(accumulatedRecord, false);
+                }
             }
 
             return true;
@@ -713,7 +782,7 @@ namespace ChartPlotMQTT
                     _minAllowedTime = recordTime;
                 }
 
-                if (!currentResult.ValueList.Any())
+                if (currentResult.ValueList == null)
                     currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
 
                 currentResult.DeviceName = devName;
