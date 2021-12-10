@@ -403,7 +403,7 @@ namespace ChartPlotMQTT
                         ValueList = new List<ValueItemRec>()
                     };
                     var recordTimes = new DateTime[ratio];
-                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName))
+                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName + n.DeviceMAC))
                     {
                         foreach (var record in recordsGroup.OrderBy(n => n.Time))
                         {
@@ -414,6 +414,12 @@ namespace ChartPlotMQTT
                                 {
                                     if (ratio == 1) accumulatedRecord.Time = recordTimes[0];
                                     else accumulatedRecord.Time = recordTimes.Min().AddSeconds(recordTimes.Max().Subtract(recordTimes.Min()).TotalSeconds / 2);
+
+                                    if (accumulatedRecord.DeviceName == null && accumulatedRecord.DeviceMAC == null)
+                                    {
+                                        accumulatedRecord.DeviceMAC = record.DeviceMAC;
+                                        accumulatedRecord.DeviceName = record.DeviceName;
+                                    }
 
                                     UpdateChart(accumulatedRecord, false);
                                 }
@@ -460,7 +466,8 @@ namespace ChartPlotMQTT
                         }
                     }
 
-                    if (accumulatedRecord.ValueList != null && accumulatedRecord.ValueList.Count > 0) UpdateChart(accumulatedRecord, false);
+                    if (accumulatedRecord.ValueList != null && accumulatedRecord.ValueList.Count > 0)
+                        UpdateChart(accumulatedRecord, false);
                 }
             }
 
@@ -913,7 +920,8 @@ namespace ChartPlotMQTT
                     var fullValueType = "[" + newData.DeviceName + "]" + valType;
                     //add new plot if not yet in collection
                     var val = item.Value;
-                    if (!_plotList.Contains(valType)) AddNewPlot(fullValueType, val);
+                    if (!_plotList.Contains(valType))
+                        AddNewPlot(fullValueType, val);
 
                     var newTime = newData.Time;
                     if (newTime >= _minShowTime && newTime <= _maxShowTime)
