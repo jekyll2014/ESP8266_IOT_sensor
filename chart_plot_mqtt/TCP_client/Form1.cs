@@ -393,27 +393,32 @@ namespace ChartPlotMQTT
 
                 if (restoredRange != null)
                 {
-                    var screenWidth = System.Windows.Forms.SystemInformation.PrimaryMonitorSize.Width;
+                    var screenWidth = SystemInformation.PrimaryMonitorSize.Width;
                     var ratio = restoredRange.Count / screenWidth;
                     if (ratio < 1) ratio = 1;
                     var counter = 0;
-                    var valueIndex = -1;
-                    SensorDataRec accumulatedRecord = new SensorDataRec()
+                    var accumulatedRecord = new SensorDataRec
                     {
                         ValueList = new List<ValueItemRec>()
                     };
                     var recordTimes = new DateTime[ratio];
-                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName))
+                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName + n.DeviceMAC))
                     {
                         foreach (var record in recordsGroup.OrderBy(n => n.Time))
                         {
                             if (counter >= ratio)
                             {
                                 counter = 0;
-                                if (accumulatedRecord != null)
+                                if (accumulatedRecord.ValueList.Count > 0)
                                 {
                                     if (ratio == 1) accumulatedRecord.Time = recordTimes[0];
                                     else accumulatedRecord.Time = recordTimes.Min().AddSeconds(recordTimes.Max().Subtract(recordTimes.Min()).TotalSeconds / 2);
+
+                                    if (accumulatedRecord.DeviceName == null && accumulatedRecord.DeviceMAC == null)
+                                    {
+                                        accumulatedRecord.DeviceMAC = record.DeviceMAC;
+                                        accumulatedRecord.DeviceName = record.DeviceName;
+                                    }
 
                                     UpdateChart(accumulatedRecord, false);
                                 }
@@ -437,8 +442,8 @@ namespace ChartPlotMQTT
 
                                 foreach (var sensor in record.ValueList)
                                 {
-                                    valueIndex = -1;
-                                    for (int i = 0; i < accumulatedRecord.ValueList.Count; i++)
+                                    var valueIndex = -1;
+                                    for (var i = 0; i < accumulatedRecord.ValueList.Count; i++)
                                         if (accumulatedRecord.ValueList[i].ValueType == sensor.ValueType)
                                         {
                                             valueIndex = i;
@@ -458,9 +463,17 @@ namespace ChartPlotMQTT
 
                             counter++;
                         }
+
+                        if (accumulatedRecord.ValueList.Count > 0)
+                        {
+                            UpdateChart(accumulatedRecord, false);
+                            accumulatedRecord = new SensorDataRec
+                            {
+                                ValueList = new List<ValueItemRec>()
+                            };
+                        }
                     }
 
-                    if (accumulatedRecord.ValueList != null && accumulatedRecord.ValueList.Count > 0) UpdateChart(accumulatedRecord, false);
                 }
             }
 
@@ -850,7 +863,8 @@ namespace ChartPlotMQTT
 
                 var fullValueType = "[" + currentResult.DeviceName + "]" + item.Key;
                 //add new plot if not yet in collection
-                if (!_plotList.Contains(fullValueType)) AddNewPlot(fullValueType, value);
+                if (!_plotList.Contains(fullValueType))
+                    AddNewPlot(fullValueType, value);
 
                 if (currentResult.Time >= _minShowTime && currentResult.Time <= _maxShowTime)
                     AddNewPoint(fullValueType, currentResult.Time, value);
@@ -913,7 +927,8 @@ namespace ChartPlotMQTT
                     var fullValueType = "[" + newData.DeviceName + "]" + valType;
                     //add new plot if not yet in collection
                     var val = item.Value;
-                    if (!_plotList.Contains(valType)) AddNewPlot(fullValueType, val);
+                    if (!_plotList.Contains(fullValueType))
+                        AddNewPlot(fullValueType, val);
 
                     var newTime = newData.Time;
                     if (newTime >= _minShowTime && newTime <= _maxShowTime)
