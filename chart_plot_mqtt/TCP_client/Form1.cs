@@ -28,6 +28,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using LiteDB;
+using MQTTnet.Diagnostics.Logger;
 using static ChartPlotMQTT.LiteDbLocal;
 
 namespace ChartPlotMQTT
@@ -48,7 +49,11 @@ namespace ChartPlotMQTT
         private bool _keepLocalDb;
         private const int ReconnectTimeOut = 10000;
 
-        private static readonly IMqttNetLogger Logger = new MqttNetLogger();
+        //private static readonly IMqttNetLogger Logger = new MqttNetEventLogger();
+        private static readonly IMqttNetLogger Logger = new MqttNetNullLogger();
+        //private static readonly IMqttNetLogger Logger2 = new MqttNetLogMessage();
+        //private static readonly IMqttNetLogger Logger3 = new MqttNetLogMessagePublishedEventArgs();
+        //private static readonly IMqttNetLogger Logger4 = new MqttNetSourceLogger();
         private readonly IMqttClient _mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
 
         private const string DefaultFormCaption = "ChartPlotMQTT";
