@@ -4067,7 +4067,7 @@ String parseSensorReport(sensorDataCollection &data, String delimiter, bool toJs
 	str.reserve(512);
 	if (toJson)
 		str = F("{\"");
-	str += F("DeviceName");
+	str += F("Device name");
 	str += eq;
 	str += deviceName;
 	str += delimiter;

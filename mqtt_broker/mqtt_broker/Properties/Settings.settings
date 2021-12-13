@@ -15,7 +15,7 @@
       <Value Profile="(Default)">PlotterServer</Value>
     </Setting>
     <Setting Name="DbFileName" Type="System.String" Scope="User">
-      <Value Profile="(Default)">localDb.db</Value>
+      <Value Profile="(Default)">localDb1.db</Value>
     </Setting>
     <Setting Name="RESTHost" Type="System.String" Scope="User">
       <Value Profile="(Default)">http://localhost</Value>
@@ -24,7 +24,7 @@
       <Value Profile="(Default)">8080</Value>
     </Setting>
     <Setting Name="VerboseLog" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
+      <Value Profile="(Default)">True</Value>
     </Setting>
   </Settings>
 </SettingsFile>

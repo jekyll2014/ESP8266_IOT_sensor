@@ -26,7 +26,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 
 // **** SENSORS
 
-#define ADC_ENABLE
+//#define ADC_ENABLE
 
 #define AMS2320_ENABLE						0x5C
 #define HTU21D_ENABLE							0x40
@@ -34,7 +34,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 #define BMP180_ENABLE							0x77
 #define AHTx0_ENABLE							0x38
 
-//#define DS18B20_ENABLE						0x28
+#define DS18B20_ENABLE						0x28
 
 //#define DHT_ENABLE								DHT11 //DHT11, DHT21, DHT22
 //#define DHT_PIN										14 //D5
@@ -49,14 +49,14 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 
 //#define SSD1306DISPLAY_ENABLE			0x3C
 
-//#define GSM_M590_ENABLE						SOFT_UART //HARD_UART //not implemented yet
+#define GSM_M590_ENABLE						SOFT_UART //HARD_UART //not implemented yet
 //#define GSM_SIM800_ENABLE					SOFT_UART //HARD_UART //not implemented yet
 
 // **** PIN-OUT
 
 //old Esp 1-3
-#define PIN_WIRE_SCL							05 //D1 old
-#define PIN_WIRE_SDA							04 //D2 old
+//#define PIN_WIRE_SCL							05 //D1 old
+//#define PIN_WIRE_SDA							04 //D2 old
 //00 - D3 - IR movement sensor
 
 //Esp+4digit display
@@ -71,12 +71,12 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 //#define SOFT_UART_TX							14 //D5 old
 //#define SOFT_UART_RX							12 //D6 old
 
-//Esp+GSM
-//#define PIN_WIRE_SCL							05 //D1 new
-//#define PIN_WIRE_SDA							02 //D4 new
-//#define ONEWIRE_DATA							00 //D3
-//#define SOFT_UART_TX							12 //D6 new
-//#define SOFT_UART_RX							13 //D7 new
+//Esp+GSM M590
+#define PIN_WIRE_SCL							05 //D1 new
+#define PIN_WIRE_SDA							02 //D4 new
+#define ONEWIRE_DATA							00 //D3
+#define SOFT_UART_TX							12 //D6 new
+#define SOFT_UART_RX							13 //D7 new
 
 //Esp+GSM SIM800L
 //#define PIN_WIRE_SCL							14 //D5 new

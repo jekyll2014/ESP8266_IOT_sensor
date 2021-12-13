@@ -16,19 +16,21 @@ using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.SelfHost;
 using System.Web.Script.Serialization;
-
-using static System.String;
+using DbRecords;
+using LiteDb;
+using SQLiteDb;
 
 namespace MqttBroker
 {
     internal class Program
     {
         private static bool _verboseLog;
-        private static bool _dbNotStarted;
-        public static LiteDbLocal RecordsDb;
+        private static bool _dbStarted;
+        public static ILocalDb RecordsDb;
         private static readonly string User = Settings.Default.User;
         private static readonly string Pass = Settings.Default.Password;
-        private const string DeviceName = "DeviceName";
+        private const string DeviceName = "Device name";
+        private const string DeviceMAC = "Device MAC";
 
         private static async Task Main()
         {
@@ -40,13 +42,23 @@ namespace MqttBroker
 
             try
             {
-                RecordsDb = new LiteDbLocal(Settings.Default.DbFileName, Settings.Default.ClientID);
-                LogToScreen("DataBase name: " + Settings.Default.DbFileName);
+                if (false)
+                {
+                    RecordsDb = new LiteDbLocal(Settings.Default.DbFileName, Settings.Default.ClientID);
+                    LogToScreen("DataBase name: " + Settings.Default.DbFileName);
+                    LogToScreen("Collection name: " + Settings.Default.ClientID);
+                }
+                else
+                {
+                    RecordsDb = new SqLiteDbLocalContext(Settings.Default.DbFileName, Settings.Default.ClientID);
+                    LogToScreen("DataBase name: " + Settings.Default.DbFileName);
+                }
+                _dbStarted = true;
             }
             catch (Exception e)
             {
                 LogToScreen("MQTT server database connection error: " + e);
-                _dbNotStarted = true;
+                _dbStarted = false;
             }
 
             // Setup MQTT server settings
@@ -142,7 +154,7 @@ namespace MqttBroker
                 return;
             }
 
-            if (!IsNullOrEmpty(User) && c.Username != User || !IsNullOrEmpty(Pass) && c.Password != Pass)
+            if (!string.IsNullOrEmpty(User) && c.Username != User || !string.IsNullOrEmpty(Pass) && c.Password != Pass)
             {
                 LogToScreen("MQTT: Client " + c.ClientId + " username or password not valid");
                 c.ReasonCode = MqttConnectReasonCode.BadUserNameOrPassword;
@@ -180,7 +192,7 @@ namespace MqttBroker
 
         private static void Mqtt_DataReceived(byte[] payload, string topic)
         {
-            if (!_verboseLog && _dbNotStarted) return;
+            if (!_verboseLog && !_dbStarted) return;
 
             // parse strings to key/value set
             var tmpStr = Encoding.UTF8.GetString(payload);
@@ -199,40 +211,45 @@ namespace MqttBroker
             }
 
             // save to DB if exists
-            if (_dbNotStarted) return;
-
-            var currentResult = new LiteDbLocal.SensorDataRec();
-            if (stringsSet.TryGetValue(DeviceName, out var devName))
+            if (_dbStarted)
             {
-                stringsSet.Remove(DeviceName);
 
-                currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
-                currentResult.DeviceName = devName;
-                currentResult.Time = DateTime.Now;
+                var nameFound = stringsSet.TryGetValue(DeviceName, out var devName);
+                var macFound = stringsSet.TryGetValue(DeviceMAC, out var devMac);
+
+                var currentResult = new DeviceRecord();
+                if (nameFound || macFound)
+                {
+                    stringsSet.Remove(DeviceName);
+
+                    currentResult.SensorValueList = new List<SensorRecord>();
+                    if (nameFound) currentResult.DeviceName = devName ?? "";
+                    if (macFound) currentResult.DeviceMAC = MacFromString(devMac);
+                    currentResult.Time = DateTime.Now;
+                }
+                else
+                {
+                    if (_verboseLog) LogToScreen("Message parse error: No device name found");
+                    return;
+                }
+
+                var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+                foreach (var item in stringsSet)
+                {
+                    var newValue = new SensorRecord();
+                    var v = "";
+                    v = floatSeparator == "," ? item.Value.Replace(".", floatSeparator) : v.Replace(",", floatSeparator);
+
+                    if (!float.TryParse(v, out var value)) continue;
+
+                    //add result to log
+                    newValue.Value = value;
+                    newValue.SensorName = item.Key;
+                    currentResult.SensorValueList.Add(newValue);
+                }
+
+                RecordsDb.AddRecord(currentResult);
             }
-            else
-            {
-                if (_verboseLog) LogToScreen("Message parse error: No device name found");
-                return;
-            }
-
-            var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-            foreach (var item in stringsSet)
-            {
-                var newValue = new LiteDbLocal.ValueItemRec();
-
-                var v = "";
-                v = floatSeparator == "," ? item.Value.Replace(".", floatSeparator) : v.Replace(",", floatSeparator);
-
-                if (!float.TryParse(v, out var value)) continue;
-
-                //add result to log
-                newValue.Value = value;
-                newValue.ValueType = item.Key;
-                currentResult.ValueList.Add(newValue);
-            }
-
-            RecordsDb.AddRecord(currentResult);
 
             // save to log if needed
             if (_verboseLog)
@@ -272,8 +289,8 @@ namespace MqttBroker
             {
                 LogToScreen("REST connect request: " + userName);
 
-                if (!IsNullOrEmpty(User) && userName != User
-                    || !IsNullOrEmpty(Pass) && password != Pass)
+                if (!string.IsNullOrEmpty(User) && userName != User
+                    || !string.IsNullOrEmpty(Pass) && password != Pass)
                 {
                     LogToScreen("REST Result: username or password not valid");
                     throw new SecurityTokenException("Unknown Username or Password");
@@ -281,7 +298,7 @@ namespace MqttBroker
             }
         }
 
-        private static void LogToScreen(string message)
+        public static void LogToScreen(string message)
         {
             try
             {
@@ -291,6 +308,61 @@ namespace MqttBroker
             {
                 // TODO: Handle the System.IO.IOException
             }
+        }
+
+        public static byte[] MacFromString(string macStr)
+        {
+            var macTokens = new List<string>();
+            if (macStr.Length == 12)
+            {
+                for (var i = 0; i < 6; i++)
+                {
+                    macTokens.Add(macStr.Substring(i * 2, 2));
+                }
+            }
+            else if (macStr.Contains(":"))
+            {
+                macTokens.AddRange(macStr.Split(new[] { ':' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+            else if (macStr.Contains("."))
+            {
+                macTokens.AddRange(macStr.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+            else if (macStr.Contains(" "))
+            {
+                macTokens.AddRange(macStr.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+
+            var mac = new byte[] { 0, 0, 0, 0, 0, 0 };
+            if (macTokens.Count == 6)
+            {
+
+                for (var i = 0; i < macTokens.Count; i++)
+                {
+                    if (macTokens[i].Length > 2
+                        && byte.TryParse(macTokens[i],
+                            NumberStyles.HexNumber,
+                            CultureInfo.InvariantCulture,
+                            out mac[i]))
+                    {
+                        return new byte[6] { 0, 0, 0, 0, 0, 0 };
+                    }
+                }
+            }
+
+            return mac;
+        }
+
+        public static string MacToString(byte[] mac)
+        {
+            if (mac.Length != 6) return "";
+
+            return string.Format("X2", mac[0])
+                   + string.Format("X2", mac[1])
+                   + string.Format("X2", mac[2])
+                   + string.Format("X2", mac[3])
+                   + string.Format("X2", mac[4])
+                   + string.Format("X2", mac[5]);
         }
     }
 }

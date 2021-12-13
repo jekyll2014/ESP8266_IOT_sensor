@@ -1,82 +1,81 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
+using System.Threading.Tasks;
+using DbRecords;
 
 using LiteDB;
 
-namespace MqttBroker
+namespace LiteDb
 {
-    public class LiteDbLocal : IDisposable
+    public class LiteDbLocal : ILocalDb
     {
         private readonly LiteDatabase _db;
-        private readonly ILiteCollection<SensorDataRec> _sensors;
-
-        [DataContract]
-        public class ValueItemRec
-        {
-            [DataMember] public string ValueType { get; set; }
-            [DataMember] public float Value { get; set; }
-        }
-
-        [DataContract]
-        public class SensorDataRec
-        {
-            [DataMember] public int Id { get; set; }
-            [DataMember] public string DeviceName { get; set; }
-            [DataMember] public DateTime Time { get; set; }
-            [DataMember] public List<ValueItemRec> ValueList { get; set; }
-        }
+        private readonly ILiteCollection<DeviceRecord> _sensors;
 
         public LiteDbLocal(string dbFileName, string collectionName)
         {
             _db = new LiteDatabase(dbFileName);
-            _sensors = _db.GetCollection<SensorDataRec>(collectionName);
+            _sensors = _db.GetCollection<DeviceRecord>(collectionName);
             _sensors.EnsureIndex(x => x.Time);
         }
 
         private bool Disposed { get; set; }
 
-        public int AddRecord(SensorDataRec record)
+        public long AddRecord(DeviceRecord record)
         {
             if (record == null) return -1;
 
             return _sensors.Insert(record);
         }
 
-        public void RemoveRecord(int id)
+        public bool RemoveRecord(long id)
         {
-            _sensors.Delete(id);
+            return _sensors.Delete(id);
         }
 
-        public bool UpdateRecord(SensorDataRec record)
+        public bool UpdateRecord(DeviceRecord record)
         {
             if (record == null) return false;
 
             return _sensors.Update(record);
         }
 
-        public List<int> GetIdList(string deviceName)
+        public byte[] GetDeviceMacByDeviceName(string deviceName)
+        {
+            var deviceMac = _sensors.FindOne(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).DeviceMAC;
+
+            return deviceMac;
+        }
+
+        public IEnumerable<string> GetDeviceNamesByDeviceMac(byte[] deviceMac)
+        {
+            var deviceNames = _sensors.Find(x => x.DeviceMAC == deviceMac).Select(x => x.DeviceName);
+
+            return deviceNames;
+        }
+
+        public List<long> GetIdList(string deviceName)
         {
             var results = _sensors.Find(x => deviceName.Equals(x.DeviceName, StringComparison.Ordinal));
             return results.Select(n => n.Id).ToList();
         }
 
-        public SensorDataRec GetRecordById(int id)
+        public DeviceRecord GetRecordById(long id)
         {
             var record = _sensors.FindById(id);
 
             return record;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsByDevice(string deviceName)
+        public IEnumerable<DeviceRecord> GetRecordsByDevice(string deviceName)
         {
             var records = _sensors.Find(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal));
 
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
+        public IEnumerable<DeviceRecord> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
         {
             var records = _sensors.Find(
                 x => deviceNameList.Contains(x.DeviceName)
@@ -86,7 +85,7 @@ namespace MqttBroker
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
+        public IEnumerable<DeviceRecord> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
         {
             var records = _sensors.Find(
                 x => x.DeviceName == deviceName
@@ -96,7 +95,7 @@ namespace MqttBroker
             return records;
         }
 
-        public IEnumerable<SensorDataRec> GetRecordsRange(DateTime startTime, DateTime endTime)
+        public IEnumerable<DeviceRecord> GetRecordsRange(DateTime startTime, DateTime endTime)
         {
             var records = _sensors.Find(
                 x => x.Time > startTime

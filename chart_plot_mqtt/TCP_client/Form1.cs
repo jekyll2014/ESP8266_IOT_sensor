@@ -35,6 +35,9 @@ namespace ChartPlotMQTT
 {
     public partial class Form1 : Form
     {
+        private const string DeviceName = "Device name";
+        private const string DeviceMac = "Device MAC";
+
         private string _ipAddress = string.Empty;
         private int _ipPortMqtt = 1883;
         private int _ipPortRest = 8080;
@@ -779,9 +782,9 @@ namespace ChartPlotMQTT
         private void UpdateChart(IDictionary<string, string> stringsSet, DateTime recordTime, bool saveToDb)
         {
             var currentResult = new LiteDbLocal.SensorDataRec();
-            if (stringsSet.TryGetValue("DeviceName", out var devName))
+            if (stringsSet.TryGetValue(DeviceName, out var devName))
             {
-                stringsSet.Remove("DeviceName");
+                stringsSet.Remove(DeviceName);
 
                 if (!_initTimeSet)
                 {
@@ -813,9 +816,9 @@ namespace ChartPlotMQTT
                         _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
                 }
             }
-            else if (stringsSet.TryGetValue("DeviceMAC", out var devMac))
+            else if (stringsSet.TryGetValue(DeviceMac, out var devMac))
             {
-                stringsSet.Remove("DeviceMAC");
+                stringsSet.Remove(DeviceMac);
 
                 if (!_initTimeSet)
                 {
