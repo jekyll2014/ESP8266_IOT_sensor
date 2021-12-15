@@ -5,7 +5,6 @@ using MQTTnet.Client;
 using MQTTnet.Client.Disconnecting;
 using MQTTnet.Client.Options;
 using MQTTnet.Client.Receiving;
-using MQTTnet.Diagnostics;
 using MQTTnet.Implementations;
 
 using System;
@@ -35,8 +34,9 @@ namespace ChartPlotMQTT
 {
     public partial class Form1 : Form
     {
-        private const string DeviceName = "Device name";
-        private const string DeviceMac = "Device MAC";
+        private const string DeviceName = "DeviceName";
+        private const string DeviceMac = "DeviceMAC";
+        private const string FwVersion = "FW Version";
 
         private string _ipAddress = string.Empty;
         private int _ipPortMqtt = 1883;
@@ -52,11 +52,7 @@ namespace ChartPlotMQTT
         private bool _keepLocalDb;
         private const int ReconnectTimeOut = 10000;
 
-        //private static readonly IMqttNetLogger Logger = new MqttNetEventLogger();
         private static readonly IMqttNetLogger Logger = new MqttNetNullLogger();
-        //private static readonly IMqttNetLogger Logger2 = new MqttNetLogMessage();
-        //private static readonly IMqttNetLogger Logger3 = new MqttNetLogMessagePublishedEventArgs();
-        //private static readonly IMqttNetLogger Logger4 = new MqttNetSourceLogger();
         private readonly IMqttClient _mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
 
         private const string DefaultFormCaption = "ChartPlotMQTT";
@@ -301,6 +297,7 @@ namespace ChartPlotMQTT
             else
                 foreach (var s in stringsSet)
                     tmpStr += "[" + e.ApplicationMessage.Topic + "] " + s.Key + "=" + s.Value + Environment.NewLine;
+
             _logger.AddText(tmpStr, (byte)DataDirection.Received, DateTime.Now,
                 TextLogger.TextLogger.TextFormat.AutoReplaceHex);
 
@@ -498,7 +495,7 @@ namespace ChartPlotMQTT
 
         #region Helpers
 
-        private bool ExportJsonFile(IEnumerable<LiteDbLocal.SensorDataRec> data, string fileName, string item = null)
+        private bool ExportJsonFile(IEnumerable<SensorDataRec> data, string fileName, string item = null)
         {
             var filteredData = new List<LiteDbLocal.SensorDataRec>();
             if (!string.IsNullOrEmpty(item))
@@ -535,7 +532,7 @@ namespace ChartPlotMQTT
             return true;
         }
 
-        private List<LiteDbLocal.SensorDataRec> ImportJsonFile(string fileName)
+        private List<SensorDataRec> ImportJsonFile(string fileName)
         {
             List<LiteDbLocal.SensorDataRec> newValues;
             var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>));
@@ -557,7 +554,7 @@ namespace ChartPlotMQTT
             return newValues;
         }
 
-        private List<LiteDbLocal.SensorDataRec> ImportJsonString(string data)
+        private List<SensorDataRec> ImportJsonString(string data)
         {
             List<LiteDbLocal.SensorDataRec> newValues;
             var settings = new DataContractJsonSerializerSettings
@@ -857,6 +854,12 @@ namespace ChartPlotMQTT
                 return;
             }
 
+            if (stringsSet.TryGetValue(FwVersion, out var fwVer))
+            {
+                stringsSet.Remove(FwVersion);
+                currentResult.FwVersion = fwVer;
+            }
+
             foreach (var item in stringsSet)
             {
                 var newValue = new LiteDbLocal.ValueItemRec();
@@ -1011,10 +1014,13 @@ namespace ChartPlotMQTT
         {
             var itemNum = _plotList.ItemNumber(item);
 
-            chart1.Series.RemoveAt(itemNum);
-            _plotList.Remove(itemNum);
-            checkedListBox_params.Items.RemoveAt(itemNum);
-            ReCalculateCheckBoxSize();
+            if (itemNum >= 0)
+            {
+                chart1.Series.RemoveAt(itemNum);
+                _plotList.Remove(itemNum);
+                checkedListBox_params.Items.RemoveAt(itemNum);
+                ReCalculateCheckBoxSize();
+            }
         }
 
         private void AddNewPoint(string valueType, DateTime yValue, float xValue)

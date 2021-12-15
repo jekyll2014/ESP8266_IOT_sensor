@@ -25,6 +25,7 @@ namespace ChartPlotMQTT
             [DataMember] public int Id { get; set; }
             [DataMember] public byte[] DeviceMAC { get; set; }
             [DataMember] public string DeviceName { get; set; }
+            [DataMember] public string FwVersion { get; set; }
             [DataMember] public DateTime Time { get; set; }
             [DataMember] public List<ValueItemRec> ValueList { get; set; }
         }
