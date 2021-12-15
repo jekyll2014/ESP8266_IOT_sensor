@@ -53,10 +53,10 @@
 #include <EEPROM.h>
 #include "configuration.h"
 #include "datastructures.h"
-#include "commands.h"
-#include "actions.h"
-#include "events.h"
-#include "schedules.h"
+#include "command_strings.h"
+#include "action_strings.h"
+#include "event_strings.h"
+#include "schedule_strings.h"
 #include "ESP8266_IOT_sensor.h"
 #include <TimeLib.h>
 
@@ -539,7 +539,7 @@ void processEvent(uint8_t eventNum)
 
 	String event = getEvent(eventNum);
 	commandTokens cmd = parseCommand(event, ':', 1, false);
-	event = "";
+	event.clear();
 	cmd.command.toLowerCase();
 
 	// input?=0/1/c;
@@ -989,7 +989,7 @@ bool mqtt_connect()
 
 		if (mqtt_ip_server.fromString(mqtt_server))
 		{
-			mqtt_server = "";
+			mqtt_server.clear();
 			mqtt_client.setServer(mqtt_ip_server, mqtt_port);
 		}
 		else
@@ -1001,7 +1001,9 @@ bool mqtt_connect()
 
 		if (mqtt_device_id.length() <= 0)
 		{
-			mqtt_device_id = deviceName + F("_") + WiFi.macAddress();
+			mqtt_device_id = deviceName;
+			mqtt_device_id += F("_");
+			mqtt_device_id += WiFi.macAddress();
 		}
 
 		if (mqtt_User.length() > 0)
@@ -1155,7 +1157,7 @@ void removeMessageFromTelegramOutboundBuffer()
 			telegramOutboundBuffer[i] = telegramOutboundBuffer[i + 1];
 		else
 		{
-			telegramOutboundBuffer[i].message = "";
+			telegramOutboundBuffer[i].message.clear();
 			telegramOutboundBuffer[i].user = 0;
 		}
 		yield();
@@ -1176,7 +1178,7 @@ void sendToTelegram(int64_t user, String& message, uint8_t retries)
 		else
 		{
 			addMessageToTelegramOutboundBuffer(user, message, retries);
-			message = "";
+			message.clear();
 		}
 		yield();
 	}
@@ -1215,7 +1217,9 @@ void sendBufferToTelegram()
 				//sendToTelegram(msg.sender.id, deviceName + ": " + msg.text, telegramRetries);
 				String tmpCmd = msg.text;
 				String str = processCommand(tmpCmd, CHANNEL_TELEGRAM, isAdmin);
-				String message = deviceName + ": " + str;
+				String message = deviceName;
+				message += F(": ");
+				message += str;
 				sendToTelegram(msg.sender.id, message, TELEGRAM_RETRIES);
 			}
 		}
@@ -1279,7 +1283,8 @@ String sendATCommand(String cmd, bool waiting)
 	String _resp = "";
 	uart2.println(cmd);
 #ifdef DEBUG_MODE
-	Serial.println(">>" + cmd);
+	Serial.print(F(">>"));
+	Serial.println(cmd);
 #endif
 	if (waiting)
 	{
@@ -1358,7 +1363,7 @@ bool sendSMS(String& phone, String& smsText)
 		cmdTmp += phone;
 		cmdTmp += F("\"");
 		sendATCommand(cmdTmp, true);
-		cmdTmp = "";
+		cmdTmp.clear();
 		if (smsText.length() > 150)
 		{
 			cmdTmp += smsText.substring(0, 150);
@@ -1367,11 +1372,15 @@ bool sendSMS(String& phone, String& smsText)
 		else
 		{
 			cmdTmp += smsText;
-			smsText = "";
+			smsText.clear();
 		}
 
 #ifdef DEBUG_MODE
-		Serial.println("Sending SMS to " + phone + ":\'" + cmdTmp + "\'");
+		Serial.print(F("Sending SMS to "));
+		Serial.print(phone);
+		Serial.print(F(":\'"));
+		Serial.print(cmdTmp);
+		Serial.println(F("\'"));
 		Serial.println(String(cmdTmp.length()));
 #endif
 		for (uint16_t i = 0; i < cmdTmp.length(); i++)
@@ -1386,7 +1395,7 @@ bool sendSMS(String& phone, String& smsText)
 		uart2.flush();
 		uart2.write((char)26);
 		yield();
-		cmdTmp = "";
+		cmdTmp.clear();
 		const uint32_t _timeout = millis() + SMS_TIME_OUT;
 		while (!uart2.available() && millis() < _timeout)
 		{
@@ -1554,7 +1563,7 @@ bool sendValueToGoogle(String& value)
 	bool flag = false;
 	if (gScriptEnable && WiFi.status() == WL_CONNECTED)
 	{
-		const char* host = "script.google.com";
+		const String host = F("script.google.com");
 		//const char* googleRedirHost = "script.googleusercontent.com";
 		//const char* fingerprint = "C2 00 62 1D F7 ED AF 8B D1 D5 1D 24 D6 F0 A1 3A EB F1 B4 92";
 		//String[] valuesNames = {"?tag", "?value="};
@@ -1567,7 +1576,7 @@ bool sendValueToGoogle(String& value)
 
 		for (uint8_t i = 0; i < 5; i++)
 		{
-			int retval = gScriptClient->connect(host, httpsPort);
+			int retval = gScriptClient->connect(host.c_str(), httpsPort);
 			if (retval == 1)
 			{
 				flag = true;
@@ -1585,7 +1594,7 @@ bool sendValueToGoogle(String& value)
 			urlFinal += F("/exec");
 			urlFinal += F("?value=");
 			urlFinal += value;
-			flag = gScriptClient->GET(urlFinal, host, true);
+			flag = gScriptClient->GET(urlFinal, host.c_str(), true);
 			if (flag)
 			{
 				gScriptClient->stopAll();
@@ -1601,8 +1610,6 @@ bool sendValueToGoogle(String& value)
 #ifdef PUSHINGBOX_ENABLE
 #define PUSHINGBOX_SUBJECT F("device_name")
 
-const uint16_t pushingBoxMessageMaxSize = 1000;
-const char* pushingBoxServer = "api.pushingbox.com";
 bool pushingBoxEnable = false;
 
 bool sendToPushingBoxServer(String message)
@@ -1612,6 +1619,7 @@ bool sendToPushingBoxServer(String message)
 	{
 		WiFiClient client;
 
+		const String pushingBoxServer = String(F("api.pushingbox.com"));
 		if (client.connect(pushingBoxServer, 80))
 		{
 			String pushingBoxId = readConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size);
@@ -1631,7 +1639,7 @@ bool sendToPushingBoxServer(String message)
 
 			client.print(F("POST /pushingbox HTTP/1.1\n"));
 			client.print(F("Host: "));
-			client.print(String(pushingBoxServer));
+			client.print(pushingBoxServer);
 			client.print(F("\nConnection: close\n"));
 			client.print(F("Content-Type: application/x-www-form-urlencoded\n"));
 			client.print(F("Content-Length: "));
@@ -1648,6 +1656,7 @@ bool sendToPushingBoxServer(String message)
 
 bool sendToPushingBox(String& message)
 {
+	const uint16_t pushingBoxMessageMaxSize = 1000;
 	bool result = true;
 	// slice message to pieces
 	while (message.length() > 0)
@@ -1660,7 +1669,7 @@ bool sendToPushingBox(String& message)
 		else
 		{
 			result &= sendToPushingBoxServer(message);
-			message = "";
+			message.clear();
 		}
 		yield();
 	}
@@ -2267,10 +2276,11 @@ void loop()
 						tmpStr += EOL;
 						yield();
 					}
-					String subj = deviceName + " log";
+					String subj = deviceName;
+					subj += F(" log");
 					String addrTo = readConfigString(SMTP_TO_addr, SMTP_TO_size);
 					sendOk = sendMail(subj, tmpStr, addrTo);
-					tmpStr = "";
+					tmpStr.clear();
 					yield();
 					if (sendOk)
 					{
@@ -2312,7 +2322,7 @@ void loop()
 			String str = processCommand(uartCommand, CHANNEL_UART, true);
 			Serial.println(str);
 		}
-		uartCommand = "";
+		uartCommand.clear();
 	}
 #endif
 	yield();
@@ -2374,7 +2384,7 @@ void loop()
 								if (telnetCommand.length() > 0)
 								{
 									String str = processCommand(telnetCommand, CHANNEL_TELNET, true);
-									telnetCommand = "";
+									telnetCommand.clear();
 									yield();
 									sendToTelnet(str, i);
 								}
@@ -2402,7 +2412,7 @@ void loop()
 			if (mqttCommand.length() > 0)
 			{
 				String str = processCommand(mqttCommand, CHANNEL_MQTT, true);
-				mqttCommand = "";
+				mqttCommand.clear();
 				String topic = "";
 				topic.reserve(100);
 				mqtt_send(str, str.length(), topic);
@@ -2427,10 +2437,14 @@ void loop()
 		gsmTimeOut = millis() + SMS_CHECK_TIME_OUT;
 		//getModemStatus();
 		smsMessage newSms = getSMS();
-		if (newSms.Message != "")
+		if (newSms.Message.length() > 0)
 		{
 #ifdef DEBUG_MODE
-			Serial.println("New SMS from " + newSms.PhoneNumber + ":\"" + newSms.Message + "\"");
+			Serial.print(F("New SMS from "));
+			Serial.print(newSms.PhoneNumber);
+			Serial.print(F(":\""));
+			Serial.print(newSms.Message);
+			Serial.println(F("\""));
 #endif
 			//process data from GSM
 			String str = processCommand(newSms.Message, CHANNEL_GSM, newSms.IsAdmin);
@@ -2906,10 +2920,8 @@ commandTokens parseCommand(String& commandString, char cmd_divider, char arg_div
 
 String set_output(uint8_t outNum, String& outStateStr)
 {
-
-	String str;
+	String str = "";
 	str.reserve(30);
-	str = "";
 
 	uint16_t outState;
 	bool pwm_mode = false;
@@ -2950,25 +2962,28 @@ String printConfig(bool toJson = false)
 {
 	String eq = F(": ");
 	String delimiter = F("\r\n");
+	String str = "";
+	//str.reserve(3000);
 	if (toJson)
 	{
 		delimiter = F("\",\r\n\"");
 		eq = F("\":\"");
-	}
-	String str;
-	//str.reserve(3000);
-	if (toJson)
 		str = F("{\"");
-	yield();
+	}
 
-	str += F("Device name");
+	str += PROPERTY_DEVICE_NAME;
 	str += eq;
 	str += readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
 	str += delimiter;
 
-	str += F("Device MAC");
+	str += PROPERTY_DEVICE_MAC;
 	str += eq;
 	str += WiFi.macAddress();
+	str += delimiter;
+
+	str += PROPERTY_FW_VERSION;
+	str += eq;
+	str += FW_VERSION;
 	str += delimiter;
 
 	str += F("WiFi STA SSID");
@@ -3104,6 +3119,11 @@ String printConfig(bool toJson = false)
 				str += F("TM1637 DIO");
 				break;
 #endif
+#ifdef BUZZER_ENABLE
+			case BUZZER_ENABLE:
+				str += F("BUZZER");
+				break;
+#endif
 			}
 		}
 		else if (pinModeCfg == INPUT || pinModeCfg == INPUT_PULLUP) // pin is input or input_pullup
@@ -3135,10 +3155,8 @@ String printConfig(bool toJson = false)
 			str += F("UNDEFINED");
 		}
 		str += delimiter;
-
 		yield();
 	}
-
 #ifdef LOG_ENABLE
 	//Log settings
 	str += F("Device log size");
@@ -3151,7 +3169,7 @@ String printConfig(bool toJson = false)
 	str += String(readConfigString(LOG_PERIOD_addr, LOG_PERIOD_size).toInt());
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef SLEEP_ENABLE
 	str += F("Sleep ON/OFF time");
 	str += eq;
@@ -3165,7 +3183,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef OTA_UPDATE
 	str += F("OTA port");
 	str += eq;
@@ -3182,7 +3200,7 @@ String printConfig(bool toJson = false)
 	str += String(readConfigString(OTA_ENABLE_addr, OTA_ENABLE_size));
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef TELNET_ENABLE
 	str += F("Telnet port");
 	str += eq;
@@ -3199,7 +3217,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef HTTP_ENABLE
 	str += F("HTTP port");
 	str += eq;
@@ -3211,7 +3229,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef MQTT_ENABLE
 	str += F("MQTT server");
 	str += eq;
@@ -3258,7 +3276,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef SMTP_ENABLE
 	str += F("SMTP server");
 	str += eq;
@@ -3290,7 +3308,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef TELEGRAM_ENABLE
 	str += F("TELEGRAM token: ");
 	str += readConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size);
@@ -3316,7 +3334,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(TELEGRAM_ENABLE_addr, TELEGRAM_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef GSCRIPT_ENABLE
 	str += F("GSCRIPT token");
 	str += eq;
@@ -3328,7 +3346,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef PUSHINGBOX_ENABLE
 	str += F("PUSHINGBOX token");
 	str += eq;
@@ -3345,7 +3363,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef NTP_TIME_ENABLE
 	str += F("NTP server");
 	str += eq;
@@ -3372,7 +3390,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(NTP_ENABLE_addr, NTP_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef EVENTS_ENABLE
 	for (m = 0; m < EVENTS_NUMBER; m++)
 	{
@@ -3388,7 +3406,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef SCHEDULER_ENABLE
 	for (m = 0; m < SCHEDULES_NUMBER; m++)
 	{
@@ -3413,7 +3431,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef GSM_M590_ENABLE
 	str += F("M590 GSM modem");
 	str += eq;
@@ -3424,7 +3442,7 @@ String printConfig(bool toJson = false)
 #endif
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef GSM_SIM800_ENABLE
 	str += F("SIM800 GSM modem");
 	str += eq;
@@ -3435,7 +3453,7 @@ String printConfig(bool toJson = false)
 #endif
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef GSM_ENABLE
 	for (m = 0; m < GSM_USERS_NUMBER; m++)
 	{
@@ -3451,7 +3469,7 @@ String printConfig(bool toJson = false)
 	str += readConfigString(GSM_ENABLE_addr, GSM_ENABLE_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef TM1637DISPLAY_ENABLE
 	str += F("TM1637 CLK/DIO pin");
 	str += eq;
@@ -3460,71 +3478,72 @@ String printConfig(bool toJson = false)
 	str += TM1637_DIO;
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef SSD1306DISPLAY_ENABLE
 	str += F("SSD1306 display");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef DISPLAY_ENABLED
 	str += F("Display refresh delay");
 	str += eq;
 	str += readConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size);
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef AMS2320_ENABLE
 	str += F("AMS2320");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef HTU21D_ENABLE
 	str += F("HTU21D");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef BME280_ENABLE
 	str += F("BME280");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef BMP180_ENABLE
 	str += F("BMP180");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef AHTx0_ENABLE
 	str += F("AHTx0");
 	str += eq;
 	str += F("I2C");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef DS18B20_ENABLE
 	str += F("DS18B20");
 	str += eq;
 	str += F("OneWire");
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef DHT_ENABLE
-	str += "DHT" + DHT_ENABLE;
+	str += F("DHT");
+	str += DHT_ENABLE;
 	str += F(" pin");
 	str += eq;
 	str += DHT_PIN;
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef MH_Z19_UART_ENABLE
 	str += F("MH-Z19 CO2");
 	str += eq;
@@ -3535,26 +3554,26 @@ String printConfig(bool toJson = false)
 #endif
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef MH_Z19_PPM_ENABLE
 	str += F("MH-Z19 CO2 PPM pin");
 	str += eq;
 	str += MH_Z19_PPM_ENABLE;
 	str += delimiter;
 #endif
-
+	yield();
 #ifdef ADC_ENABLE
 	str += F("ADC pin");
 	str += eq;
 	str += F("A0");
 	str += delimiter;
 #endif
-
+	yield();
 	str += F("EEPROM size");
 	str += eq;
 	str += String(collectEepromSize());
 	str += delimiter;
-
+	yield();
 	if (toJson)
 		str += F("\"}");
 
@@ -3576,14 +3595,19 @@ String printStatus(bool toJson = false)
 	if (toJson)
 		str = F("{\"");
 
-	str += F("Device name");
+	str += PROPERTY_DEVICE_NAME;
 	str += eq;
 	str += readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
 	str += delimiter;
 
-	str += F("Device MAC");
+	str += PROPERTY_DEVICE_MAC;
 	str += eq;
 	str += WiFi.macAddress();
+	str += delimiter;
+
+	str += PROPERTY_FW_VERSION;
+	str += eq;
+	str += FW_VERSION;
 	str += delimiter;
 
 	str += F("Time");
@@ -3709,7 +3733,17 @@ String printStatus(bool toJson = false)
 			str += F(" last run time");
 			str += eq;
 			uint32_t runTime = readScheduleExecTime(i);
-			str += String(year(runTime)) + "." + String(month(runTime)) + "." + String(day(runTime)) + " " + String(hour(runTime)) + ":" + String(minute(runTime)) + ":" + String(second(runTime));
+			str += String(year(runTime));
+			str += F(".");
+			str += String(month(runTime));
+			str += F(".");
+			str += String(day(runTime));
+			str += F(" ");
+			str += String(hour(runTime));
+			str += F(":");
+			str += String(minute(runTime));
+			str += F(":");
+			str += String(second(runTime));
 			str += delimiter;
 		}
 		yield();
@@ -3807,7 +3841,7 @@ String printStatus(bool toJson = false)
 		str += F("\"}");
 
 	return str;
-	}
+}
 
 String printHelp()
 {
@@ -3827,7 +3861,7 @@ String printHelp()
 		"[ADMIN][FLASH] set_interrupt_mode?=OFF/FALLING/RISING/CHANGE\r\n"
 		"[ADMIN]        set_output?=[on/off, 0..1023]\r\n"
 
-		"[ADMIN][FLASH] autoreport=n (bit[0..7]=UART,TELNET,MQTT,TELEGRAM,GSCRIPT,PUSHINGBOX,SMTP,GSM)\r\n"
+		"[ADMIN][FLASH] autoreport=n (bit[0..7] 1=UART,2=TELNET,4=MQTT,8=TELEGRAM,16=GSCRIPT,32=PUSHINGBOX,64=SMTP,128=GSM)\r\n"
 
 #ifdef SSD1306DISPLAY_ENABLE
 		"[ADMIN][FLASH] display_refresh=n (sec.)\r\n"
@@ -3849,12 +3883,13 @@ String printHelp()
 		"[ADMIN]        wifi_enable=on/off\r\n"
 
 #ifdef LOG_ENABLE
-		"[ADMIN][FLASH] log_period=n (sec.)\r\n"
+		"[ADMIN][FLASH] log_period=n (sec., no less than 'check_period' in fact)\r\n"
+		"[ADMIN][FLASH] getlog\r\n"
 #endif
 
 #ifdef SLEEP_ENABLE
 		"[ADMIN][FLASH] sleep_on=n (sec.)\r\n"
-		"[ADMIN][FLASH] sleep_off=n (sec.)\r\n" // max 4 294 967 295 �s, which is about ~71 minutes
+		"[ADMIN][FLASH] sleep_off=n (sec., max 4 294 967 sec ~ 71 min.)\r\n" // max 4 294 967 295 ms, which is about ~71 minutes
 		"[ADMIN][FLASH] sleep_enable=on/off\r\n"
 #endif
 
@@ -3937,6 +3972,9 @@ String printHelp()
 		"[ADMIN]        clear_schedule_exec_time?\r\n"
 #endif
 
+#ifdef BUZZER_ENABLE
+		"[ADMIN]        buzz=n,m (n=frequency, msec.; m=delay, msec.)\r\n"
+#endif
 		"[ADMIN]        reset");
 }
 
@@ -4145,7 +4183,7 @@ sensorDataCollection collectData()
 	}
 
 	return sensorData;
-	}
+}
 
 String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJson = false)
 {
@@ -4160,12 +4198,12 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 	str.reserve(512);
 	if (toJson)
 		str = F("{\"");
-	str += F("Device name");
+	str += PROPERTY_DEVICE_NAME;
 	str += eq;
 	str += deviceName;
 	str += delimiter;
 
-	str += F("Device MAC");
+	str += PROPERTY_DEVICE_MAC;
 	str += eq;
 	str += WiFi.macAddress();
 	str += delimiter;
@@ -4367,7 +4405,7 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 	if (toJson)
 		str += F("\"}");
 	return str;
-	}
+}
 
 String processCommand(String& command, uint8_t channel, bool isAdmin)
 {
@@ -4596,7 +4634,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 #endif
 				ESP.restart();
 			}
-			}
+		}
 		else if (cmd.command == CMD_AUTOREPORT)
 		{
 			autoReport = cmd.arguments[0].toInt();
@@ -4775,10 +4813,10 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 #endif
 					default:
 						break;
-		};
-	}
-}
-}
+					};
+				}
+			}
+		}
 #endif
 
 #ifdef TELNET_ENABLE
@@ -5187,7 +5225,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-			}
+		}
 #endif
 
 #ifdef TELEGRAM_ENABLE
@@ -5353,7 +5391,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-			}
+		}
 #endif
 
 #ifdef NTP_TIME_ENABLE
@@ -5584,7 +5622,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			str += String(uint16_t(displaySwitchPeriod));
 			str += QUOTE;
 			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
-			}
+		}
 #endif
 
 #ifdef OTA_UPDATE
@@ -5626,8 +5664,8 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 		}
 #endif
-		}
-	if (str == "")
+	}
+	if (str.length() == 0)
 	{
 		str = REPLY_INCORRECT;
 		str += F("command: \"");
@@ -5636,7 +5674,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 	}
 	str += EOL;
 	return str;
-			}
+}
 
 #if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
 String printHelpAction()
@@ -5686,7 +5724,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		else
 		{
 			tmpAction = action;
-			action = "";
+			action.clear();
 		}
 		commandTokens cmd = parseCommand(tmpAction, '=', ',', true);
 		//command=****
@@ -5800,10 +5838,10 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 						/*#ifdef EVENTS_ENABLE
 												eventsFlags[eventNum] = false;
 						#endif*/
-		}
-	}
+					}
+				}
 				yield();
-}
+			}
 		}
 #endif
 #ifdef TELEGRAM_ENABLE
@@ -5899,8 +5937,8 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				/*#ifdef EVENTS_ENABLE
 								eventsFlags[eventNum] = false;
 				#endif*/
-				}
 			}
+		}
 #endif
 #ifdef MQTT_ENABLE
 		//send_MQTT=topic_to,message
@@ -5942,12 +5980,12 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 #ifdef DEBUG_MODE
 			Serial.print(F("Incorrect action: \""));
 			Serial.print(tmpAction);
-			Serial.println(quote);
+			Serial.println(F("\""));
 #endif
 		}
 		yield();
-		} while (action.length() > 0);
-			}
+	} while (action.length() > 0);
+}
 #endif
 
 #ifdef TEMPERATURE_SENSOR
@@ -6050,11 +6088,11 @@ int getCo2(sensorDataCollection& sensorData)
 		co2_uart_avg[1] = co2_uart_avg[2];
 		co2_uart_avg[2] = sensorData.mh_uart_co2;
 		co2_avg = (co2_uart_avg[0] + co2_uart_avg[1] + co2_uart_avg[2]) / 3;
-}
+	}
 #endif
 
 	return co2_avg;
-		}
+}
 #endif
 
 String getStaSsid()
@@ -6247,10 +6285,10 @@ void int8count()
 	InterruptCounter[7]++;
 }
 
-/*String MacToStr(const uint8_t mac[6])
+String MacToStr(const uint8_t mac[6])
 {
 	return String(mac[0]) + String(mac[1]) + String(mac[2]) + String(mac[3]) + String(mac[4]) + String(mac[5]);
-}*/
+}
 
 /*uint16_t countOf(String &str, char c)
 {

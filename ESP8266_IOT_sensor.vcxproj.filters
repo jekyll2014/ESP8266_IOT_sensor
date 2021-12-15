@@ -27,16 +27,16 @@
     <ClInclude Include="ESP8266_IOT_sensor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="actions.h">
+    <ClInclude Include="action_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="commands.h">
+    <ClInclude Include="command_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="events.h">
+    <ClInclude Include="event_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="schedules.h">
+    <ClInclude Include="schedule_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

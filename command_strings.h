@@ -1,4 +1,5 @@
 #pragma once
+
 #define CMD_GET_SENSOR									F("get_sensor") //get_sensor
 #define CMD_GET_STATUS									F("get_status") //get_status
 #define CMD_GET_CONFIG									F("get_config") //get_config

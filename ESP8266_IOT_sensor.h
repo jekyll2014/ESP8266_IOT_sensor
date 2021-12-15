@@ -3,6 +3,10 @@
 #ifndef ESP8266_IOT_sensor
 #define ESP8266_IOT_sensor
 
+#define PROPERTY_DEVICE_NAME								F("DeviceName") //get_sensor
+#define PROPERTY_DEVICE_MAC									F("DeviceMAC") //get_sensor
+#define PROPERTY_FW_VERSION									F("FW Version") //get_sensor
+
 #define SWITCH_ON_NUMBER F("1")
 #define SWITCH_OFF_NUMBER F("0")
 #define SWITCH_ON F("on")
@@ -130,6 +134,7 @@ String printHelpSchedule();
 void processSchedule(uint8_t);
 #endif
 
+// Wi-Fi
 String getStaSsid();
 String getStaPassword();
 String getApSsid();
@@ -152,6 +157,7 @@ void sendToTelnet(String&, uint8_t);
 bool sendMail(String&, String&, String&);
 #endif
 
+// MQTT
 #ifdef MQTT_ENABLE
 #define MQTT_MAX_PACKET 100
 String getMqttServer();
@@ -169,10 +175,10 @@ void mqtt_callback(char*, uint8_t*, uint16_t);
 
 // Telegram
 #ifdef TELEGRAM_ENABLE
-#define TELEGRAM_MESSAGE_MAX_SIZE 300
+#define TELEGRAM_MESSAGE_MAX_SIZE 1000
 #define TELEGRAM_MESSAGE_DELAY 2000
-#define TELEGRAM_RETRIES 3
-#define TELEGRAM_MESSAGE_BUFFER_SIZE 10
+#define TELEGRAM_RETRIES 10
+#define TELEGRAM_MESSAGE_BUFFER_SIZE 5
 
 struct telegramMessage
 {
@@ -229,7 +235,7 @@ String getGsmUser(uint8_t);
 String sendATCommand(String, bool);
 bool initModem();
 bool sendSMS(String&, String&);
-smsMessage parseSMS(String&);
+smsMessage parseRawSMS(String&);
 smsMessage getSMS();
 bool deleteSMS(int);
 String getModemStatus();
@@ -250,6 +256,14 @@ bool sendToPushingBox(String&);
 #ifdef HTTP_ENABLE
 void handleRoot();
 void handleNotFound();
+#endif
+
+#ifdef OTA_UPDATE
+#include <ArduinoOTA.h>
+void otaStartCallback();
+void otaErrorCallback(ota_error_t);
+void otaProgressCallback(unsigned int, unsigned int);
+void otaEndCallback();
 #endif
 
 // NTP
