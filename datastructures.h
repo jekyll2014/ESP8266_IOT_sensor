@@ -114,7 +114,7 @@
 #define MQTT_USER_size  100
 
 #define MQTT_PASS_addr  MQTT_USER_addr + MQTT_USER_size
-#define MQTT_PASS_size  100
+#define MQTT_PASS_size  20
 
 #define MQTT_ID_addr  MQTT_PASS_addr + MQTT_PASS_size
 #define MQTT_ID_size  100
@@ -156,10 +156,10 @@
 #define SMTP_SERVER_PORT_size	5
 
 #define SMTP_LOGIN_addr	SMTP_SERVER_PORT_addr + SMTP_SERVER_PORT_size
-#define SMTP_LOGIN_size	100
+#define SMTP_LOGIN_size	50
 
 #define SMTP_PASSWORD_addr	SMTP_LOGIN_addr + SMTP_LOGIN_size
-#define SMTP_PASSWORD_size	100
+#define SMTP_PASSWORD_size	20
 
 #define SMTP_TO_addr	SMTP_PASSWORD_addr + SMTP_PASSWORD_size
 #define SMTP_TO_size	100
@@ -179,7 +179,16 @@
 #define GSM_ENABLE_addr	GSM_USERS_TABLE_addr + GSM_USERS_TABLE_size
 #define GSM_ENABLE_size	1
 
-#define FINAL_CRC_addr	GSM_ENABLE_addr + GSM_ENABLE_size
+#define OTA_PORT_addr	GSM_ENABLE_addr + GSM_ENABLE_size
+#define OTA_PORT_size	5
+
+#define OTA_PASSWORD_addr	OTA_PORT_addr + OTA_PORT_size
+#define OTA_PASSWORD_size	20
+
+#define OTA_ENABLE_addr	OTA_PASSWORD_addr + OTA_PASSWORD_size
+#define OTA_ENABLE_size	1
+
+#define FINAL_CRC_addr	OTA_ENABLE_addr + OTA_ENABLE_size
 #define FINAL_CRC_size	2
 
 #define RADIO_STOP 0
@@ -299,4 +308,8 @@ struct smsMessage
 
 #if defined(GSM_SIM800_ENABLE) && defined(MH_Z19_UART_ENABLE)
 #error "Only one device can use SoftUART"
+#endif
+
+#if FINAL_CRC_addr > 4090
+#error "EEPROM size can't be more than 4096 bytes'"
 #endif

@@ -1,18 +1,19 @@
 #pragma once
 
-#define PIN_NUMBER								10
+#define PIN_NUMBER							10
 const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, D2=04, D3=00, D4=02, D5=14, D6=12, D7=13, D8=15, reverse to binary order
 
 // **** SERVICES
 
 //#define DEBUG_MODE							HARD_UART //SOFT_UART //not implemented yet
 #define HARD_UART_ENABLE					115200
-#define HARD_UART_TX							01 //D10 new
-#define HARD_UART_RX							03 //D9 new
+#define HARD_UART_TX						01 //D10 new
+#define HARD_UART_RX						03 //D9 new
 
-//#define SLEEP_ENABLE								//connect D0(16) and RST pins to start controller after sleep
+//#define SLEEP_ENABLE							//connect D0(16) and RST pins to start controller after sleep
+#define OTA_UPDATE
 #define NTP_TIME_ENABLE
-#define TELNET_ENABLE							5 // max. connections
+#define TELNET_ENABLE						5 // max. connections
 //#define HTTP_ENABLE
 #define EVENTS_ENABLE
 #define SCHEDULER_ENABLE
@@ -29,28 +30,28 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 //#define ADC_ENABLE
 
 #define AMS2320_ENABLE						0x5C
-#define HTU21D_ENABLE							0x40
-#define BME280_ENABLE							0xF6
-#define BMP180_ENABLE							0x77
-#define AHTx0_ENABLE							0x38
+#define HTU21D_ENABLE						0x40
+#define BME280_ENABLE						0xF6
+#define BMP180_ENABLE						0x77
+#define AHTx0_ENABLE						0x38
 
 #define DS18B20_ENABLE						0x28
 
-//#define DHT_ENABLE								DHT11 //DHT11, DHT21, DHT22
-//#define DHT_PIN										14 //D5
+//#define DHT_ENABLE							DHT11 //DHT11, DHT21, DHT22
+//#define DHT_PIN								14 //D5
 
-//#define MH_Z19_UART_ENABLE				SOFT_UART //SOFT_UART, HARD_UART //not implemented yet
+//#define MH_Z19_UART_ENABLE					SOFT_UART //SOFT_UART, HARD_UART //not implemented yet
 
-//#define MH_Z19_PPM_ENABLE					12 //D6
+//#define MH_Z19_PPM_ENABLE						12 //D6
 
 //#define TM1637DISPLAY_ENABLE
-//#define TM1637_CLK								00 //D2
-//#define TM1637_DIO								02 //D5
+//#define TM1637_CLK							00 //D2
+//#define TM1637_DIO							02 //D5
 
-//#define SSD1306DISPLAY_ENABLE			0x3C
+//#define SSD1306DISPLAY_ENABLE					0x3C
 
-#define GSM_M590_ENABLE						SOFT_UART //HARD_UART //not implemented yet
-//#define GSM_SIM800_ENABLE					SOFT_UART //HARD_UART //not implemented yet
+//#define GSM_M590_ENABLE						SOFT_UART //HARD_UART //not implemented yet
+//#define GSM_SIM800_ENABLE						SOFT_UART //HARD_UART //not implemented yet
 
 // **** PIN-OUT
 
@@ -79,9 +80,9 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 #define SOFT_UART_RX							13 //D7 new
 
 //Esp+GSM SIM800L
-//#define PIN_WIRE_SCL							14 //D5 new
-//#define PIN_WIRE_SDA							02 //D4 new
-//#define ONEWIRE_DATA							00 //D3
+#define PIN_WIRE_SCL							14 //D5 new
+#define PIN_WIRE_SDA							02 //D4 new
+#define ONEWIRE_DATA							00 //D3
 //#define SOFT_UART_TX							12 //D6 new
 //#define SOFT_UART_RX							13 //D7 new
 

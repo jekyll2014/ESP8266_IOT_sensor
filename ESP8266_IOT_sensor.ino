@@ -171,7 +171,7 @@ bool dht_enable;
 SoftwareSerial uart2(SOFT_UART_TX, SOFT_UART_RX);
 
 uint32_t mhz19UartSpeed = 9600;
-uint16_t co2_uart_avg[3] = {0, 0, 0};
+uint16_t co2_uart_avg[3] = { 0, 0, 0 };
 int mhtemp_s = 0;
 
 int co2SerialRead()
@@ -188,7 +188,7 @@ int co2SerialRead()
 	uart2.flush();
 	delay(50);
 
-	byte cmd[9] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79};
+	byte cmd[9] = { 0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79 };
 	byte response[9]; // for answer
 
 	uart2.write(cmd, 9); // request PPM CO2
@@ -267,7 +267,7 @@ int co2SerialRead()
 	return ppm_uart;
 }
 
-byte getCheckSum(byte *packet)
+byte getCheckSum(byte* packet)
 {
 	unsigned char checksum = 0;
 	for (byte i = 1; i < 8; i++)
@@ -282,7 +282,7 @@ byte getCheckSum(byte *packet)
 
 // MH-Z19 CO2 sensor via PPM signal
 #ifdef MH_Z19_PPM_ENABLE
-uint16_t co2_ppm_avg[3] = {0, 0, 0};
+uint16_t co2_ppm_avg[3] = { 0, 0, 0 };
 
 int co2PPMRead()
 {
@@ -323,8 +323,8 @@ uint32_t displaySwitchPeriod = 3000;
 PINS: D3 - CLK, D4 - DIO */
 #include <TM1637Display.h>
 
-const uint8_t SEG_DEGREE[] = {SEG_A | SEG_B | SEG_F | SEG_G};
-const uint8_t SEG_HUMIDITY[] = {SEG_C | SEG_E | SEG_F | SEG_G};
+const uint8_t SEG_DEGREE[] = { SEG_A | SEG_B | SEG_F | SEG_G };
+const uint8_t SEG_HUMIDITY[] = { SEG_C | SEG_E | SEG_F | SEG_G };
 TM1637Display display(TM1637_CLK, TM1637_DIO);
 uint8_t displayState = 0;
 #endif
@@ -334,7 +334,7 @@ uint8_t displayState = 0;
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
 
-const uint8_t *font = fixed_bold10x15; // 10x15 pix
+const uint8_t* font = fixed_bold10x15; // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
 //const uint8_t* font = Adafruit5x7;  // 5*7 pix
 SSD1306AsciiWire oled;
@@ -368,6 +368,59 @@ uint32_t activeStart;
 bool sleepEnable = false;
 #endif
 
+// OTA UPDATE
+#ifdef OTA_UPDATE
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+
+bool otaEnable = false;
+
+void otaStartCallback()
+{
+	String type;
+	if (ArduinoOTA.getCommand() == U_FLASH)
+	{
+		Serial.println(F("Start updating sketch"));
+	}
+	else  // U_FS
+	{
+		// NOTE: if updating FS this would be the place to unmount FS using FS.end()
+		Serial.println(F("Start updating filesystem"));
+	}
+}
+
+void otaErrorCallback(ota_error_t error)
+{
+	//Serial.printf("Error[%u]: ", error);
+	if (error == OTA_AUTH_ERROR) {
+		Serial.println("Auth Failed");
+	}
+	else if (error == OTA_BEGIN_ERROR) {
+		Serial.println("Begin Failed");
+	}
+	else if (error == OTA_CONNECT_ERROR) {
+		Serial.println("Connect Failed");
+	}
+	else if (error == OTA_RECEIVE_ERROR) {
+		Serial.println("Receive Failed");
+	}
+	else if (error == OTA_END_ERROR) {
+		Serial.println("End Failed");
+	}
+}
+
+void otaProgressCallback(unsigned int progress, unsigned int total)
+{
+	//Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+}
+
+void otaEndCallback()
+{
+	Serial.println("\nEnd");
+}
+#endif
+
 // NTP
 #ifdef NTP_TIME_ENABLE
 #include <WiFiUdp.h>
@@ -379,7 +432,7 @@ uint32_t timeRefershPeriod = 24 * 60 * 60 * 1000;
 bool NTPenable = false;
 
 // send an NTP request to the time server at the given address
-void sendNTPpacket(IPAddress &address)
+void sendNTPpacket(IPAddress& address)
 {
 	uint8_t packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
 	// set all bytes in the buffer to 0
@@ -678,13 +731,13 @@ void processEvent(uint8_t eventNum)
 String printHelpEvent()
 {
 	return F("Events:\r\n"
-			 "input?=[on, off, c]\r\n"
-			 "output?=[on, off, c]\r\n"
-			 "counter>n\r\n"
-			 "adc<>n\r\n"
-			 "temperature<>n\r\n"
-			 "humidity<>n\r\n"
-			 "co2<>n\r\n");
+		"input?=[on, off, c]\r\n"
+		"output?=[on, off, c]\r\n"
+		"counter>n\r\n"
+		"adc<>n\r\n"
+		"temperature<>n\r\n"
+		"humidity<>n\r\n"
+		"co2<>n\r\n");
 }
 #endif
 
@@ -716,10 +769,10 @@ uint32_t readScheduleExecTime(uint8_t scheduleNum)
 String printHelpSchedule()
 {
 	return F("Schedule type:\r\n"
-			 "daily@hh:mm;action1;action2;...\r\n"
-			 "weekly@wd.hh:mm;action1;action2;...\r\n"
-			 "monthly@md.hh:mm;action1;action2;...\r\n"
-			 "once@yyyy.mm.dd.hh:mm;action1;action2;...\r\n");
+		"daily@hh:mm;action1;action2;...\r\n"
+		"weekly@wd.hh:mm;action1;action2;...\r\n"
+		"monthly@md.hh:mm;action1;action2;...\r\n"
+		"once@yyyy.mm.dd.hh:mm;action1;action2;...\r\n");
 }
 
 void processSchedule(uint8_t scheduleNum)
@@ -832,7 +885,7 @@ WiFiServer telnetServer(23);
 WiFiClient serverClient[TELNET_ENABLE];
 bool telnetEnable = true;
 
-void sendToTelnet(String &str, uint8_t clientN)
+void sendToTelnet(String& str, uint8_t clientN)
 {
 	if (serverClient[clientN] && serverClient[clientN].connected())
 	{
@@ -849,7 +902,7 @@ void sendToTelnet(String &str, uint8_t clientN)
 
 bool smtpEnable = false;
 
-bool sendMail(String &subject, String &message, String &addressTo)
+bool sendMail(String& subject, String& message, String& addressTo)
 {
 	String smtpServerAddress = readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	uint16_t smtpServerPort = readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size).toInt();
@@ -948,9 +1001,7 @@ bool mqtt_connect()
 
 		if (mqtt_device_id.length() <= 0)
 		{
-			mqtt_device_id = deviceName;
-			mqtt_device_id += "_";
-			mqtt_device_id += WiFi.macAddress();
+			mqtt_device_id = deviceName + F("_") + WiFi.macAddress();
 		}
 
 		if (mqtt_User.length() > 0)
@@ -970,7 +1021,7 @@ bool mqtt_connect()
 	return result;
 }
 
-bool mqtt_send(String &message, int dataLength, String &topic)
+bool mqtt_send(String& message, int dataLength, String& topic)
 {
 	if (!mqtt_client.connected())
 	{
@@ -1001,7 +1052,7 @@ bool mqtt_send(String &message, int dataLength, String &topic)
 	return result;
 }
 
-void mqtt_callback(char *topic, uint8_t *payload, uint16_t dataLength)
+void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
 {
 	for (uint16_t i = 0; i < dataLength; i++)
 	{
@@ -1041,7 +1092,7 @@ String uint64ToString(uint64_t input)
 	return result;
 }
 
-uint64_t StringToUint64(String &value)
+uint64_t StringToUint64(String& value)
 {
 	for (uint8_t i = 0; i < value.length(); i++)
 	{
@@ -1049,8 +1100,8 @@ uint64_t StringToUint64(String &value)
 			return 0;
 	}
 	uint64_t result = 0;
-	const char *p = value.c_str();
-	const char *q = p + value.length();
+	const char* p = value.c_str();
+	const char* q = p + value.length();
 	while (p < q)
 	{
 		result = (result << 1) + (result << 3) + *(p++) - '0';
@@ -1059,7 +1110,7 @@ uint64_t StringToUint64(String &value)
 	return result;
 }
 
-bool sendToTelegramServer(int64_t user, String &message)
+bool sendToTelegramServer(int64_t user, String& message)
 {
 	bool result = false;
 	if (telegramEnable && WiFi.status() == WL_CONNECTED)
@@ -1112,7 +1163,7 @@ void removeMessageFromTelegramOutboundBuffer()
 	telegramOutboundBufferPos--;
 }
 
-void sendToTelegram(int64_t user, String &message, uint8_t retries)
+void sendToTelegram(int64_t user, String& message, uint8_t retries)
 {
 	// slice message to pieces
 	while (message.length() > 0)
@@ -1287,7 +1338,7 @@ bool initModem()
 	return resp;
 }
 
-bool sendSMS(String &phone, String &smsText)
+bool sendSMS(String& phone, String& smsText)
 {
 	bool stopSerial = false;
 	if (!uart2.isListening())
@@ -1377,7 +1428,7 @@ bool sendSMS(String &phone, String &smsText)
 	return false;
 }
 
-smsMessage parseSMS(String &msg)
+smsMessage parseSMS(String& msg)
 {
 	String msgheader = "";
 	String msgbody = "";
@@ -1498,19 +1549,19 @@ String getModemStatus()
 
 bool gScriptEnable = false;
 
-bool sendValueToGoogle(String &value)
+bool sendValueToGoogle(String& value)
 {
 	bool flag = false;
 	if (gScriptEnable && WiFi.status() == WL_CONNECTED)
 	{
-		const char *host = "script.google.com";
+		const char* host = "script.google.com";
 		//const char* googleRedirHost = "script.googleusercontent.com";
 		//const char* fingerprint = "C2 00 62 1D F7 ED AF 8B D1 D5 1D 24 D6 F0 A1 3A EB F1 B4 92";
 		//String[] valuesNames = {"?tag", "?value="};
 		String gScriptId = readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
 		const uint16_t httpsPort = 443;
 
-		HTTPSRedirect *gScriptClient = new HTTPSRedirect(httpsPort);
+		HTTPSRedirect* gScriptClient = new HTTPSRedirect(httpsPort);
 		gScriptClient->setInsecure();
 		gScriptClient->setPrintResponseBody(true);
 
@@ -1551,7 +1602,7 @@ bool sendValueToGoogle(String &value)
 #define PUSHINGBOX_SUBJECT F("device_name")
 
 const uint16_t pushingBoxMessageMaxSize = 1000;
-const char *pushingBoxServer = "api.pushingbox.com";
+const char* pushingBoxServer = "api.pushingbox.com";
 bool pushingBoxEnable = false;
 
 bool sendToPushingBoxServer(String message)
@@ -1595,7 +1646,7 @@ bool sendToPushingBoxServer(String message)
 	return flag;
 }
 
-bool sendToPushingBox(String &message)
+bool sendToPushingBox(String& message)
 {
 	bool result = true;
 	// slice message to pieces
@@ -1669,7 +1720,7 @@ uint32_t logLastTime = 0;
 //uint32_t logPeriod = 60 / (LOG_SIZE / 32) * 60 * 1000 / 5; // 60minutes/hour / ( 192pcs / 32hours ) * 60seconds/minute * 1000 msec/second
 uint32_t logPeriod = 600000UL;
 
-void addToLog(sensorDataCollection &record)
+void addToLog(sensorDataCollection& record)
 {
 	history_log[history_record_number] = record;
 	history_record_number++;
@@ -1705,6 +1756,7 @@ void setup()
 	Serial.begin(115200);
 #endif
 	yield();
+
 #ifdef MQTT_ENABLE
 	mqttCommand.reserve(256);
 #endif
@@ -1812,14 +1864,12 @@ void setup()
 
 #endif
 	yield();
-	//init EEPROM of certain size
 	EEPROM.begin(collectEepromSize());
 	//clear EEPROM if it's just initialized
 	if (!checkEepromCrc())
 	{
 		clearEeprom();
 	}
-	EEPROM.end();
 	yield();
 	connectTimeLimit = uint32_t(readConfigString(CONNECT_TIME_addr, CONNECT_TIME_size).toInt() * 1000UL);
 	if (connectTimeLimit == 0)
@@ -1858,7 +1908,25 @@ void setup()
 	yield();
 	String tmpStr;
 	tmpStr.reserve(101);
+#ifdef OTA_UPDATE
+	if (readConfigString(OTA_ENABLE_addr, OTA_ENABLE_size) == SWITCH_ON_NUMBER)
+		otaEnable = true;
 
+	uint16_t otaPort = readConfigString(OTA_PORT_addr, OTA_PORT_size).toInt();
+	ArduinoOTA.setPort(otaPort);
+
+	tmpStr = readConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size);
+	ArduinoOTA.setPassword(tmpStr.c_str());
+	tmpStr = readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size) + F("_") + WiFi.macAddress();
+	ArduinoOTA.setHostname(tmpStr.c_str());
+
+	ArduinoOTA.onStart(otaStartCallback);
+	//ArduinoOTA.onEnd(otaEndCallback);
+	//ArduinoOTA.onProgress(otaProgressCallback);
+	//ArduinoOTA.onError(otaErrorCallback);
+	ArduinoOTA.begin();
+#endif
+	yield();
 #ifdef MQTT_ENABLE
 	if (readConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size) == SWITCH_ON_NUMBER)
 		mqttEnable = true;
@@ -2022,6 +2090,10 @@ void setup()
 
 void loop()
 {
+#ifdef OTA_UPDATE
+	if (otaEnable) ArduinoOTA.handle();
+#endif
+
 #ifdef NTP_TIME_ENABLE
 	//refersh NTP time if time has come
 	/*if (NTPenable && millis() - lastTimeRefersh > timeRefershPeriod)
@@ -2560,7 +2632,6 @@ String readConfigString(uint16_t startAt, uint16_t maxlen)
 {
 	String str = "";
 	str.reserve(maxlen);
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < maxlen; i++)
 	{
 		char c = (char)EEPROM.read(startAt + i);
@@ -2570,13 +2641,12 @@ String readConfigString(uint16_t startAt, uint16_t maxlen)
 			str += c;
 		yield();
 	}
-	EEPROM.end();
+
 	return str;
 }
 
-void readConfigString(uint16_t startAt, uint16_t maxlen, char *array)
+void readConfigString(uint16_t startAt, uint16_t maxlen, char* array)
 {
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < maxlen; i++)
 	{
 		array[i] = (char)EEPROM.read(startAt + i);
@@ -2584,7 +2654,6 @@ void readConfigString(uint16_t startAt, uint16_t maxlen, char *array)
 			i = maxlen;
 		yield();
 	}
-	EEPROM.end();
 }
 
 uint32_t readConfigLong(uint16_t startAt)
@@ -2594,13 +2663,11 @@ uint32_t readConfigLong(uint16_t startAt)
 		uint32_t number = 0;
 		uint8_t byteNum[4];
 	} p;
-	EEPROM.begin(collectEepromSize());
 	for (uint8_t i = 0; i < 4; i++)
 	{
 		p.byteNum[i] = EEPROM.read(startAt + i);
 		yield();
 	}
-	EEPROM.end();
 	return p.number;
 }
 
@@ -2611,19 +2678,16 @@ float readConfigFloat(uint16_t startAt)
 		float number = 0;
 		uint8_t byteNum[4];
 	} p;
-	EEPROM.begin(collectEepromSize());
 	for (uint8_t i = 0; i < 4; i++)
 	{
 		p.byteNum[i] = EEPROM.read(startAt + i);
 		yield();
 	}
-	EEPROM.end();
 	return p.number;
 }
 
 void writeConfigString(uint16_t startAt, uint16_t maxLen, String str)
 {
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < maxLen; i++)
 	{
 		if (i < str.length())
@@ -2634,12 +2698,10 @@ void writeConfigString(uint16_t startAt, uint16_t maxLen, String str)
 	}
 	refreshEepromCrc();
 	EEPROM.commit();
-	EEPROM.end();
 }
 
-void writeConfigString(uint16_t startAt, uint16_t maxlen, char *array, uint8_t length)
+void writeConfigString(uint16_t startAt, uint16_t maxlen, char* array, uint8_t length)
 {
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < maxlen; i++)
 	{
 		if (i >= length)
@@ -2652,7 +2714,6 @@ void writeConfigString(uint16_t startAt, uint16_t maxlen, char *array, uint8_t l
 	}
 	refreshEepromCrc();
 	EEPROM.commit();
-	EEPROM.end();
 }
 
 void writeConfigLong(uint16_t startAt, uint32_t data)
@@ -2663,7 +2724,6 @@ void writeConfigLong(uint16_t startAt, uint32_t data)
 		uint8_t byteNum[4];
 	} p;
 	p.number = data;
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < 4; i++)
 	{
 		EEPROM.write(startAt + i, p.byteNum[i]);
@@ -2671,7 +2731,6 @@ void writeConfigLong(uint16_t startAt, uint32_t data)
 	}
 	refreshEepromCrc();
 	EEPROM.commit();
-	EEPROM.end();
 }
 
 void writeConfigFloat(uint16_t startAt, float data)
@@ -2683,7 +2742,6 @@ void writeConfigFloat(uint16_t startAt, float data)
 	} p;
 
 	p.number = data;
-	EEPROM.begin(collectEepromSize());
 	for (uint16_t i = 0; i < 4; i++)
 	{
 		EEPROM.write(startAt + i, p.byteNum[i]);
@@ -2691,7 +2749,6 @@ void writeConfigFloat(uint16_t startAt, float data)
 	}
 	refreshEepromCrc();
 	EEPROM.commit();
-	EEPROM.end();
 }
 
 uint16_t calculateEepromCrc()
@@ -2728,14 +2785,12 @@ bool checkEepromCrc()
 		uint8_t byteNum[4];
 	} savedCrc;
 
-	EEPROM.begin(collectEepromSize());
 	for (uint8_t i = 0; i < 2; i++)
 	{
 		savedCrc.byteNum[i] = EEPROM.read(FINAL_CRC_addr + i);
 		yield();
 	}
 	uint16_t realCrc = calculateEepromCrc();
-	EEPROM.end();
 
 	return savedCrc.number == realCrc;
 }
@@ -2744,7 +2799,7 @@ void refreshEepromCrc()
 {
 	union Convert
 	{
-		uint32_t number = 0;
+		uint16_t number = 0;
 		uint8_t byteNum[4];
 	} realCrc;
 	realCrc.number = calculateEepromCrc();
@@ -2753,16 +2808,19 @@ void refreshEepromCrc()
 		EEPROM.write(FINAL_CRC_addr + i, realCrc.byteNum[i]);
 		yield();
 	}
+	EEPROM.commit();
 }
 
 void clearEeprom()
 {
+	/*
 	for (uint32_t i = 0; i < EEPROM.length(); i++)
 	{
 		EEPROM.write(i, 0);
 		yield();
 	}
-	refreshEepromCrc();
+	EEPROM.commit();
+	refreshEepromCrc();*/
 }
 
 bool add_signal_pin(uint8_t pin)
@@ -2786,7 +2844,7 @@ bool add_signal_pin(uint8_t pin)
 }
 
 // input string format: ****nn="****",nnn,"****",nnn
-commandTokens parseCommand(String &commandString, char cmd_divider, char arg_divider, bool findIndex)
+commandTokens parseCommand(String& commandString, char cmd_divider, char arg_divider, bool findIndex)
 {
 	commandTokens params;
 	params.index = -1;
@@ -2846,7 +2904,7 @@ commandTokens parseCommand(String &commandString, char cmd_divider, char arg_div
 	return params;
 }
 
-String set_output(uint8_t outNum, String &outStateStr)
+String set_output(uint8_t outNum, String& outStateStr)
 {
 
 	String str;
@@ -3105,6 +3163,23 @@ String printConfig(bool toJson = false)
 	str += F("SLEEP mode enabled");
 	str += eq;
 	str += readConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size);
+	str += delimiter;
+#endif
+
+#ifdef OTA_UPDATE
+	str += F("OTA port");
+	str += eq;
+	str += readConfigString(OTA_PORT_addr, OTA_PORT_size);
+	str += delimiter;
+
+	str += F("OTA password");
+	str += eq;
+	str += readConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size);
+	str += delimiter;
+
+	str += F("OTA enabled");
+	str += eq;
+	str += String(readConfigString(OTA_ENABLE_addr, OTA_ENABLE_size));
 	str += delimiter;
 #endif
 
@@ -3475,6 +3550,11 @@ String printConfig(bool toJson = false)
 	str += delimiter;
 #endif
 
+	str += F("EEPROM size");
+	str += eq;
+	str += String(collectEepromSize());
+	str += delimiter;
+
 	if (toJson)
 		str += F("\"}");
 
@@ -3658,6 +3738,13 @@ String printStatus(bool toJson = false)
 	str += delimiter;
 #endif
 
+#ifdef OTA_UPDATE
+	str += F("OTA enabled");
+	str += eq;
+	str += String(otaEnable);
+	str += delimiter;
+#endif
+
 #ifdef AMS2320_ENABLE
 	str += F("AMS2320 found");
 	str += eq;
@@ -3720,131 +3807,137 @@ String printStatus(bool toJson = false)
 		str += F("\"}");
 
 	return str;
-}
+	}
 
 String printHelp()
 {
 	return F("Commands:\r\n"
-			 "help\r\n"
-			 "help_event\r\n"
-			 "help_schedule\r\n"
-			 "help_action\r\n"
-			 "get_sensor\r\n"
-			 "get_status\r\n"
-			 "get_config\r\n"
+		"help\r\n"
+		"help_event\r\n"
+		"help_schedule\r\n"
+		"help_action\r\n"
+		"get_sensor\r\n"
+		"get_status\r\n"
+		"get_config\r\n"
 
-			 "[ADMIN]        set_time=yyyy.mm.dd hh:mm:ss\r\n"
+		"[ADMIN]        set_time=yyyy.mm.dd hh:mm:ss\r\n"
 
-			 "[ADMIN][FLASH] set_pin_mode?=OFF/INPUT/OUTPUT/INPUT_PULLUP\r\n"
-			 "[ADMIN][FLASH] set_init_output?=[on/off, 0..1023]\r\n"
-			 "[ADMIN][FLASH] set_interrupt_mode?=OFF/FALLING/RISING/CHANGE\r\n"
-			 "[ADMIN]        set_output?=[on/off, 0..1023]\r\n"
+		"[ADMIN][FLASH] set_pin_mode?=OFF/INPUT/OUTPUT/INPUT_PULLUP\r\n"
+		"[ADMIN][FLASH] set_init_output?=[on/off, 0..1023]\r\n"
+		"[ADMIN][FLASH] set_interrupt_mode?=OFF/FALLING/RISING/CHANGE\r\n"
+		"[ADMIN]        set_output?=[on/off, 0..1023]\r\n"
 
-			 "[ADMIN][FLASH] autoreport=n (bit[0..7]=UART,TELNET,MQTT,TELEGRAM,GSCRIPT,PUSHINGBOX,SMTP,GSM)\r\n"
+		"[ADMIN][FLASH] autoreport=n (bit[0..7]=UART,TELNET,MQTT,TELEGRAM,GSCRIPT,PUSHINGBOX,SMTP,GSM)\r\n"
 
 #ifdef SSD1306DISPLAY_ENABLE
-			 "[ADMIN][FLASH] display_refresh=n (sec.)\r\n"
+		"[ADMIN][FLASH] display_refresh=n (sec.)\r\n"
 #endif
 
-			 "[ADMIN][FLASH] check_period=n (sec.)\r\n"
+		"[ADMIN][FLASH] check_period=n (sec.)\r\n"
 
-			 "[ADMIN][FLASH] device_name=****\r\n"
+		"[ADMIN][FLASH] device_name=****\r\n"
 
-			 "[ADMIN][FLASH] sta_ssid=****\r\n"
-			 "[ADMIN][FLASH] sta_pass=****\r\n"
-			 "[ADMIN][FLASH] ap_ssid=**** (empty for device_name+MAC)\r\n"
-			 "[ADMIN][FLASH] ap_pass=****\r\n"
-			 "[ADMIN][FLASH] wifi_standart=B/G/N\r\n"
-			 "[ADMIN][FLASH] wifi_power=n (0..20.5)\r\n"
-			 "[ADMIN][FLASH] wifi_mode=AUTO/STATION/APSTATION/AP/OFF\r\n"
-			 "[ADMIN][FLASH] wifi_connect_time=n (sec.)\r\n"
-			 "[ADMIN][FLASH] wifi_reconnect_period=n (sec.)\r\n"
-			 "[ADMIN]        wifi_enable=on/off\r\n"
+		"[ADMIN][FLASH] sta_ssid=****\r\n"
+		"[ADMIN][FLASH] sta_pass=****\r\n"
+		"[ADMIN][FLASH] ap_ssid=**** (empty for device_name+MAC)\r\n"
+		"[ADMIN][FLASH] ap_pass=****\r\n"
+		"[ADMIN][FLASH] wifi_standart=B/G/N\r\n"
+		"[ADMIN][FLASH] wifi_power=n (0..20.5)\r\n"
+		"[ADMIN][FLASH] wifi_mode=AUTO/STATION/APSTATION/AP/OFF\r\n"
+		"[ADMIN][FLASH] wifi_connect_time=n (sec.)\r\n"
+		"[ADMIN][FLASH] wifi_reconnect_period=n (sec.)\r\n"
+		"[ADMIN]        wifi_enable=on/off\r\n"
 
 #ifdef LOG_ENABLE
-			 "[ADMIN][FLASH] log_period=n (sec.)\r\n"
+		"[ADMIN][FLASH] log_period=n (sec.)\r\n"
 #endif
 
 #ifdef SLEEP_ENABLE
-			 "[ADMIN][FLASH] sleep_on=n (sec.)\r\n"
-			 "[ADMIN][FLASH] sleep_off=n (sec.)\r\n" // max 4 294 967 295 �s, which is about ~71 minutes
-			 "[ADMIN][FLASH] sleep_enable=on/off\r\n"
+		"[ADMIN][FLASH] sleep_on=n (sec.)\r\n"
+		"[ADMIN][FLASH] sleep_off=n (sec.)\r\n" // max 4 294 967 295 �s, which is about ~71 minutes
+		"[ADMIN][FLASH] sleep_enable=on/off\r\n"
+#endif
+
+#ifdef OTA_UPDATE
+		"[ADMIN][FLASH] ota_port=n\r\n"
+		"[ADMIN][FLASH] ota_pass=****\r\n"
+		"[ADMIN][FLASH] ota_enable=on/off\r\n"
 #endif
 
 #ifdef TELNET_ENABLE
-			 "[ADMIN][FLASH] telnet_port=n\r\n"
-			 "[ADMIN][FLASH] telnet_enable=on/off\r\n"
+		"[ADMIN][FLASH] telnet_port=n\r\n"
+		"[ADMIN][FLASH] telnet_enable=on/off\r\n"
 #endif
 
 #ifdef HTTP_ENABLE
-			 "[ADMIN][FLASH] http_port=n\r\n"
-			 "[ADMIN][FLASH] http_enable=on/off\r\n"
+		"[ADMIN][FLASH] http_port=n\r\n"
+		"[ADMIN][FLASH] http_enable=on/off\r\n"
 #endif
 
 #ifdef NTP_TIME_ENABLE
-			 "[ADMIN][FLASH] ntp_server=****\r\n"
-			 "[ADMIN][FLASH] ntp_time_zone=n\r\n"
-			 "[ADMIN][FLASH] ntp_refresh_delay=n (sec.)\r\n"
-			 "[ADMIN][FLASH] ntp_refresh_period=n (sec.)\r\n"
-			 "[ADMIN][FLASH] ntp_enable=on/off\r\n"
+		"[ADMIN][FLASH] ntp_server=****\r\n"
+		"[ADMIN][FLASH] ntp_time_zone=n\r\n"
+		"[ADMIN][FLASH] ntp_refresh_delay=n (sec.)\r\n"
+		"[ADMIN][FLASH] ntp_refresh_period=n (sec.)\r\n"
+		"[ADMIN][FLASH] ntp_enable=on/off\r\n"
 #endif
 
 #ifdef MQTT_ENABLE
-			 "[ADMIN][FLASH] mqtt_server=****\r\n"
-			 "[ADMIN][FLASH] mqtt_port=n\r\n"
-			 "[ADMIN][FLASH] mqtt_login=****\r\n"
-			 "[ADMIN][FLASH] mqtt_pass=****\r\n"
-			 "[ADMIN][FLASH] mqtt_id=**** (empty for device_name+MAC)\r\n"
-			 "[ADMIN][FLASH] mqtt_topic_in=****\r\n"
-			 "[ADMIN][FLASH] mqtt_topic_out=****\r\n"
-			 "[ADMIN][FLASH] mqtt_clean=on/off\r\n"
-			 "[ADMIN][FLASH] mqtt_enable=on/off\r\n"
+		"[ADMIN][FLASH] mqtt_server=****\r\n"
+		"[ADMIN][FLASH] mqtt_port=n\r\n"
+		"[ADMIN][FLASH] mqtt_login=****\r\n"
+		"[ADMIN][FLASH] mqtt_pass=****\r\n"
+		"[ADMIN][FLASH] mqtt_id=**** (empty for device_name+MAC)\r\n"
+		"[ADMIN][FLASH] mqtt_topic_in=****\r\n"
+		"[ADMIN][FLASH] mqtt_topic_out=****\r\n"
+		"[ADMIN][FLASH] mqtt_clean=on/off\r\n"
+		"[ADMIN][FLASH] mqtt_enable=on/off\r\n"
 #endif
 
 #ifdef GSM_ENABLE
-			 "[ADMIN][FLASH] gsm_user?=n\r\n"
-			 "[ADMIN][FLASH] gsm_enable=on/off\r\n"
+		"[ADMIN][FLASH] gsm_user?=n\r\n"
+		"[ADMIN][FLASH] gsm_enable=on/off\r\n"
 #endif
 
 #ifdef TELEGRAM_ENABLE
-			 "[ADMIN][FLASH] telegram_token=****\r\n"
-			 "[ADMIN][FLASH] telegram_user?=n\r\n"
-			 "[ADMIN][FLASH] telegram_enable=on/off\r\n"
+		"[ADMIN][FLASH] telegram_token=****\r\n"
+		"[ADMIN][FLASH] telegram_user?=n\r\n"
+		"[ADMIN][FLASH] telegram_enable=on/off\r\n"
 #endif
 
 #ifdef SMTP_ENABLE
-			 "[ADMIN][FLASH] smtp_server=****\r\n"
-			 "[ADMIN][FLASH] smtp_port=n\r\n"
-			 "[ADMIN][FLASH] smtp_login=****\r\n"
-			 "[ADMIN][FLASH] smtp_pass=****\r\n"
-			 "[ADMIN][FLASH] smtp_to=****@***.***\r\n"
-			 "[ADMIN][FLASH] smtp_enable=on/off\r\n"
+		"[ADMIN][FLASH] smtp_server=****\r\n"
+		"[ADMIN][FLASH] smtp_port=n\r\n"
+		"[ADMIN][FLASH] smtp_login=****\r\n"
+		"[ADMIN][FLASH] smtp_pass=****\r\n"
+		"[ADMIN][FLASH] smtp_to=****@***.***\r\n"
+		"[ADMIN][FLASH] smtp_enable=on/off\r\n"
 #endif
 
 #ifdef GSCRIPT_ENABLE
-			 "[ADMIN][FLASH] gscript_token=****\r\n"
-			 "[ADMIN][FLASH] gscript_enable=on/off\r\n"
+		"[ADMIN][FLASH] gscript_token=****\r\n"
+		"[ADMIN][FLASH] gscript_enable=on/off\r\n"
 #endif
 
 #ifdef PUSHINGBOX_ENABLE
-			 "[ADMIN][FLASH] pushingbox_token=****\r\n"
-			 "[ADMIN][FLASH] pushingbox_parameter=****\r\n"
-			 "[ADMIN][FLASH] pushingbox_enable=on/off\r\n"
+		"[ADMIN][FLASH] pushingbox_token=****\r\n"
+		"[ADMIN][FLASH] pushingbox_parameter=****\r\n"
+		"[ADMIN][FLASH] pushingbox_enable=on/off\r\n"
 #endif
 
 #ifdef EVENTS_ENABLE
-			 "[ADMIN][FLASH] set_event?=condition:action1;action2;...\r\n"
-			 "[ADMIN][FLASH] events_enable=on/off\r\n"
-			 "[ADMIN]        set_event_flag?=on/off\r\n"
+		"[ADMIN][FLASH] set_event?=condition:action1;action2;...\r\n"
+		"[ADMIN][FLASH] events_enable=on/off\r\n"
+		"[ADMIN]        set_event_flag?=on/off\r\n"
 #endif
 
 #ifdef SCHEDULER_ENABLE
-			 "[ADMIN][FLASH] set_schedule?=period@time:action1;action2;...\r\n"
-			 "[ADMIN][FLASH] scheduler_enable=on/off\r\n"
-			 "[ADMIN]        clear_schedule_exec_time?\r\n"
+		"[ADMIN][FLASH] set_schedule?=period@time:action1;action2;...\r\n"
+		"[ADMIN][FLASH] scheduler_enable=on/off\r\n"
+		"[ADMIN]        clear_schedule_exec_time?\r\n"
 #endif
 
-			 "[ADMIN]        reset");
+		"[ADMIN]        reset");
 }
 
 String timeToString(uint32_t time)
@@ -4052,9 +4145,9 @@ sensorDataCollection collectData()
 	}
 
 	return sensorData;
-}
+	}
 
-String parseSensorReport(sensorDataCollection &data, String delimiter, bool toJson = false)
+String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJson = false)
 {
 	String eq = F("=");
 	if (toJson)
@@ -4274,9 +4367,9 @@ String parseSensorReport(sensorDataCollection &data, String delimiter, bool toJs
 	if (toJson)
 		str += F("\"}");
 	return str;
-}
+	}
 
-String processCommand(String &command, uint8_t channel, bool isAdmin)
+String processCommand(String& command, uint8_t channel, bool isAdmin)
 {
 	commandTokens cmd = parseCommand(command, '=', ',', true);
 	cmd.command.toLowerCase();
@@ -4503,7 +4596,7 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 #endif
 				ESP.restart();
 			}
-		}
+			}
 		else if (cmd.command == CMD_AUTOREPORT)
 		{
 			autoReport = cmd.arguments[0].toInt();
@@ -4682,10 +4775,10 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 #endif
 					default:
 						break;
-					};
-				}
-			}
-		}
+		};
+	}
+}
+}
 #endif
 
 #ifdef TELNET_ENABLE
@@ -5094,7 +5187,7 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-		}
+			}
 #endif
 
 #ifdef TELEGRAM_ENABLE
@@ -5260,7 +5353,7 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-		}
+			}
 #endif
 
 #ifdef NTP_TIME_ENABLE
@@ -5491,9 +5584,49 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 			str += String(uint16_t(displaySwitchPeriod));
 			str += QUOTE;
 			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
+			}
+#endif
+
+#ifdef OTA_UPDATE
+		else if (cmd.command == CMD_OTA_PORT)
+		{
+			uint16_t ota_port = cmd.arguments[0].toInt();
+			str += REPLY_OTA_PORT;
+			str += String(ota_port);
+			str += QUOTE;
+			writeConfigString(OTA_PORT_addr, OTA_PORT_size, String(ota_port));
+		}
+		else if (cmd.command == CMD_OTA_PASSWORD)
+		{
+			str += REPLY_OTA_PASSWORD;
+			str += cmd.arguments[0];
+			str += QUOTE;
+			writeConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size, cmd.arguments[0]);
+		}
+		else if (cmd.command == CMD_OTA_ENABLE)
+		{
+			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
+			{
+				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_OFF_NUMBER);
+				otaEnable = false;
+				str += REPLY_OTA_ENABLE;
+				str += REPLY_DISABLED;
+			}
+			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
+			{
+				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_ON_NUMBER);
+				otaEnable = true;
+				str += REPLY_OTA_ENABLE;
+				str += REPLY_ENABLED;
+			}
+			else
+			{
+				str = REPLY_INCORRECT_VALUE;
+				str += cmd.arguments[0];
+			}
 		}
 #endif
-	}
+		}
 	if (str == "")
 	{
 		str = REPLY_INCORRECT;
@@ -5503,30 +5636,30 @@ String processCommand(String &command, uint8_t channel, bool isAdmin)
 	}
 	str += EOL;
 	return str;
-}
+			}
 
 #if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
 String printHelpAction()
 {
 	return F("Actions:\r\n"
-			 "command=[any command]\r\n"
-			 "set_output?=[on, off, 0..1023]\r\n"
-			 "set_counter ? = x\r\n"
-			 "reset_counter?\r\n"
-			 "set_event_flag?=0/1\r\n"
-			 "reset_flag?\r\n"
-			 "set_flag?\r\n"
-			 "clear_schedule_exec_time?\r\n"
-			 "send_telegram=[*, user#],message\r\n"
-			 "send_pushingbox=message\r\n"
-			 "send_mail=address,subject,message\r\n"
-			 "send_gscript=message\r\n"
-			 "send_mqtt=topic,message\r\n"
-			 "send_sms=[*, user#],message\r\n"
-			 "save_log\r\n");
+		"command=[any command]\r\n"
+		"set_output?=[on, off, 0..1023]\r\n"
+		"set_counter ? = x\r\n"
+		"reset_counter?\r\n"
+		"set_event_flag?=0/1\r\n"
+		"reset_flag?\r\n"
+		"set_flag?\r\n"
+		"clear_schedule_exec_time?\r\n"
+		"send_telegram=[*, user#],message\r\n"
+		"send_pushingbox=message\r\n"
+		"send_mail=address,subject,message\r\n"
+		"send_gscript=message\r\n"
+		"send_mqtt=topic,message\r\n"
+		"send_sms=[*, user#],message\r\n"
+		"save_log\r\n");
 }
 
-void ProcessAction(String &action, uint8_t eventNum, bool isEvent)
+void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 {
 	if (isEvent)
 	{
@@ -5667,10 +5800,10 @@ void ProcessAction(String &action, uint8_t eventNum, bool isEvent)
 						/*#ifdef EVENTS_ENABLE
 												eventsFlags[eventNum] = false;
 						#endif*/
-					}
-				}
+		}
+	}
 				yield();
-			}
+}
 		}
 #endif
 #ifdef TELEGRAM_ENABLE
@@ -5766,8 +5899,8 @@ void ProcessAction(String &action, uint8_t eventNum, bool isEvent)
 				/*#ifdef EVENTS_ENABLE
 								eventsFlags[eventNum] = false;
 				#endif*/
+				}
 			}
-		}
 #endif
 #ifdef MQTT_ENABLE
 		//send_MQTT=topic_to,message
@@ -5813,12 +5946,12 @@ void ProcessAction(String &action, uint8_t eventNum, bool isEvent)
 #endif
 		}
 		yield();
-	} while (action.length() > 0);
-}
+		} while (action.length() > 0);
+			}
 #endif
 
 #ifdef TEMPERATURE_SENSOR
-float getTemperature(sensorDataCollection &sensorData)
+float getTemperature(sensorDataCollection& sensorData)
 {
 	float temp = -1000;
 #ifdef MH_Z19_UART_ENABLE
@@ -5864,7 +5997,7 @@ float getTemperature(sensorDataCollection &sensorData)
 #endif
 
 #ifdef HUMIDITY_SENSOR
-float getHumidity(sensorDataCollection &sensorData)
+float getHumidity(sensorDataCollection& sensorData)
 {
 	float humidity = -1000;
 #ifdef DHT_ENABLE
@@ -5897,7 +6030,7 @@ float getHumidity(sensorDataCollection &sensorData)
 #endif
 
 #ifdef CO2_SENSOR
-int getCo2(sensorDataCollection &sensorData)
+int getCo2(sensorDataCollection& sensorData)
 {
 	int co2_avg = -1000;
 #if defined(MH_Z19_PPM_ENABLE)
@@ -5917,11 +6050,11 @@ int getCo2(sensorDataCollection &sensorData)
 		co2_uart_avg[1] = co2_uart_avg[2];
 		co2_uart_avg[2] = sensorData.mh_uart_co2;
 		co2_avg = (co2_uart_avg[0] + co2_uart_avg[1] + co2_uart_avg[2]) / 3;
-	}
+}
 #endif
 
 	return co2_avg;
-}
+		}
 #endif
 
 String getStaSsid()

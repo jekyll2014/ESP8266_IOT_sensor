@@ -26,10 +26,10 @@
 #define TCP_MSS 536
 #define LWIP_FEATURES 1
 #define LWIP_IPV6 0
-#define ARDUINO 108015
+#define ARDUINO 108016
 #define ARDUINO_ESP8266_NODEMCU_ESP12E
 #define ARDUINO_ARCH_ESP8266
-#define LED_BUILTIN 16
+#define LED_BUILTIN 2
 #define FLASHMODE_DIO
 #define ESP8266
 #define __cplusplus 201103L

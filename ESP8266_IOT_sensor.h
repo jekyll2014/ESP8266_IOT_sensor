@@ -89,19 +89,19 @@ struct commandTokens
 	String arguments[10];
 };
 
-void ICACHE_RAM_ATTR int1count();
-void ICACHE_RAM_ATTR int2count();
-void ICACHE_RAM_ATTR int3count();
-void ICACHE_RAM_ATTR int4count();
-void ICACHE_RAM_ATTR int5count();
-void ICACHE_RAM_ATTR int6count();
-void ICACHE_RAM_ATTR int7count();
-void ICACHE_RAM_ATTR int8count();
+void IRAM_ATTR int1count();
+void IRAM_ATTR int2count();
+void IRAM_ATTR int3count();
+void IRAM_ATTR int4count();
+void IRAM_ATTR int5count();
+void IRAM_ATTR int6count();
+void IRAM_ATTR int7count();
+void IRAM_ATTR int8count();
 
 // CO2 UART
 #ifdef MH_Z19_UART_ENABLE
 int co2SerialRead();
-byte getCheckSum(byte *);
+byte getCheckSum(byte*);
 #endif
 
 // CO2 PPM
@@ -144,12 +144,12 @@ void Start_AP_STA_Mode();
 
 // Telnet
 #ifdef TELNET_ENABLE
-void sendToTelnet(String &, uint8_t);
+void sendToTelnet(String&, uint8_t);
 #endif
 
 // SMTP
 #ifdef SMTP_ENABLE
-bool sendMail(String &, String &, String &);
+bool sendMail(String&, String&, String&);
 #endif
 
 #ifdef MQTT_ENABLE
@@ -163,8 +163,8 @@ String getMqttTopicIn();
 String getMqttTopicOut();
 bool getMqttClean();
 bool mqtt_connect();
-bool mqtt_send(String &, int, String &);
-void mqtt_callback(char *, uint8_t *, uint16_t);
+bool mqtt_send(String&, int, String&);
+void mqtt_callback(char*, uint8_t*, uint16_t);
 #endif
 
 // Telegram
@@ -182,11 +182,11 @@ struct telegramMessage
 };
 
 String uint64ToString(uint64_t);
-uint64_t StringToUint64(String &);
-bool sendToTelegramServer(int64_t, String &);
+uint64_t StringToUint64(String&);
+bool sendToTelegramServer(int64_t, String&);
 void addMessageToTelegramOutboundBuffer(int64_t, String, uint8_t);
 void removeMessageFromTelegramOutboundBuffer();
-void sendToTelegram(int64_t, String &, uint8_t);
+void sendToTelegram(int64_t, String&, uint8_t);
 void sendBufferToTelegram();
 uint64_t getTelegramUser(uint8_t);
 #endif
@@ -228,8 +228,8 @@ uint64_t getTelegramUser(uint8_t);
 String getGsmUser(uint8_t);
 String sendATCommand(String, bool);
 bool initModem();
-bool sendSMS(String &, String &);
-smsMessage parseSMS(String &);
+bool sendSMS(String&, String&);
+smsMessage parseSMS(String&);
 smsMessage getSMS();
 bool deleteSMS(int);
 String getModemStatus();
@@ -237,13 +237,13 @@ String getModemStatus();
 
 // Google script
 #ifdef GSCRIPT_ENABLE
-bool sendValueToGoogle(String &);
+bool sendValueToGoogle(String&);
 #endif
 
 // PushingBox
 #ifdef PUSHINGBOX_ENABLE
 bool sendToPushingBoxServer(String);
-bool sendToPushingBox(String &);
+bool sendToPushingBox(String&);
 #endif
 
 // HTTP
@@ -258,24 +258,24 @@ void handleNotFound();
 #define NTP_PACKET_SIZE 48	// NTP time is in the first 48 bytes of message
 #define UDP_LOCAL_PORT 8888 // local port to listen for UDP packets
 
-void sendNTPpacket(IPAddress &);
+void sendNTPpacket(IPAddress&);
 time_t getNtpTime();
 void restartNTP();
 #endif
 
 // Log
 #ifdef LOG_ENABLE
-void addToLog(sensorDataCollection &);
+void addToLog(sensorDataCollection&);
 #endif
 
 // EEPROM
 uint32_t collectEepromSize();
 String readConfigString(uint16_t, uint16_t);
-void readConfigString(uint16_t, uint16_t, char *);
+void readConfigString(uint16_t, uint16_t, char*);
 uint32_t readConfigLong(uint16_t);
 float readConfigFloat(uint16_t);
 void writeConfigString(uint16_t, uint16_t, String);
-void writeConfigString(uint16_t, uint16_t, char *, uint8_t);
+void writeConfigString(uint16_t, uint16_t, char*, uint8_t);
 void writeConfigLong(uint16_t, uint32_t);
 void writeConfigFloat(uint16_t, float);
 uint16_t calculateEepromCrc();
@@ -284,7 +284,7 @@ void refreshEepromCrc();
 
 // I/O
 bool add_signal_pin(uint8_t);
-String set_output(uint8_t, String &);
+String set_output(uint8_t, String&);
 
 // Help printout
 String printConfig(bool);
@@ -294,24 +294,24 @@ String printHelpAction();
 
 // Sensor data processing
 sensorDataCollection collectData();
-String parseSensorReport(sensorDataCollection &, String, bool);
+String parseSensorReport(sensorDataCollection&, String, bool);
 
 // Command processing
-String processCommand(String &, uint8_t, bool);
-void ProcessAction(String &, uint8_t, bool);
-commandTokens parseCommand(String &, char, char, bool);
+String processCommand(String&, uint8_t, bool);
+void ProcessAction(String&, uint8_t, bool);
+commandTokens parseCommand(String&, char, char, bool);
 
 // Sensors
 #ifdef TEMPERATURE_SENSOR
-float getTemperature(sensorDataCollection &);
+float getTemperature(sensorDataCollection&);
 #endif
 
 #ifdef HUMIDITY_SENSOR
-float getHumidity(sensorDataCollection &);
+float getHumidity(sensorDataCollection&);
 #endif
 
 #ifdef CO2_SENSOR
-int getCo2(sensorDataCollection &);
+int getCo2(sensorDataCollection&);
 #endif
 
 String timeToString(uint32_t);

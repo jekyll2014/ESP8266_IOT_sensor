@@ -76,6 +76,9 @@
 #define CMD_SCHEDULER_ENABLE						F("scheduler_enable") //scheduler_enable
 #define CMD_CLEAR_SCHEDULE_EXEC_TIME		F("clear_schedule_exec_time") //clear_schedule_exec_time
 #define CMD_DISPLAY_REFRESH							F("display_refresh") //display_refresh
+#define CMD_OTA_PASSWORD							F("ota_pass") //display_refresh
+#define CMD_OTA_PORT							F("ota_port") //display_refresh
+#define CMD_OTA_ENABLE							F("ota_enable") //display_refresh
 
 #define REPLY_INCORRECT_VALUE						F("Incorrect value: ")
 #define REPLY_INCORRECT									F("Incorrect ")
@@ -146,3 +149,6 @@
 #define REPLY_SCHEDULER_ENABLE					F("Scheduler ") //
 #define REPLY_CLEAR_SCHEDULE_EXEC_TIME	F("Schedule #") //
 #define REPLY_DISPLAY_REFRESH						F("New display refresh period = \"") //
+#define REPLY_OTA_PASSWORD								F("New OTA password = \"") //
+#define REPLY_OTA_PORT								F("New OTA port = \"") //
+#define REPLY_OTA_ENABLE								F("OTA ") //
