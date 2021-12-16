@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
-using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net;
@@ -16,6 +15,7 @@ using System.Windows.Forms;
 using TextLoggerHelper;
 
 using IoTSettingsUpdate.Properties;
+using JsonDictionaryCore;
 
 namespace IoTSettingsUpdate
 {
@@ -37,14 +37,16 @@ namespace IoTSettingsUpdate
 
         private readonly DataTable _configData = new DataTable();
 
-        private readonly string[] _columnNames = { "Parameter", "Default Value", "New value", "Reply string" };
+        private readonly string[] _columnNames = { "Command", "Default value", "Custom value", "OK reply", "Error reply", "Parameter name" };
 
         private enum Columns
         {
-            Parameter,
+            Command,
             DefaultValue,
-            NewValue,
-            ReplyString
+            CustomValue,
+            OkReplyString,
+            ErrorReplyString,
+            ParameterName
         }
 
         private enum DataDirection
@@ -64,6 +66,8 @@ namespace IoTSettingsUpdate
         };
 
         private TextLogger _logger;
+
+        private Config _espSettings;
 
         private volatile List<string> _inputStrings = new List<string>();
         private volatile bool _waitReply;
@@ -204,36 +208,29 @@ namespace IoTSettingsUpdate
             var currentRow = dataGridView_config.CurrentCell.RowIndex;
             var currentCell = dataGridView_config.CurrentCell.ColumnIndex;
 
-            if (currentCell != (int)Columns.NewValue
+            if (currentCell != (int)Columns.CustomValue
                 && currentCell != (int)Columns.DefaultValue)
                 return;
 
             SendParameter(currentRow, currentCell);
         }
 
-        private void Button_sendAll_Click(object sender, EventArgs e)
+        private async void Button_sendAll_Click(object sender, EventArgs e)
         {
             if (_sending)
             {
                 _sending = false;
-                button_send.Enabled = true;
-                button_sendAll.Text = "Send all";
-                button_sendCommand.Enabled = true;
-                button_getConfig.Enabled = true;
-                button_getStatus.Enabled = true;
-                button_getSensor.Enabled = true;
-                button_setTime.Enabled = true;
-                comboBox_portname1.Enabled = true;
                 return;
             }
 
             var currentCell = dataGridView_config.CurrentCell.ColumnIndex;
 
-            if (currentCell != (int)Columns.NewValue
+            if (currentCell != (int)Columns.CustomValue
                 && currentCell != (int)Columns.DefaultValue)
                 return;
 
             _sending = true;
+            dataGridView_config.Enabled = false;
             button_send.Enabled = false;
             button_sendAll.Text = "Stop";
             button_sendCommand.Enabled = false;
@@ -241,15 +238,18 @@ namespace IoTSettingsUpdate
             button_getStatus.Enabled = false;
             button_getSensor.Enabled = false;
             button_setTime.Enabled = false;
+            button_reset.Enabled = false;
+            button_help.Enabled = false;
             comboBox_portname1.Enabled = true;
 
             for (var currentRow = 0; currentRow < _configData.Rows.Count; currentRow++)
             {
+                await SendParameter(currentRow, currentCell);
                 if (!_sending) break;
-                SendParameter(currentRow, currentCell);
             }
 
             _sending = false;
+            dataGridView_config.Enabled = true;
             button_send.Enabled = true;
             button_sendAll.Text = "Send all";
             button_sendCommand.Enabled = true;
@@ -257,10 +257,12 @@ namespace IoTSettingsUpdate
             button_getStatus.Enabled = true;
             button_getSensor.Enabled = true;
             button_setTime.Enabled = true;
+            button_reset.Enabled = true;
+            button_help.Enabled = true;
             comboBox_portname1.Enabled = true;
         }
 
-        private void SendParameter(int currentRow, int currentCell)
+        private async Task<bool> SendParameter(int currentRow, int currentCell)
         {
             _waitReply = false;
             _inputStrings.Clear();
@@ -269,30 +271,39 @@ namespace IoTSettingsUpdate
 
             if (string.IsNullOrEmpty(par))
                 par = " ";
-            var tmpStr = _configData.Rows[currentRow].ItemArray[(int)Columns.Parameter] + "=" + par;
+            var tmpStr = _configData.Rows[currentRow].ItemArray[(int)Columns.Command] + "=" + par;
 
             var outStream = new List<byte>();
             outStream.AddRange(Encoding.ASCII.GetBytes(tmpStr));
 
-            var waitSample = _configData.Rows[currentRow].ItemArray[(int)Columns.ReplyString].ToString();
+            var waitSample = new[]
+            {
+                _configData.Rows[currentRow].ItemArray[(int) Columns.OkReplyString].ToString(),
+                _configData.Rows[currentRow].ItemArray[(int) Columns.ErrorReplyString].ToString()
+            };
 
-            if (!string.IsNullOrEmpty(waitSample)) _waitReply = true;
+            if (waitSample.Any(n => !string.IsNullOrEmpty(n))) _waitReply = true;
             SendData(outStream.ToArray(), checkBox_addCrLf.Checked);
-
-            if (string.IsNullOrEmpty(waitSample)) return;
+            if (waitSample.All(n => string.IsNullOrEmpty(n))) return true;
 
             dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.Yellow;
-            if (WaitForReply(waitSample, _replyTimeout))
+
+            var res = await WaitForReply(waitSample, _replyTimeout);
+            if (res)
             {
                 dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.GreenYellow;
             }
             else
             {
-                var row = currentRow;
-                dataGridView_config.Rows[row].Cells[currentCell].Style.BackColor = Color.Red;
+                dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.Red;
             }
 
+            dataGridView_config.CurrentCell = dataGridView_config.Rows[currentRow].Cells[currentCell];
+
             _waitReply = false;
+            _inputStrings.Clear();
+
+            return res;
         }
 
         private bool SendData(IEnumerable<byte> outStream, bool addEol)
@@ -436,64 +447,22 @@ namespace IoTSettingsUpdate
 
         private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
         {
-            var data = new List<byte>();
-            try
-            {
-                data.AddRange(File.ReadAllBytes(openFileDialog1.FileName));
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error reading to file " + openFileDialog1.FileName + ": " + ex.Message);
-            }
-
-            var paramList = ParseConfig(data.ToArray());
-
-            if (paramList?.Count > 0)
+            _espSettings = new Config(openFileDialog1.FileName);
+            if (_espSettings.ConfigStorage.Count > 0)
             {
                 _configData.Rows.Clear();
-                foreach (var par in paramList)
+                foreach (var par in _espSettings.ConfigStorage)
                 {
                     var newRow = _configData.NewRow();
-                    newRow[(int)Columns.Parameter] = par.Key;
-                    var n = par.Value.IndexOf(" //", StringComparison.Ordinal);
-                    if (n > 0)
-                    {
-                        newRow[(int)Columns.DefaultValue] = par.Value.Substring(0, n);
-                        newRow[(int)Columns.ReplyString] = par.Value.Substring(n + 3);
-                    }
-                    else
-                    {
-                        newRow[1] = par.Value;
-                    }
-
+                    newRow[(int)Columns.Command] = par.Command;
+                    newRow[(int)Columns.DefaultValue] = par.DefaultValue;
+                    newRow[(int)Columns.CustomValue] = par.CustomValue;
+                    newRow[(int)Columns.OkReplyString] = par.OkReplyString;
+                    newRow[(int)Columns.ErrorReplyString] = par.ErrorReplyString;
+                    newRow[(int)Columns.ParameterName] = par.ParameterName;
                     _configData.Rows.Add(newRow);
                 }
             }
-        }
-
-        private Dictionary<string, string> ParseConfig(byte[] data)
-        {
-            var dict = new Dictionary<string, string>();
-            if (data?.Length == 0) return dict;
-            var stringsCollection = ConvertBytesToStrings(data, ref _unparsedData);
-
-            if (stringsCollection.Length <= 0) return null;
-
-            foreach (var s in stringsCollection)
-            {
-                var pos = s.IndexOf('=');
-                if (pos > 0)
-                {
-                    var paramName = s.Substring(0, pos);
-                    var paramValue = s.Substring(pos + 1);
-                    if (!dict.ContainsKey(paramName))
-                        dict.Add(paramName, paramValue);
-                    else
-                        dict[paramName] = paramValue;
-                }
-            }
-
-            return dict;
         }
 
         private void ProcessInput(byte[] data)
@@ -507,35 +476,48 @@ namespace IoTSettingsUpdate
             foreach (var s in stringsCollection)
             {
                 if (_waitReply) _inputStrings.Add(s);
+
+                var foundParam = _espSettings?
+                    .ConfigStorage?
+                    .FirstOrDefault(n => !string.IsNullOrEmpty(n.ParameterName) && s.StartsWith(n.ParameterName));
+                if (foundParam != null)
+                {
+                    var row = _configData.Rows.Cast<DataRow>()
+                        .FirstOrDefault(n => n.ItemArray[(int)Columns.Command].ToString() == foundParam.Command);
+                    if (row != null) row[(int)Columns.CustomValue] = s.Substring(foundParam.ParameterName.Length);
+                }
             }
         }
 
-        private bool WaitForReply(string stringStart, int timeout)
+        private async Task<bool> WaitForReply(string[] stringStart, int timeout)
         {
             var reply = false;
 
-            var samples = stringStart.Split(';');
             var start = DateTime.Now;
-            while (DateTime.Now.Subtract(start).TotalMilliseconds < timeout)
+            var stringsNum = 0;
+
+            await Task.Run(() =>
             {
-                Application.DoEvents();
-                Thread.Sleep(100);
-
-                for (var i = 0; i < _inputStrings.Count; i++)
+                while (DateTime.Now.Subtract(start).TotalMilliseconds < timeout)
                 {
-                    foreach (var s in samples)
-                        if (_inputStrings[i].StartsWith(s))
+                    Thread.Sleep(200);
+                    Application.DoEvents();
+                    if (stringsNum != _inputStrings.Count)
+                    {
+                        stringsNum = _inputStrings.Count;
+                        for (var i = 0; i < stringsNum; i++)
                         {
-                            reply = true;
-                            _inputStrings.RemoveAt(i);
-                            break;
+                            if (stringStart.Any(s => _inputStrings[i].StartsWith(s)))
+                            {
+                                reply = true;
+                                _inputStrings.RemoveAt(i);
+                                return;
+                            }
                         }
-
-                    if (reply) break;
+                    }
                 }
-
-                if (reply) break;
             }
+            ).ConfigureAwait(true);
 
             return reply;
         }
@@ -643,18 +625,21 @@ namespace IoTSettingsUpdate
             }
         }
 
-        private string PrepareConfig()
+        private void PrepareConfig()
         {
-            var str = new StringBuilder();
+            var newConfig = _configData.Rows.Cast<DataRow>()
+                .Select(row => new JsonDictionarySettings
+                {
+                    Command = row[(int)Columns.Command].ToString(),
+                    DefaultValue = row[(int)Columns.DefaultValue].ToString(),
+                    CustomValue = row[(int)Columns.CustomValue].ToString(),
+                    OkReplyString = row[(int)Columns.OkReplyString].ToString(),
+                    ErrorReplyString = row[(int)Columns.ErrorReplyString].ToString(),
+                    ParameterName = row[(int)Columns.ParameterName].ToString()
+                })
+                .ToList();
 
-            foreach (DataRow row in _configData.Rows)
-            {
-                var value = row[(int)Columns.NewValue].ToString().Length == 0 ? row[(int)Columns.DefaultValue] : row[(int)Columns.NewValue];
-                str.AppendLine(row[(int)Columns.Parameter] + "=" + value + " //" +
-                               row[(int)Columns.ReplyString]);
-            }
-
-            return str.ToString();
+            _espSettings.ConfigStorage = newConfig;
         }
 
         private async Task<Dictionary<IPAddress, string>> PingAddress(byte[] addressBytes, int num, int netPort, int pingTimeout = 3000, int dataTimeOut = 20000)
@@ -740,6 +725,26 @@ namespace IoTSettingsUpdate
             return deviceFound;
         }
 
+        private void CopySample()
+        {
+            if (dataGridView_config == null) return;
+
+            if (dataGridView_config.SelectedCells.Count == 1)
+            {
+                Clipboard.SetText(dataGridView_config.SelectedCells[0].Value.ToString());
+            }
+            else
+            {
+                var copyText = new StringBuilder();
+                foreach (DataGridViewCell cell in dataGridView_config.SelectedCells)
+                {
+                    copyText.Append(cell.ToString());
+                }
+
+                Clipboard.SetText(copyText.ToString());
+            }
+        }
+
         #endregion
 
         #region GUI
@@ -779,9 +784,11 @@ namespace IoTSettingsUpdate
 
             foreach (var col in _columnNames) _configData.Columns.Add(col);
 
-            _configData.Columns[(int)Columns.Parameter].ReadOnly = true;
+            _configData.Columns[(int)Columns.Command].ReadOnly = true;
             _configData.Columns[(int)Columns.DefaultValue].ReadOnly = true;
-            _configData.Columns[(int)Columns.ReplyString].ReadOnly = true;
+            _configData.Columns[(int)Columns.OkReplyString].ReadOnly = true;
+            _configData.Columns[(int)Columns.ErrorReplyString].ReadOnly = true;
+            _configData.Columns[(int)Columns.ParameterName].ReadOnly = true;
 
             dataGridView_config.AllowUserToAddRows = false;
             dataGridView_config.RowHeadersVisible = false;
@@ -867,30 +874,23 @@ namespace IoTSettingsUpdate
             openFileDialog1.FileName = "";
             openFileDialog1.Title = "Open text config";
             openFileDialog1.DefaultExt = "json";
-            openFileDialog1.Filter = "CFG files|*.cfg|All files|*.*";
+            openFileDialog1.Filter = "JSON files|*.json|All files|*.*";
             openFileDialog1.ShowDialog();
         }
 
         private void Button_save_Click(object sender, EventArgs e)
         {
-            saveFileDialog1.Title = "Save config as text...";
-            saveFileDialog1.DefaultExt = "cfg";
-            saveFileDialog1.Filter = "CFG files|*.cfg|All files|*.*";
-            saveFileDialog1.FileName = "config" + ".cfg";
+            saveFileDialog1.Title = "Save config...";
+            saveFileDialog1.DefaultExt = "json";
+            saveFileDialog1.Filter = "JSON files|*.json|All files|*.*";
+            saveFileDialog1.FileName = "config.json";
             saveFileDialog1.ShowDialog();
         }
 
         private void SaveFileDialog1_FileOk(object sender, CancelEventArgs e)
         {
-            var configData = PrepareConfig();
-            try
-            {
-                File.WriteAllText(saveFileDialog1.FileName, configData);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error writing to file " + saveFileDialog1.FileName + ": " + ex.Message);
-            }
+            PrepareConfig();
+            _espSettings.SaveConfig(saveFileDialog1.FileName);
         }
 
         private void CheckBox_autoScroll_CheckedChanged(object sender, EventArgs e)
@@ -968,12 +968,12 @@ namespace IoTSettingsUpdate
 
         private void DataGridView_config_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            var currentCell = dataGridView_config.CurrentCell.ColumnIndex;
-            if (currentCell != (int)Columns.NewValue) return;
+            var currentColumn = dataGridView_config.CurrentCell.ColumnIndex;
+            if (currentColumn != (int)Columns.CustomValue) return;
 
-            if (dataGridView_config.CurrentRow.Cells[currentCell].Style.BackColor !=
+            if (dataGridView_config.CurrentRow.Cells[currentColumn].Style.BackColor !=
                 dataGridView_config.DefaultCellStyle.BackColor)
-                dataGridView_config.CurrentRow.Cells[currentCell].Style.BackColor =
+                dataGridView_config.CurrentRow.Cells[currentColumn].Style.BackColor =
                     dataGridView_config.DefaultCellStyle.BackColor;
         }
 
@@ -984,6 +984,8 @@ namespace IoTSettingsUpdate
                 Button_send_Click(this, EventArgs.Empty);
                 e.Handled = true;
             }
+            if (e.KeyCode == Keys.C && e.Control)
+                CopySample();
         }
 
         private async void Button_scanIp_ClickAsync(object sender, EventArgs e)
@@ -1003,8 +1005,11 @@ namespace IoTSettingsUpdate
             await Task.WhenAll(taskList.ToArray()).ConfigureAwait(true);
 
             foreach (var ip in taskList.Where(x => x.Result != null))
+            {
                 _logger.AddText(ip.Result?.FirstOrDefault() + Environment.NewLine,
                     (byte)DataDirection.Note, DateTime.Now);
+            }
+
             button_scanIp.Text = savedText;
         }
 

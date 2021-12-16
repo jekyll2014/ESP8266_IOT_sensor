@@ -62,6 +62,8 @@
             this.button_getSensor = new System.Windows.Forms.Button();
             this.button_getStatus = new System.Windows.Forms.Button();
             this.button_scanIp = new System.Windows.Forms.Button();
+            this.button_reset = new System.Windows.Forms.Button();
+            this.button_help = new System.Windows.Forms.Button();
             this.contextMenuStrip_item.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView_config)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -360,9 +362,9 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_customCommand.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.SuggestAppend;
             this.textBox_customCommand.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.CustomSource;
-            this.textBox_customCommand.Location = new System.Drawing.Point(352, 375);
+            this.textBox_customCommand.Location = new System.Drawing.Point(445, 375);
             this.textBox_customCommand.Name = "textBox_customCommand";
-            this.textBox_customCommand.Size = new System.Drawing.Size(345, 20);
+            this.textBox_customCommand.Size = new System.Drawing.Size(252, 20);
             this.textBox_customCommand.TabIndex = 24;
             this.textBox_customCommand.KeyUp += new System.Windows.Forms.KeyEventHandler(this.TextBox_customCommand_KeyUp);
             // 
@@ -370,7 +372,7 @@
             // 
             this.label2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(255, 378);
+            this.label2.Location = new System.Drawing.Point(348, 378);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(91, 13);
             this.label2.TabIndex = 22;
@@ -434,6 +436,27 @@
             this.button_scanIp.UseVisualStyleBackColor = true;
             this.button_scanIp.Click += new System.EventHandler(this.Button_scanIp_ClickAsync);
             // 
+            // button_reset
+            // 
+            this.button_reset.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.button_reset.Location = new System.Drawing.Point(255, 373);
+            this.button_reset.Name = "button_reset";
+            this.button_reset.Size = new System.Drawing.Size(75, 23);
+            this.button_reset.TabIndex = 21;
+            this.button_reset.Text = "Reset";
+            this.button_reset.UseVisualStyleBackColor = true;
+            // 
+            // button_help
+            // 
+            this.button_help.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.button_help.Enabled = false;
+            this.button_help.Location = new System.Drawing.Point(255, 403);
+            this.button_help.Name = "button_help";
+            this.button_help.Size = new System.Drawing.Size(75, 23);
+            this.button_help.TabIndex = 21;
+            this.button_help.Text = "Help";
+            this.button_help.UseVisualStyleBackColor = true;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -447,6 +470,8 @@
             this.Controls.Add(this.label1);
             this.Controls.Add(this.button_getStatus);
             this.Controls.Add(this.button_getSensor);
+            this.Controls.Add(this.button_help);
+            this.Controls.Add(this.button_reset);
             this.Controls.Add(this.button_setTime);
             this.Controls.Add(this.button_getConfig);
             this.Controls.Add(this.button_sendAll);
@@ -514,6 +539,8 @@
         private System.Windows.Forms.Button button_getSensor;
         private System.Windows.Forms.Button button_getStatus;
         private System.Windows.Forms.Button button_scanIp;
+        private System.Windows.Forms.Button button_reset;
+        private System.Windows.Forms.Button button_help;
     }
 }
 
