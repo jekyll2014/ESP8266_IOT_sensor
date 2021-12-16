@@ -1691,7 +1691,6 @@ void handleRoot()
 	String str = F("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: ");
 	str += String(uint16_t(checkSensorPeriod / 1000UL));
 	str += F("\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\n");
-	//str += parseSensorReport(history_log[history_record_number - 1], F("<br>"), false);
 	str += parseSensorReport(sensorData, F("<br>"), false);
 	str += F("<br />\r\n</html>\r\n");
 	http_server.sendContent(str);
@@ -1935,7 +1934,7 @@ void setup()
 	//ArduinoOTA.onEnd(otaEndCallback);
 	//ArduinoOTA.onProgress(otaProgressCallback);
 	//ArduinoOTA.onError(otaErrorCallback);
-	ArduinoOTA.begin();
+	if (otaEnable) ArduinoOTA.begin();
 #endif
 	yield();
 #ifdef MQTT_ENABLE
@@ -1980,16 +1979,18 @@ void setup()
 	yield();
 #ifdef HTTP_ENABLE
 	httpPort = readConfigString(HTTP_PORT_addr, HTTP_PORT_size).toInt();
+
 	if (readConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size) == SWITCH_ON_NUMBER)
 		httpServerEnable = true;
+
 	http_server.on(F("/"), handleRoot);
 	/*http_server.on(F("/inline"), []()
 		{
 		http_server.send(200, F("text/plain"), F("this works as well"));
 		});*/
 	http_server.onNotFound(handleNotFound);
-	if (httpServerEnable)
-		http_server.begin(httpPort);
+
+	if (httpServerEnable) http_server.begin(httpPort);
 #endif
 	yield();
 #ifdef NTP_TIME_ENABLE
@@ -2101,9 +2102,6 @@ void setup()
 
 void loop()
 {
-#ifdef OTA_UPDATE
-	if (otaEnable) ArduinoOTA.handle();
-#endif
 
 #ifdef NTP_TIME_ENABLE
 	//refersh NTP time if time has come
@@ -2331,9 +2329,12 @@ void loop()
 	//process data from HTTP/Telnet/MQTT/TELEGRAM if available
 	if (WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0)
 	{
+#ifdef OTA_UPDATE
+		if (otaEnable) ArduinoOTA.handle();
+#endif
+		yield();
 #ifdef HTTP_ENABLE
-		if (httpServerEnable)
-			http_server.handleClient();
+		if (httpServerEnable) http_server.handleClient();
 #endif
 		yield();
 #ifdef TELNET_ENABLE
@@ -2400,10 +2401,7 @@ void loop()
 			}
 		}
 #endif
-	}
-	yield();
-	if (WiFi.status() == WL_CONNECTED)
-	{
+		yield();
 #ifdef MQTT_ENABLE
 		if (mqttEnable)
 		{
@@ -2422,10 +2420,10 @@ void loop()
 			yield();
 		}
 #endif
-
+		yield();
 #ifdef TELEGRAM_ENABLE
 		//check TELEGRAM for data
-		if (telegramEnable && millis() - telegramLastTime > TELEGRAM_MESSAGE_DELAY)
+		if (telegramEnable && currentWiFiMode != WIFI_MODE_AP && millis() - telegramLastTime > TELEGRAM_MESSAGE_DELAY)
 		{
 			sendBufferToTelegram();
 			telegramLastTime = millis();
@@ -3222,12 +3220,12 @@ String printConfig(bool toJson = false)
 #endif
 	yield();
 #ifdef HTTP_ENABLE
-	str += CFG_HTTP_PORT;
+	str += REPLY_HTTP_PORT;
 	str += eq;
 	str += readConfigString(HTTP_PORT_addr, HTTP_PORT_size);
 	str += delimiter;
 
-	str += CFG_HTTP_ENABLE;
+	str += REPLY_HTTP_ENABLE;
 	str += eq;
 	str += readConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size);
 	str += delimiter;
@@ -3627,6 +3625,34 @@ String printStatus(bool toJson = false)
 	str += String(wifiEnable);
 	str += delimiter;
 
+	str += F("WiFi mode");
+	str += eq;
+	str += wifiModes[currentWiFiMode];
+	str += delimiter;
+
+	str += F("WiFi connection");
+	str += eq;
+	if (WiFi.status() == WL_CONNECTED)
+	{
+		str += F("connected");
+		str += delimiter;
+
+		str += F("AP");
+		str += eq;
+		str += getStaSsid();
+		str += delimiter;
+
+		str += F("IP");
+		str += eq;
+		str += WiFi.localIP().toString();
+		str += delimiter;
+	}
+	else
+	{
+		str += F("not connected");
+		str += delimiter;
+	}
+
 	str += F("Telnet enabled");
 	str += eq;
 	str += String(telnetEnable);
@@ -3639,29 +3665,11 @@ String printStatus(bool toJson = false)
 	str += delimiter;
 #endif
 
-	str += F("WiFi mode");
-	str += eq;
-	str += wifiModes[currentWiFiMode];
-	str += delimiter;
-
-	str += F("WiFi connection");
-	str += eq;
-	if (WiFi.status() == WL_CONNECTED)
+	if (WiFi.softAPgetStationNum() > 0)
 	{
-		str += F("connected");
-		str += delimiter;
-		str += F("AP");
+		str += F("AP Clients connected");
 		str += eq;
-		str += getStaSsid();
-		str += delimiter;
-		str += F("IP");
-		str += eq;
-		str += WiFi.localIP().toString();
-		str += delimiter;
-	}
-	else
-	{
-		str += F("not connected");
+		str += String(WiFi.softAPgetStationNum());
 		str += delimiter;
 	}
 
@@ -3680,14 +3688,6 @@ String printStatus(bool toJson = false)
 		str += String(netClientsNum);
 		str += F("/");
 		str += TELNET_ENABLE;
-		str += delimiter;
-	}
-
-	if (WiFi.softAPgetStationNum() > 0)
-	{
-		str += F("AP Clients connected");
-		str += eq;
-		str += String(WiFi.softAPgetStationNum());
 		str += delimiter;
 	}
 #endif
@@ -3836,10 +3836,10 @@ String printStatus(bool toJson = false)
 	str += eq;
 	str += String(ESP.getFreeHeap());
 	str += delimiter;
+
 	str += F("Heap fragmentation");
 	str += eq;
 	str += String(ESP.getHeapFragmentation());
-	str += delimiter;
 
 	if (toJson)
 		str += F("\"}");
@@ -4651,8 +4651,8 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//Serial.flush();
 #endif
 				ESP.restart();
+			}
 		}
-	}
 		else if (cmd.command == CMD_AUTOREPORT)
 		{
 			autoReport = cmd.arguments[0].toInt();
@@ -4837,7 +4837,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 					};
 				}
 			}
-}
+		}
 #endif
 
 #ifdef TELNET_ENABLE
@@ -4975,7 +4975,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			{
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
-		}
+			}
 		}
 #endif
 
@@ -5274,7 +5274,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-			}
+		}
 #endif
 
 #ifdef TELEGRAM_ENABLE
@@ -5444,7 +5444,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += REPLY_PUSHINGBOX_ENABLE;
 				str += eq;
 				str += REPLY_ENABLED;
-		}
+			}
 			else
 			{
 				str = REPLY_INCORRECT_VALUE;
@@ -5722,6 +5722,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += REPLY_OTA_ENABLE;
 				str += eq;
 				str += REPLY_DISABLED;
+				ArduinoOTA.begin();
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
@@ -5913,10 +5914,10 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 												eventsFlags[eventNum] = false;
 						#endif*/
 					}
-			}
+				}
 				yield();
+			}
 		}
-	}
 #endif
 #ifdef TELEGRAM_ENABLE
 		//send_telegram=* / user#,message
@@ -6012,7 +6013,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 								eventsFlags[eventNum] = false;
 				#endif*/
 			}
-				}
+		}
 #endif
 #ifdef MQTT_ENABLE
 		//send_MQTT=topic_to,message
@@ -6059,7 +6060,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		}
 		yield();
 	} while (action.length() > 0);
-		}
+}
 #endif
 
 #ifdef TEMPERATURE_SENSOR

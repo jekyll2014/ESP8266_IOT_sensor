@@ -16,7 +16,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 #define OTA_UPDATE
 #define NTP_TIME_ENABLE
 #define TELNET_ENABLE						5 // max. connections
-// WIFI problem #define HTTP_ENABLE
+//#define HTTP_ENABLE						//WIFI problem if mixed with some other services
 #define EVENTS_ENABLE
 #define SCHEDULER_ENABLE
 #define MQTT_ENABLE

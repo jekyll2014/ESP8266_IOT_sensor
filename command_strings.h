@@ -7,7 +7,7 @@
 #define REPLY_AP_SSID						F("WiFi AP SSID") //
 
 #define CMD_AUTOREPORT						F("autoreport") //autoreport
-#define REPLY_AUTOREPORT					F("Autoreport channels=") //
+#define REPLY_AUTOREPORT					F("Autoreport channels") //
 
 #define CMD_BUZZ							F("buzz") //buzz
 
