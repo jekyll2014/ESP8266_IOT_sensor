@@ -1003,7 +1003,7 @@ bool mqtt_connect()
 		{
 			mqtt_device_id = deviceName;
 			mqtt_device_id += F("_");
-			mqtt_device_id += WiFi.macAddress();
+			mqtt_device_id += CompactMac();
 		}
 
 		if (mqtt_User.length() > 0)
@@ -1926,7 +1926,9 @@ void setup()
 
 	tmpStr = readConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size);
 	ArduinoOTA.setPassword(tmpStr.c_str());
-	tmpStr = readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size) + F("_") + WiFi.macAddress();
+	tmpStr = readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
+	tmpStr += F("_");
+	tmpStr += CompactMac();
 	ArduinoOTA.setHostname(tmpStr.c_str());
 
 	ArduinoOTA.onStart(otaStartCallback);
@@ -2942,7 +2944,7 @@ String set_output(uint8_t outNum, String& outStateStr)
 			analogWrite(pins[outNum - 1], outputs[outNum - 1]);
 		else
 			digitalWrite(pins[outNum - 1], outputs[outNum - 1]);
-		str = REPLY_SET_OUTPUT;
+		str = REPLY_OUTPUT_SET;
 		str += String(outNum);
 		str += F("=");
 		str += String((outState));
@@ -2986,50 +2988,48 @@ String printConfig(bool toJson = false)
 	str += FW_VERSION;
 	str += delimiter;
 
-	str += F("WiFi STA SSID");
+	str += REPLY_STA_SSID;
 	str += eq;
 	str += readConfigString(STA_SSID_addr, STA_SSID_size);
 	str += delimiter;
 
-	str += F("WiFi STA password");
+	str += REPLY_STA_PASS;
 	str += eq;
 	str += readConfigString(STA_PASS_addr, STA_PASS_size);
 	str += delimiter;
 
-	str += F("WiFi AP SSID");
+	str += REPLY_AP_SSID;
 	str += eq;
 	str += readConfigString(AP_SSID_addr, AP_SSID_size);
 	str += delimiter;
 
-	str += F("WiFi AP password");
+	str += REPLY_AP_PASS;
 	str += eq;
 	str += readConfigString(AP_PASS_addr, AP_PASS_size);
 	str += delimiter;
 
-	str += F("WiFi connect time limit");
+	str += REPLY_WIFI_CONNECT_TIME;
 	str += eq;
 	str += readConfigString(CONNECT_TIME_addr, CONNECT_TIME_size);
 	str += delimiter;
 
-	str += F("WiFi disconnect time");
+	str += REPLY_WIFI_RECONNECT_PERIOD;
 	str += eq;
 	str += readConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size);
-	str += F(" sec.");
 	str += delimiter;
 
-	str += F("WiFi power");
+	str += REPLY_WIFI_POWER;
 	str += eq;
 	str += String(readConfigFloat(WIFI_POWER_addr));
-	str += F(" dB");
 	str += delimiter;
 
-	str += F("WiFi standart");
+	str += REPLY_WIFI_STANDART;
 	str += eq;
 	str += F("802.11");
 	str += readConfigString(WIFI_STANDART_addr, WIFI_STANDART_size);
 	str += delimiter;
 
-	str += F("WiFi mode");
+	str += REPLY_WIFI_MODE;
 	str += eq;
 	long m = readConfigString(WIFI_MODE_addr, WIFI_MODE_size).toInt();
 	if (m < 0 || m >= wifiModes->length())
@@ -3037,12 +3037,12 @@ String printConfig(bool toJson = false)
 	str += wifiModes[m];
 	str += delimiter;
 
-	str += F("Sensor read period");
+	str += REPLY_CHECK_PERIOD;
 	str += eq;
 	str += String(readConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size).toInt());
 	str += delimiter;
 
-	str += F("Autoreport");
+	str += REPLY_AUTOREPORT;
 	str += eq;
 	m = readConfigString(AUTOREPORT_addr, AUTOREPORT_size).toInt();
 	for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
@@ -3164,45 +3164,48 @@ String printConfig(bool toJson = false)
 	str += String(LOG_SIZE);
 	str += delimiter;
 
-	str += F("Log save period");
+	str += CFG_LOG_PERIOD;
 	str += eq;
 	str += String(readConfigString(LOG_PERIOD_addr, LOG_PERIOD_size).toInt());
 	str += delimiter;
 #endif
 	yield();
 #ifdef SLEEP_ENABLE
-	str += F("Sleep ON/OFF time");
+	str += REPLY_SLEEP_ON;
 	str += eq;
 	str += readConfigString(SLEEP_ON_addr, SLEEP_ON_size);
-	str += F("/");
+	str += delimiter;
+
+	str += REPLY_SLEEP_OFF;
+	str += eq;
 	str += readConfigString(SLEEP_OFF_addr, SLEEP_OFF_size);
 	str += delimiter;
 
-	str += F("SLEEP mode enabled");
+	str += REPLY_SLEEP_ENABLE;
 	str += eq;
 	str += readConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef OTA_UPDATE
-	str += F("OTA port");
+	str += REPLY_OTA_PORT;
 	str += eq;
 	str += readConfigString(OTA_PORT_addr, OTA_PORT_size);
 	str += delimiter;
 
-	str += F("OTA password");
+	str += REPLY_OTA_PASSWORD;
 	str += eq;
 	str += readConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size);
 	str += delimiter;
 
-	str += F("OTA enabled");
+	str += REPLY_OTA_ENABLE;
 	str += eq;
 	str += String(readConfigString(OTA_ENABLE_addr, OTA_ENABLE_size));
 	str += delimiter;
 #endif
 	yield();
 #ifdef TELNET_ENABLE
-	str += F("Telnet port");
+	str += REPLY_TELNET_PORT;
 	str += eq;
 	str += readConfigString(TELNET_PORT_addr, TELNET_PORT_size);
 	str += delimiter;
@@ -3212,105 +3215,106 @@ String printConfig(bool toJson = false)
 	str += String(TELNET_ENABLE);
 	str += delimiter;
 
-	str += F("Telnet service enabled");
+	str += REPLY_TELNET_ENABLE;
 	str += eq;
 	str += readConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef HTTP_ENABLE
-	str += F("HTTP port");
+	str += CFG_HTTP_PORT;
 	str += eq;
 	str += readConfigString(HTTP_PORT_addr, HTTP_PORT_size);
 	str += delimiter;
 
-	str += F("HTTP service enabled");
+	str += CFG_HTTP_ENABLE;
 	str += eq;
 	str += readConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef MQTT_ENABLE
-	str += F("MQTT server");
+	str += REPLY_MQTT_SERVER;
 	str += eq;
 	str += readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
 	str += delimiter;
 
-	str += F("MQTT port");
+	str += REPLY_MQTT_PORT;
 	str += eq;
 	str += readConfigString(MQTT_PORT_addr, MQTT_PORT_size);
 	str += delimiter;
 
-	str += F("MQTT login");
+	str += REPLY_MQTT_LOGIN;
 	str += eq;
 	str += readConfigString(MQTT_USER_addr, MQTT_USER_size);
 	str += delimiter;
 
-	str += F("MQTT password");
+	str += REPLY_MQTT_PASS;
 	str += eq;
 	str += readConfigString(MQTT_PASS_addr, MQTT_PASS_size);
 	str += delimiter;
 
-	str += F("MQTT ID");
+	str += REPLY_MQTT_ID;
 	str += eq;
 	str += readConfigString(MQTT_ID_addr, MQTT_ID_size);
 	str += delimiter;
 
-	str += F("MQTT receive topic");
+	str += REPLY_MQTT_TOPIC_IN;
 	str += eq;
 	str += readConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size);
 	str += delimiter;
 
-	str += F("MQTT post topic");
+	str += REPLY_MQTT_TOPIC_OUT;
 	str += eq;
 	str += readConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size);
 	str += delimiter;
 
-	str += F("MQTT clean session");
+	str += REPLY_MQTT_CLEAN;
 	str += eq;
 	str += readConfigString(MQTT_CLEAN_addr, MQTT_CLEAN_size);
 	str += delimiter;
 
-	str += F("MQTT service enabled");
+	str += REPLY_MQTT_ENABLE;
 	str += eq;
 	str += readConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef SMTP_ENABLE
-	str += F("SMTP server");
+	str += CFG_SMTP_SERVER;
 	str += eq;
 	str += readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	str += delimiter;
 
-	str += F("SMTP port");
+	str += CFG_SMTP_PORT;
 	str += eq;
 	str += readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size);
 	str += delimiter;
 
-	str += F("SMTP login");
+	str += CFG_SMTP_LOGIN;
 	str += eq;
 	str += readConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size);
 	str += delimiter;
 
-	str += F("SMTP password");
+	str += CFG_SMTP_PASS;
 	str += eq;
 	str += readConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size);
 	str += delimiter;
 
-	str += F("Mail To");
+	str += CFG_SMTP_TO;
 	str += eq;
 	str += readConfigString(SMTP_TO_addr, SMTP_TO_size);
 	str += delimiter;
 
-	str += F("SMTP service enabled");
+	str += CFG_SMTP_ENABLE;
 	str += eq;
 	str += readConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef TELEGRAM_ENABLE
-	str += F("TELEGRAM token: ");
+	str += REPLY_TELEGRAM_TOKEN;
+	str += eq;
 	str += readConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size);
 	str += delimiter;
 
@@ -3321,7 +3325,7 @@ String printConfig(bool toJson = false)
 
 	for (m = 1; m < TELEGRAM_USERS_NUMBER; m++)
 	{
-		str += F("User #");
+		str += REPLY_TELEGRAM_USER;
 		str += String(m);
 		str += eq;
 		str += uint64ToString(getTelegramUser(m));
@@ -3329,63 +3333,63 @@ String printConfig(bool toJson = false)
 		yield();
 	}
 
-	str += F("TELEGRAM service enabled");
+	str += REPLY_TELEGRAM_ENABLE;
 	str += eq;
 	str += readConfigString(TELEGRAM_ENABLE_addr, TELEGRAM_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef GSCRIPT_ENABLE
-	str += F("GSCRIPT token");
+	str += CFG_GSCRIPT_TOKEN;
 	str += eq;
 	str += readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
 	str += delimiter;
 
-	str += F("GSCRIPT service enabled");
+	str += CFG_GSCRIPT_ENABLE;
 	str += eq;
 	str += readConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef PUSHINGBOX_ENABLE
-	str += F("PUSHINGBOX token");
+	str += CFG_PUSHINGBOX_TOKEN;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size);
 	str += delimiter;
 
-	str += F("PUSHINGBOX parameter name");
+	str += CFG_PUSHINGBOX_PARAMETER;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size);
 	str += delimiter;
 
-	str += F("PUSHINGBOX service enabled");
+	str += CFG_PUSHINGBOX_ENABLE;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef NTP_TIME_ENABLE
-	str += F("NTP server");
+	str += REPLY_NTP_SERVER;
 	str += eq;
 	str += readConfigString(NTP_SERVER_addr, NTP_SERVER_size);
 	str += delimiter;
 
-	str += F("NTP time zone");
+	str += REPLY_NTP_TIME_ZONE;
 	str += eq;
 	str += readConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size);
 	str += delimiter;
 
-	str += F("NTP refresh delay");
+	str += REPLY_NTP_REFRESH_DELAY;
 	str += eq;
 	str += readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size);
 	str += delimiter;
 
-	str += F("NTP refresh period");
+	str += REPLY_NTP_REFRESH_PERIOD;
 	str += eq;
 	str += readConfigString(NTP_REFRESH_PERIOD_addr, NTP_REFRESH_PERIOD_size);
 	str += delimiter;
 
-	str += F("NTP service enabled");
+	str += REPLY_NTP_ENABLE;
 	str += eq;
 	str += readConfigString(NTP_ENABLE_addr, NTP_ENABLE_size);
 	str += delimiter;
@@ -3394,14 +3398,14 @@ String printConfig(bool toJson = false)
 #ifdef EVENTS_ENABLE
 	for (m = 0; m < EVENTS_NUMBER; m++)
 	{
-		str += F("EVENT #");
+		str += REPLY_EVENT_SET;
 		str += String(m);
 		str += eq;
 		str += getEvent(m);
 		str += delimiter;
 		yield();
 	}
-	str += F("EVENTS service enabled");
+	str += REPLY_EVENTS_ENABLE;
 	str += eq;
 	str += readConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size);
 	str += delimiter;
@@ -3410,7 +3414,7 @@ String printConfig(bool toJson = false)
 #ifdef SCHEDULER_ENABLE
 	for (m = 0; m < SCHEDULES_NUMBER; m++)
 	{
-		str += F("SCHEDULE #");
+		str += REPLY_SCHEDULE_SET;
 		str += String(m);
 		str += eq;
 		str += getSchedule(m);
@@ -3426,7 +3430,7 @@ String printConfig(bool toJson = false)
 		str += delimiter;
 		yield();
 	}
-	str += F("SCHEDULER service enabled");
+	str += REPLY_SCHEDULER_ENABLE;
 	str += eq;
 	str += readConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size);
 	str += delimiter;
@@ -3457,14 +3461,14 @@ String printConfig(bool toJson = false)
 #ifdef GSM_ENABLE
 	for (m = 0; m < GSM_USERS_NUMBER; m++)
 	{
-		str += F("Phone #");
+		str += CFG_GSM_USER;
 		str += String(m);
 		str += eq;
 		str += getGsmUser(m);
 		str += delimiter;
 		yield();
 	}
-	str += F("GSM service enabled");
+	str += CFG_GSM_ENABLE;
 	str += eq;
 	str += readConfigString(GSM_ENABLE_addr, GSM_ENABLE_size);
 	str += delimiter;
@@ -3487,7 +3491,7 @@ String printConfig(bool toJson = false)
 #endif
 	yield();
 #ifdef DISPLAY_ENABLED
-	str += F("Display refresh delay");
+	str += CFG_DISPLAY_REFRESH;
 	str += eq;
 	str += readConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size);
 	str += delimiter;
@@ -4411,6 +4415,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 {
 	commandTokens cmd = parseCommand(command, '=', ',', true);
 	cmd.command.toLowerCase();
+	String eq = F("=\"");
 	String str = "";
 	str.reserve(2048);
 	if (channel == CHANNEL_GSM)
@@ -4425,17 +4430,17 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 	{
 		str += printStatus();
 	}
-	else if (cmd.command == CMD_GET_CONFIG)
-	{
-		str += printConfig();
-	}
 	else if (cmd.command == CMD_HELP)
 	{
 		str += printHelp();
 	}
 	else if (isAdmin)
 	{
-		if (cmd.command == CMD_SET_TIME)
+		if (cmd.command == CMD_GET_CONFIG)
+		{
+			str += printConfig();
+		}
+		else if (cmd.command == CMD_TIME_SET)
 		{
 			uint8_t _hr = cmd.arguments[0].substring(11, 13).toInt();
 			uint8_t _min = cmd.arguments[0].substring(14, 16).toInt();
@@ -4444,7 +4449,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			uint8_t _month = cmd.arguments[0].substring(5, 7).toInt();
 			uint16_t _yr = cmd.arguments[0].substring(0, 4).toInt();
 			setTime(_hr, _min, _sec, _day, _month, _yr);
-			str += REPLY_SET_TIME;
+			str += REPLY_TIME_SET;
 			str += String(_yr);
 			str += F(".");
 			str += String(_month);
@@ -4465,6 +4470,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			checkSensorPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
 			str += REPLY_CHECK_PERIOD;
+			str += eq;
 			str += String(uint16_t(checkSensorPeriod / 1000UL));
 			str += QUOTE;
 			writeConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size, String(uint16_t(checkSensorPeriod / 1000UL)));
@@ -4473,6 +4479,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			deviceName = cmd.arguments[0];
 			str += REPLY_DEVICE_NAME;
+			str += eq;
 			str += deviceName;
 			str += QUOTE;
 			writeConfigString(DEVICE_NAME_addr, DEVICE_NAME_size, deviceName);
@@ -4480,6 +4487,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_STA_SSID)
 		{
 			str += REPLY_STA_SSID;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(STA_SSID_addr, STA_SSID_size, cmd.arguments[0]);
@@ -4487,6 +4495,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_STA_PASS)
 		{
 			str += REPLY_STA_PASS;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(STA_PASS_addr, STA_PASS_size, cmd.arguments[0]);
@@ -4494,6 +4503,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_AP_SSID)
 		{
 			str += REPLY_AP_SSID;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(AP_SSID_addr, AP_SSID_size, cmd.arguments[0]);
@@ -4501,6 +4511,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_AP_PASS)
 		{
 			str += REPLY_AP_PASS;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(AP_PASS_addr, AP_PASS_size, cmd.arguments[0]);
@@ -4510,6 +4521,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			if (cmd.arguments[0] == F("B") || cmd.arguments[0] == F("G") || cmd.arguments[0] == F("N"))
 			{
 				str += REPLY_WIFI_STANDART;
+				str += eq;
 				str += String(cmd.arguments[0]);
 				str += QUOTE;
 				writeConfigString(WIFI_STANDART_addr, WIFI_STANDART_size, cmd.arguments[0]);
@@ -4527,6 +4539,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			if (power >= 0 && power <= 20.5)
 			{
 				str += REPLY_WIFI_POWER;
+				str += eq;
 				str += String(power);
 				str += QUOTE;
 				writeConfigFloat(WIFI_POWER_addr, power);
@@ -4570,6 +4583,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			if (wifi_mode != 255)
 			{
 				str += REPLY_WIFI_MODE;
+				str += eq;
 				str += wifiModes[wifi_mode];
 				str += QUOTE;
 				writeConfigString(WIFI_MODE_addr, WIFI_MODE_size, String(wifi_mode));
@@ -4585,6 +4599,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			connectTimeLimit = uint32_t(cmd.arguments[0].toInt() * 1000UL);
 			str += REPLY_WIFI_CONNECT_TIME;
+			str += eq;
 			str += String(uint16_t(connectTimeLimit / 1000UL));
 			str += QUOTE;
 			writeConfigString(CONNECT_TIME_addr, CONNECT_TIME_size, String(uint16_t(connectTimeLimit / 1000UL)));
@@ -4593,6 +4608,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			reconnectPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
 			str += REPLY_WIFI_RECONNECT_PERIOD;
+			str += eq;
 			str += String(uint16_t(reconnectPeriod / 1000UL));
 			str += QUOTE;
 			writeConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size, String(uint16_t(reconnectPeriod / 1000UL)));
@@ -4604,6 +4620,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				wifiEnable = false;
 				Start_OFF_Mode();
 				str += REPLY_WIFI_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -4611,6 +4628,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				wifiEnable = true;
 				startWiFi();
 				str += REPLY_WIFI_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -4633,13 +4651,14 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//Serial.flush();
 #endif
 				ESP.restart();
-			}
 		}
+	}
 		else if (cmd.command == CMD_AUTOREPORT)
 		{
 			autoReport = cmd.arguments[0].toInt();
 			writeConfigString(AUTOREPORT_addr, AUTOREPORT_size, String(autoReport));
 			str += REPLY_AUTOREPORT;
+			str += eq;
 			for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
 			{
 				if (bitRead(autoReport, b))
@@ -4649,8 +4668,9 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				}
 				yield();
 			}
+			str += QUOTE;
 		}
-		else if (cmd.command == CMD_SET_PIN_MODE)
+		else if (cmd.command == CMD_PIN_MODE_SET)
 		{
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
@@ -4675,7 +4695,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 					uint16_t l = PIN_MODE_size / PIN_NUMBER;
 					writeConfigString(PIN_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
 
-					str += REPLY_SET_PIN_MODE;
+					str += REPLY_PIN_MODE_SET;
 					str += String(cmd.index);
 					str += F(" mode: ");
 					str += pinModeList[intModeNum];
@@ -4688,7 +4708,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += String(cmd.index);
 			}
 		}
-		else if (cmd.command == CMD_SET_INTERRUPT_MODE)
+		else if (cmd.command == CMD_INTERRUPT_MODE_SET)
 		{
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
@@ -4712,7 +4732,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				{
 					uint16_t l = INTERRUPT_MODE_size / PIN_NUMBER;
 					writeConfigString(INTERRUPT_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
-					str += REPLY_SET_INTERRUPT_MODE;
+					str += REPLY_INTERRUPT_MODE_SET;
 					str += String(cmd.index);
 					str += F(" mode: ");
 					str += intModeList[intModeNum];
@@ -4725,7 +4745,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += String(cmd.index);
 			}
 		}
-		else if (cmd.command == CMD_SET_INIT_OUTPUT)
+		else if (cmd.command == CMD_OUTPUT_INIT_SET)
 		{
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
@@ -4737,7 +4757,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				}
 				uint16_t l = OUTPUT_INIT_size / PIN_NUMBER;
 				writeConfigString(OUTPUT_INIT_addr + (cmd.index - 1) * l, l, cmd.arguments[0]);
-				str += REPLY_SET_INIT_OUTPUT;
+				str += REPLY_OUTPUT_INIT_SET;
 				str += String(cmd.index);
 				str += F(" initial state: ");
 				str += cmd.arguments[0];
@@ -4749,7 +4769,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += String(cmd.index);
 			}
 		}
-		else if (cmd.command == CMD_SET_OUTPUT)
+		else if (cmd.command == CMD_OUTPUT_SET)
 		{
 			str += set_output(cmd.index, cmd.arguments[0]);
 		}
@@ -4759,6 +4779,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			logPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
 			str += REPLY_LOG_PERIOD;
+			str += eq;
 			str += String(uint16_t(logPeriod / 1000UL));
 			str += QUOTE;
 			writeConfigString(LOG_PERIOD_addr, LOG_PERIOD_size, String(uint16_t(logPeriod / 1000UL)));
@@ -4816,7 +4837,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 					};
 				}
 			}
-		}
+}
 #endif
 
 #ifdef TELNET_ENABLE
@@ -4824,6 +4845,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint16_t telnetPort = cmd.arguments[0].toInt();
 			str += REPLY_TELNET_PORT;
+			str += eq;
 			str += String(telnetPort);
 			str += QUOTE;
 			writeConfigString(TELNET_PORT_addr, TELNET_PORT_size, String(telnetPort));
@@ -4836,6 +4858,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				telnetEnable = false;
 				telnetServer.stop();
 				str += REPLY_TELNET_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -4844,6 +4867,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				telnetServer.begin();
 				telnetServer.setNoDelay(true);
 				str += REPLY_TELNET_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -4871,6 +4895,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//sleepEnable = false;
 				writeConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size, SWITCH_OFF_NUMBER);
 				str += REPLY_SLEEP_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -4878,6 +4903,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//sleepEnable = true;
 				writeConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size, SWITCH_ON_NUMBER);
 				str += REPLY_SLEEP_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -4893,6 +4919,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				activeTimeOut_ms = uint32_t(2 * connectTimeLimit);
 
 			str += REPLY_SLEEP_ON;
+			str += eq;
 			str += String(uint16_t(activeTimeOut_ms / 1000UL));
 			str += QUOTE;
 			writeConfigString(SLEEP_ON_addr, SLEEP_ON_size, String(uint16_t(activeTimeOut_ms / 1000UL)));
@@ -4904,6 +4931,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				sleepTimeOut_us = uint32_t(20UL * connectTimeLimit * 1000UL); //max 71 minutes (Uint32_t / 1000 / 1000 /60)
 
 			str += REPLY_SLEEP_OFF;
+			str += eq;
 			str += String(uint16_t(sleepTimeOut_us / 1000000UL));
 			str += QUOTE;
 			writeConfigString(SLEEP_OFF_addr, SLEEP_OFF_size, String(uint16_t(sleepTimeOut_us / 1000000UL)));
@@ -4915,6 +4943,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			httpPort = cmd.arguments[0].toInt();
 			str += REPLY_HTTP_PORT;
+			str += eq;
 			str += String(httpPort);
 			str += QUOTE;
 			writeConfigString(HTTP_PORT_addr, HTTP_PORT_size, String(httpPort));
@@ -4928,6 +4957,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//httpServerEnable = false;
 				//if (httpServerEnable) http_server.stop();
 				str += REPLY_HTTP_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -4938,13 +4968,14 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				http_server.onNotFound(handleNotFound);
 				http_server.begin(httpPort);*/
 				str += REPLY_HTTP_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
 			{
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
-			}
+		}
 		}
 #endif
 
@@ -4965,6 +4996,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			IPAddress tmpAddr;
 			str += REPLY_MQTT_SERVER;
+			str += eq;
 			if (tmpAddr.fromString(cmd.arguments[0]))
 			{
 				IPAddress mqtt_ip_server = tmpAddr;
@@ -4981,6 +5013,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint16_t mqtt_port = cmd.arguments[0].toInt();
 			str += REPLY_MQTT_PORT;
+			str += eq;
 			str += String(mqtt_port);
 			str += QUOTE;
 			writeConfigString(MQTT_PORT_addr, MQTT_PORT_size, String(mqtt_port));
@@ -4989,6 +5022,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_MQTT_LOGIN)
 		{
 			str += REPLY_MQTT_LOGIN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(MQTT_USER_addr, MQTT_USER_size, cmd.arguments[0]);
@@ -4996,6 +5030,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_MQTT_PASS)
 		{
 			str += REPLY_MQTT_PASS;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(MQTT_PASS_addr, MQTT_PASS_size, cmd.arguments[0]);
@@ -5003,6 +5038,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_MQTT_ID)
 		{
 			str += REPLY_MQTT_ID;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(MQTT_ID_addr, MQTT_ID_size, cmd.arguments[0]);
@@ -5010,6 +5046,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_MQTT_TOPIC_IN)
 		{
 			str += REPLY_MQTT_TOPIC_IN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size, cmd.arguments[0]);
@@ -5017,6 +5054,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_MQTT_TOPIC_OUT)
 		{
 			str += REPLY_MQTT_TOPIC_OUT;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size, cmd.arguments[0]);
@@ -5045,6 +5083,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_OFF_NUMBER);
 				mqttEnable = false;
 				str += REPLY_MQTT_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 				mqtt_client.disconnect();
 			}
@@ -5053,6 +5092,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_ON_NUMBER);
 				mqttEnable = true;
 				str += REPLY_MQTT_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 				mqtt_connect();
 			}
@@ -5090,6 +5130,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_SMTP_SERVER)
 		{
 			str += REPLY_SMTP_SERVER;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size, cmd.arguments[0]);
@@ -5098,6 +5139,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint16_t smtpServerPort = cmd.arguments[0].toInt();
 			str += REPLY_SMTP_PORT;
+			str += eq;
 			str += String(smtpServerPort);
 			str += QUOTE;
 			writeConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size, String(smtpServerPort));
@@ -5105,6 +5147,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_SMTP_LOGIN)
 		{
 			str += REPLY_SMTP_LOGIN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size, cmd.arguments[0]);
@@ -5112,6 +5155,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_SMTP_PASS)
 		{
 			str += REPLY_SMTP_PASS;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size, cmd.arguments[0]);
@@ -5119,6 +5163,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_SMTP_TO)
 		{
 			str += REPLY_SMTP_TO;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(SMTP_TO_addr, SMTP_TO_size, cmd.arguments[0]);
@@ -5130,6 +5175,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size, SWITCH_OFF_NUMBER);
 				//smtpEnable = false;
 				str += REPLY_SMTP_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5137,6 +5183,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size, SWITCH_ON_NUMBER);
 				//smtpEnable = true;
 				str += REPLY_SMTP_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5211,6 +5258,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(GSM_ENABLE_addr, GSM_ENABLE_size, SWITCH_OFF_NUMBER);
 				gsmEnable = false;
 				str += REPLY_GSM_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5218,6 +5266,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(GSM_ENABLE_addr, GSM_ENABLE_size, SWITCH_ON_NUMBER);
 				gsmEnable = true;
 				str += REPLY_GSM_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5225,7 +5274,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str = REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
-		}
+			}
 #endif
 
 #ifdef TELEGRAM_ENABLE
@@ -5289,6 +5338,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_TELEGRAM_TOKEN)
 		{
 			str += REPLY_TELEGRAM_TOKEN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size, cmd.arguments[0]);
@@ -5301,6 +5351,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(TELEGRAM_ENABLE_addr, TELEGRAM_ENABLE_size, SWITCH_OFF_NUMBER);
 				//telegramEnable = false;
 				str += REPLY_TELEGRAM_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5311,6 +5362,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//myBot.setTelegramToken(telegramToken);
 				//myBot.testConnection();
 				str += REPLY_TELEGRAM_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5326,6 +5378,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_GSCRIPT_TOKEN)
 		{
 			str += REPLY_GSCRIPT_TOKEN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size, cmd.arguments[0]);
@@ -5337,6 +5390,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size, SWITCH_OFF_NUMBER);
 				//gScriptEnable = false;
 				str += REPLY_GSCRIPT_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5344,6 +5398,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size, SWITCH_ON_NUMBER);
 				//gScriptEnable = true;
 				str += REPLY_GSCRIPT_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5359,6 +5414,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_PUSHINGBOX_TOKEN)
 		{
 			str += REPLY_PUSHINGBOX_TOKEN;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size, cmd.arguments[0]);
@@ -5366,6 +5422,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_PUSHINGBOX_PARAMETER)
 		{
 			str += REPLY_PUSHINGBOX_PARAMETER;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size, cmd.arguments[0]);
@@ -5377,6 +5434,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size, SWITCH_OFF_NUMBER);
 				//pushingBoxEnable = false;
 				str += REPLY_PUSHINGBOX_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5384,8 +5442,9 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size, SWITCH_ON_NUMBER);
 				//pushingBoxEnable = true;
 				str += REPLY_PUSHINGBOX_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
-			}
+		}
 			else
 			{
 				str = REPLY_INCORRECT_VALUE;
@@ -5398,6 +5457,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_NTP_SERVER)
 		{
 			str += REPLY_NTP_SERVER;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(NTP_SERVER_addr, NTP_SERVER_size, cmd.arguments[0]);
@@ -5406,6 +5466,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			int timeZone = cmd.arguments[0].toInt();
 			str += REPLY_NTP_TIME_ZONE;
+			str += eq;
 			str += String(timeZone);
 			str += QUOTE;
 			writeConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size, String(timeZone));
@@ -5414,6 +5475,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			ntpRefreshDelay = cmd.arguments[0].toInt();
 			str += REPLY_NTP_REFRESH_DELAY;
+			str += eq;
 			str += String(ntpRefreshDelay);
 			str += QUOTE;
 			writeConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size, String(ntpRefreshDelay));
@@ -5423,6 +5485,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			timeRefershPeriod = cmd.arguments[0].toInt();
 			str += REPLY_NTP_REFRESH_PERIOD;
+			str += eq;
 			str += String(timeRefershPeriod);
 			str += QUOTE;
 			writeConfigString(NTP_REFRESH_PERIOD_addr, NTP_REFRESH_PERIOD_size, String(timeRefershPeriod));
@@ -5436,6 +5499,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				setSyncProvider(nullptr);
 				Udp.stop();
 				str += REPLY_NTP_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5446,6 +5510,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				setSyncProvider(getNtpTime);
 				setSyncInterval(ntpRefreshDelay);
 				str += REPLY_NTP_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5457,7 +5522,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef EVENTS_ENABLE
-		else if (cmd.command == CMD_SET_EVENT)
+		else if (cmd.command == CMD_EVENT_SET)
 		{
 			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
 			{
@@ -5465,7 +5530,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				command = command.substring(t + 1);
 				uint16_t m = EVENTS_TABLE_size / EVENTS_NUMBER;
 				writeConfigString(EVENTS_TABLE_addr + cmd.index * m, m, command);
-				str += REPLY_SET_EVENT;
+				str += REPLY_EVENT_SET;
 				str += String(cmd.index);
 				str += F(" is now: ");
 				str += cmd.arguments[0];
@@ -5486,6 +5551,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
 				eventsEnable = false;
 				str += REPLY_EVENTS_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5493,6 +5559,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
 				eventsEnable = true;
 				str += REPLY_EVENTS_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5501,7 +5568,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				str += cmd.arguments[0];
 			}
 		}
-		else if (cmd.command == CMD_SET_EVENT_FLAG)
+		else if (cmd.command == CMD_EVENT_FLAG_SET)
 		{
 			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
 			{
@@ -5509,7 +5576,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				{
 					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
 					eventsFlags[cmd.index] = false;
-					str += REPLY_SET_EVENT_FLAG;
+					str += REPLY_EVENT_FLAG_SET;
 					str += String(cmd.index);
 					str += F(" cleared");
 				}
@@ -5517,7 +5584,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				{
 					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
 					eventsFlags[cmd.index] = true;
-					str += REPLY_SET_EVENT_FLAG;
+					str += REPLY_EVENT_FLAG_SET;
 					str += String(cmd.index);
 					str += F(" set");
 				}
@@ -5538,7 +5605,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 #endif
 
 #ifdef SCHEDULER_ENABLE
-		else if (cmd.command == CMD_SET_SCHEDULE)
+		else if (cmd.command == CMD_SCHEDULE_SET)
 		{
 			if (cmd.index >= 0 && cmd.index < SCHEDULES_NUMBER)
 			{
@@ -5547,7 +5614,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				uint16_t m = SCHEDULER_TABLE_size / SCHEDULES_NUMBER;
 				writeConfigString(SCHEDULER_TABLE_addr + cmd.index * m, m, command);
 				writeScheduleExecTime(cmd.index, 0);
-				str += REPLY_SET_SCHEDULE;
+				str += REPLY_SCHEDULE_SET;
 				str += String(cmd.index);
 				str += F(" is now: ");
 				str += cmd.arguments[0];
@@ -5568,6 +5635,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size, SWITCH_OFF_NUMBER);
 				schedulerEnable = false;
 				str += REPLY_SCHEDULER_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5575,6 +5643,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size, SWITCH_ON_NUMBER);
 				schedulerEnable = true;
 				str += REPLY_SCHEDULER_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5619,6 +5688,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			displaySwitchPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
 			str += REPLY_DISPLAY_REFRESH;
+			str += eq;
 			str += String(uint16_t(displaySwitchPeriod));
 			str += QUOTE;
 			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
@@ -5630,6 +5700,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint16_t ota_port = cmd.arguments[0].toInt();
 			str += REPLY_OTA_PORT;
+			str += eq;
 			str += String(ota_port);
 			str += QUOTE;
 			writeConfigString(OTA_PORT_addr, OTA_PORT_size, String(ota_port));
@@ -5637,6 +5708,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_OTA_PASSWORD)
 		{
 			str += REPLY_OTA_PASSWORD;
+			str += eq;
 			str += cmd.arguments[0];
 			str += QUOTE;
 			writeConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size, cmd.arguments[0]);
@@ -5648,6 +5720,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_OFF_NUMBER);
 				otaEnable = false;
 				str += REPLY_OTA_ENABLE;
+				str += eq;
 				str += REPLY_DISABLED;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5655,6 +5728,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_ON_NUMBER);
 				otaEnable = true;
 				str += REPLY_OTA_ENABLE;
+				str += eq;
 				str += REPLY_ENABLED;
 			}
 			else
@@ -5839,10 +5913,10 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 												eventsFlags[eventNum] = false;
 						#endif*/
 					}
-				}
-				yield();
 			}
+				yield();
 		}
+	}
 #endif
 #ifdef TELEGRAM_ENABLE
 		//send_telegram=* / user#,message
@@ -5938,7 +6012,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 								eventsFlags[eventNum] = false;
 				#endif*/
 			}
-		}
+				}
 #endif
 #ifdef MQTT_ENABLE
 		//send_MQTT=topic_to,message
@@ -5985,7 +6059,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		}
 		yield();
 	} while (action.length() > 0);
-}
+		}
 #endif
 
 #ifdef TEMPERATURE_SENSOR
@@ -6109,7 +6183,7 @@ String getApSsid()
 {
 	String AP_Ssid = readConfigString(AP_SSID_addr, AP_SSID_size);
 	if (AP_Ssid.length() <= 0)
-		AP_Ssid = deviceName + F("_") + WiFi.macAddress();
+		AP_Ssid = deviceName + F("_") + CompactMac();
 	return AP_Ssid;
 }
 
@@ -6288,6 +6362,13 @@ void int8count()
 String MacToStr(const uint8_t mac[6])
 {
 	return String(mac[0]) + String(mac[1]) + String(mac[2]) + String(mac[3]) + String(mac[4]) + String(mac[5]);
+}
+
+String CompactMac()
+{
+	String mac = WiFi.macAddress();
+	mac.replace(":", "");
+	return mac;
 }
 
 /*uint16_t countOf(String &str, char c)

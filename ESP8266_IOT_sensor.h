@@ -330,5 +330,6 @@ int getCo2(sensorDataCollection&);
 
 String timeToString(uint32_t);
 String MacToStr(const uint8_t);
+String CompactMac();
 
 #endif
