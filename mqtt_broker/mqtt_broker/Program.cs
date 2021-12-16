@@ -29,8 +29,9 @@ namespace MqttBroker
         public static ILocalDb RecordsDb;
         private static readonly string User = Settings.Default.User;
         private static readonly string Pass = Settings.Default.Password;
-        private const string DeviceName = "Device name";
-        private const string DeviceMAC = "Device MAC";
+        private const string _deviceName = "Device name";
+        private const string _deviceMAC = "Device MAC";
+        private const string _fwVersion = "FW Version";
 
         private static async Task Main()
         {
@@ -214,13 +215,14 @@ namespace MqttBroker
             if (_dbStarted)
             {
 
-                var nameFound = stringsSet.TryGetValue(DeviceName, out var devName);
-                var macFound = stringsSet.TryGetValue(DeviceMAC, out var devMac);
+                var nameFound = stringsSet.TryGetValue(_deviceName, out var devName);
+                var macFound = stringsSet.TryGetValue(_deviceMAC, out var devMac);
 
                 var currentResult = new DeviceRecord();
                 if (nameFound || macFound)
                 {
-                    stringsSet.Remove(DeviceName);
+                    stringsSet.Remove(_deviceName);
+                    stringsSet.Remove(_deviceMAC);
 
                     currentResult.SensorValueList = new List<SensorRecord>();
                     if (nameFound) currentResult.DeviceName = devName ?? "";
@@ -231,6 +233,12 @@ namespace MqttBroker
                 {
                     if (_verboseLog) LogToScreen("Message parse error: No device name found");
                     return;
+                }
+
+                if (stringsSet.TryGetValue(_fwVersion, out var fwVer))
+                {
+                    currentResult.FwVersion = fwVer;
+                    stringsSet.Remove(_fwVersion);
                 }
 
                 var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;

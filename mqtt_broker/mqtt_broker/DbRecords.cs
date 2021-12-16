@@ -18,6 +18,7 @@ namespace DbRecords
         [DataMember] public long Id { get; set; }
         [DataMember] public byte[] DeviceMAC { get; set; }
         [DataMember] public string DeviceName { get; set; }
+        [DataMember] public string FwVersion { get; set; }
         [DataMember] public DateTime Time { get; set; }
         [DataMember] public List<SensorRecord> SensorValueList { get; set; }
     }
