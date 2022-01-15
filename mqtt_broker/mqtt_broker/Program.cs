@@ -16,9 +16,7 @@ using System.Threading.Tasks;
 using System.Web.Http;
 using System.Web.Http.SelfHost;
 using System.Web.Script.Serialization;
-using DbRecords;
-using LiteDb;
-using SQLiteDb;
+using Newtonsoft.Json;
 
 namespace MqttBroker
 {
@@ -29,9 +27,9 @@ namespace MqttBroker
         public static ILocalDb RecordsDb;
         private static readonly string User = Settings.Default.User;
         private static readonly string Pass = Settings.Default.Password;
-        private const string _deviceName = "Device name";
-        private const string _deviceMAC = "Device MAC";
-        private const string _fwVersion = "FW Version";
+        private const string DeviceName = "DeviceName";
+        private const string DeviceMac = "DeviceMAC";
+        private const string FwVersion = "FW Version";
 
         private static async Task Main()
         {
@@ -43,16 +41,16 @@ namespace MqttBroker
 
             try
             {
-                if (false)
+                if (Settings.Default.UseLiteDb)
                 {
-                    RecordsDb = new LiteDbLocal(Settings.Default.DbFileName, Settings.Default.ClientID);
-                    LogToScreen("DataBase name: " + Settings.Default.DbFileName);
+                    RecordsDb = new LiteDbLocal(Settings.Default.DbFileName + ".litedb", Settings.Default.ClientID);
+                    LogToScreen("DataBase name: " + Settings.Default.DbFileName + ".litedb");
                     LogToScreen("Collection name: " + Settings.Default.ClientID);
                 }
                 else
                 {
-                    RecordsDb = new SqLiteDbLocalContext(Settings.Default.DbFileName, Settings.Default.ClientID);
-                    LogToScreen("DataBase name: " + Settings.Default.DbFileName);
+                    RecordsDb = new SqLiteDbLocalContext(Settings.Default.DbFileName + ".sqlite");
+                    LogToScreen("DataBase name: " + Settings.Default.DbFileName + ".sqlite");
                 }
                 _dbStarted = true;
             }
@@ -102,6 +100,12 @@ namespace MqttBroker
                 /*var f = restConfig.Formatters;
                 f.JsonFormatter.UseDataContractJsonSerializer = true;
                 f.JsonFormatter.SerializerSettings.DateFormatHandling = DateFormatHandling.MicrosoftDateFormat;*/
+
+                var f = restConfig.Formatters;
+                //f.JsonFormatter.UseDataContractJsonSerializer = true;
+                f.JsonFormatter.SerializerSettings.DateFormatHandling = DateFormatHandling.IsoDateFormat;
+                f.JsonFormatter.SerializerSettings.DateFormatString = "yyyy-MM-ddTHH:mm:ss.FFFK";
+
                 using (var restServer = new HttpSelfHostServer(restConfig))
                 {
                     try
@@ -215,18 +219,18 @@ namespace MqttBroker
             if (_dbStarted)
             {
 
-                var nameFound = stringsSet.TryGetValue(_deviceName, out var devName);
-                var macFound = stringsSet.TryGetValue(_deviceMAC, out var devMac);
+                var nameFound = stringsSet.TryGetValue(DeviceName, out var devName);
+                var macFound = stringsSet.TryGetValue(DeviceMac, out var devMac);
 
                 var currentResult = new DeviceRecord();
                 if (nameFound || macFound)
                 {
-                    stringsSet.Remove(_deviceName);
-                    stringsSet.Remove(_deviceMAC);
+                    stringsSet.Remove(DeviceName);
+                    stringsSet.Remove(DeviceMac);
 
                     currentResult.SensorValueList = new List<SensorRecord>();
                     if (nameFound) currentResult.DeviceName = devName ?? "";
-                    if (macFound) currentResult.DeviceMAC = MacFromString(devMac);
+                    if (macFound) currentResult.DeviceMac = devMac;
                     currentResult.Time = DateTime.Now;
                 }
                 else
@@ -235,10 +239,10 @@ namespace MqttBroker
                     return;
                 }
 
-                if (stringsSet.TryGetValue(_fwVersion, out var fwVer))
+                if (stringsSet.TryGetValue(FwVersion, out var fwVer))
                 {
                     currentResult.FwVersion = fwVer;
-                    stringsSet.Remove(_fwVersion);
+                    stringsSet.Remove(FwVersion);
                 }
 
                 var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
