@@ -196,8 +196,8 @@
 #define RADIO_CONNECTED 2
 #define RADIO_WAITING 3
 
-#define OUT_ON true
-#define OUT_OFF false
+#define ON true
+#define OFF false
 
 #define HARD_UART 0
 #define SOFT_UART 1
@@ -228,11 +228,11 @@ const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
 //D1=05, D2=04, D3=00, D4=02, D5=14, D6=12, D7=13, D8=15, reverse to binary order
 //pins             D=87654321
 
-#if defined(DS18B20_ENABLE) || defined(MH_Z19_UART_ENABLE) || defined(BME280_ENABLE) || defined(BMP180_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE)
+#if defined(DS18B20_ENABLE) || defined(MH_Z19_UART_ENABLE) || defined(BME280_ENABLE) || defined(BMP180_ENABLE) || defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(DHT_ENABLE) || defined(AHTx0_ENABLE)
 #define TEMPERATURE_SENSOR
 #endif
 
-#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE) || defined(DHT_ENABLE)
+#if defined(AMS2320_ENABLE) || defined(HTU21D_ENABLE) || defined(BME280_ENABLE) || defined(DHT_ENABLE) || defined(AHTx0_ENABLE)
 #define HUMIDITY_SENSOR
 #endif
 
@@ -294,8 +294,16 @@ struct smsMessage
 #define I2C_ENABLE
 #endif
 
+#if defined(I2C_ENABLE) && (!defined(PIN_WIRE_SCL) || !defined(PIN_WIRE_SDA))
+#error "I2C pins not defined"
+#endif
+
 #if defined(DS18B20_ENABLE)
 #define ONEWIRE_ENABLE
+#endif
+
+#if defined(ONEWIRE_ENABLE) && !defined(ONEWIRE_DATA)
+#error "1Wire pin not defined"
 #endif
 
 #if defined(GSM_M590_ENABLE) && defined(GSM_SIM800_ENABLE)
@@ -306,10 +314,6 @@ struct smsMessage
 #error "Only one device can use SoftUART"
 #endif
 
-#if defined(GSM_SIM800_ENABLE) && defined(MH_Z19_UART_ENABLE)
-#error "Only one device can use SoftUART"
-#endif
-
-#if FINAL_CRC_addr > 4090
+/*#if FINAL_CRC_addr > 4090
 #error "EEPROM size can't be more than 4096 bytes'"
-#endif
+#endif*/

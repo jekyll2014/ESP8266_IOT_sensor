@@ -21,10 +21,9 @@
 
 /* Planned features:
 - SSL/TLS MQTT, SMTP
-- OTA fw upgrade
-- mDNS, LLMNR responder
+- LLMNR responder
 - TIMERS service (start_timer?=n; stop_timer? commands running actions)
-- telegram
+- TELEGRAM
 	- set TELEGRAM_URL "api.telegram.org"
 	- set TELEGRAM_IP "149.154.167.198"
 	- set TELEGRAM_PORT 443
@@ -32,7 +31,7 @@
 	- show simple keyboard
 - temperature/humidity offset setting
 - Amazon Alexa integration
-- http settings page
+- HTTP - settings page
 - EVENT service - option to check action successful execution.
 - GoogleScript service - memory allocation problem
 - DEBUG mode verbose serial output
@@ -40,7 +39,8 @@
 - GSM_MODEM status (connection state, network name)
 - SMS message paging
 - improve SMS management
-- make common outbound message queue for all channels
+- make common outbound message queue for all channels (SMS/Telegram/)
+- write default settings to EEPROM if CRC is not correct
 */
 
 /* Sensors to be supported:
@@ -77,7 +77,7 @@ uint32_t WaitingStarted = 0;
 bool wifiEnable = true;
 
 uint32_t checkSensorLastTime = 0;
-uint32_t checkSensorPeriod = 5000;
+uint32_t checkSensorPeriod = 60000;
 
 bool uartReady = false;
 String uartCommand = "";
@@ -108,8 +108,8 @@ OneWire oneWire(ONEWIRE_DATA);
 
 //AM2320 I2C temperature + humidity sensor
 #ifdef AMS2320_ENABLE
-#include "Adafruit_Sensor.h"
-#include "Adafruit_AM2320.h"
+#include <Adafruit_Sensor.h>
+#include <Adafruit_AM2320.h>
 
 Adafruit_AM2320 am2320;
 bool am2320_enable;
@@ -117,7 +117,7 @@ bool am2320_enable;
 
 // HTU21D I2C temperature + humidity sensor
 #ifdef HTU21D_ENABLE
-#include "Adafruit_HTU21DF.h"
+#include <Adafruit_HTU21DF.h>
 
 Adafruit_HTU21DF htu21d;
 bool htu21d_enable;
@@ -142,7 +142,7 @@ bool bmp180_enable;
 
 // HTU21D I2C temperature + humidity sensor
 #ifdef AHTx0_ENABLE
-#include "Adafruit_AHTX0.h"
+#include <Adafruit_AHTX0.h>
 
 Adafruit_AHTX0 ahtx0;
 bool ahtx0_enable;
@@ -150,7 +150,7 @@ bool ahtx0_enable;
 
 // DS18B20 OneWire temperature sensor
 #ifdef DS18B20_ENABLE
-#include "DallasTemperature.h"
+#include <DallasTemperature.h>
 
 DallasTemperature ds1820(&oneWire);
 bool ds1820_enable;
@@ -158,7 +158,7 @@ bool ds1820_enable;
 
 // DHT11/DHT21(AM2301)/DHT22(AM2302, AM2321) temperature + humidity sensor
 #ifdef DHT_ENABLE
-#include "DHT.h"
+#include <DHT.h>
 
 DHT dht(DHT_PIN, DHT_ENABLE);
 bool dht_enable;
@@ -220,7 +220,7 @@ int co2SerialRead()
 			skip = true;
 		}
 #ifdef DEBUG_MODE
-		Serial.print(" ");
+		Serial.print(SPACE);
 		Serial.print(uart2.peek(), HEX);
 #endif
 		uart2.read();
@@ -331,8 +331,8 @@ uint8_t displayState = 0;
 
 // SSD1306 I2C display
 #ifdef SSD1306DISPLAY_ENABLE
-#include "SSD1306Ascii.h"
-#include "SSD1306AsciiWire.h"
+#include <SSD1306Ascii.h>
+#include <SSD1306AsciiWire.h>
 
 const uint8_t* font = fixed_bold10x15; // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
@@ -376,6 +376,7 @@ bool sleepEnable = false;
 
 bool otaEnable = false;
 
+/*
 void otaStartCallback()
 {
 	String type;
@@ -417,8 +418,9 @@ void otaProgressCallback(unsigned int progress, unsigned int total)
 
 void otaEndCallback()
 {
-	Serial.println("\nEnd");
+	Serial.println(F("\nEnd"));
 }
+*/
 #endif
 
 // NTP
@@ -428,7 +430,7 @@ void otaEndCallback()
 WiFiUDP Udp;
 int ntpRefreshDelay = 180;
 uint32_t lastTimeRefersh = 0;
-uint32_t timeRefershPeriod = 24 * 60 * 60 * 1000;
+uint32_t timeRefershPeriod = 24 * 60 * 60 * 1000; //once a day
 bool NTPenable = false;
 
 // send an NTP request to the time server at the given address
@@ -552,14 +554,14 @@ void processEvent(uint8_t eventNum)
 			{
 				uint8_t outNum = cmd.command.substring(5, t).toInt();
 				String outStateStr = cmd.command.substring(t + 1);
-				bool outState = OUT_OFF;
+				bool outState = OFF;
 				const String cTxt = F("c");
 				if (outStateStr != cTxt)
 				{
 					if (outStateStr == SWITCH_ON)
-						outState = OUT_ON;
+						outState = ON;
 					else if (outStateStr == SWITCH_OFF)
-						outState = OUT_OFF;
+						outState = OFF;
 					else
 						outState = outStateStr.toInt();
 				}
@@ -596,14 +598,14 @@ void processEvent(uint8_t eventNum)
 			{
 				uint8_t outNum = cmd.command.substring(6, t).toInt();
 				String outStateStr = cmd.command.substring(t + 1);
-				uint16_t outState = OUT_OFF;
+				uint16_t outState = OFF;
 				const String cTxt = F("c");
 				if (outStateStr != cTxt)
 				{
 					if (outStateStr == SWITCH_ON)
-						outState = OUT_ON;
+						outState = ON;
 					else if (outStateStr == SWITCH_OFF)
-						outState = OUT_OFF;
+						outState = OFF;
 					else
 						outState = outStateStr.toInt();
 				}
@@ -989,7 +991,6 @@ bool mqtt_connect()
 
 		if (mqtt_ip_server.fromString(mqtt_server))
 		{
-			mqtt_server.clear();
 			mqtt_client.setServer(mqtt_ip_server, mqtt_port);
 		}
 		else
@@ -1068,7 +1069,7 @@ void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
 // TELEGRAM
 #ifdef TELEGRAM_ENABLE
 #include <ArduinoJson.h>
-#include "CTBot.h"
+#include <CTBot.h>
 
 CTBot myBot;
 telegramMessage telegramOutboundBuffer[TELEGRAM_MESSAGE_BUFFER_SIZE];
@@ -1454,7 +1455,7 @@ smsMessage parseSMS(String& msg)
 	int secondIndex = msgheader.indexOf(F("\",\""), firstIndex);
 	msgphone = msgheader.substring(firstIndex, secondIndex);
 	if (msgphone.length() <= 0)
-		msgphone = F(" ");
+		msgphone = SPACE;
 
 	smsMessage response;
 	response.PhoneNumber = msgphone;
@@ -1696,6 +1697,17 @@ void handleRoot()
 	http_server.sendContent(str);
 }
 
+/*void handleRoot()
+{
+	sensorDataCollection sensorData = collectData();
+	String str = F("Connection: close\r\nRefresh: ");
+	str += String(uint16_t(checkSensorPeriod / 1000UL));
+	str += F("\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\n");
+	str += parseSensorReport(sensorData, F("<br>"), false);
+	str += F("<br />\r\n</html>\r\n");
+	http_server.send(200, F("text/html"), str);
+}*/
+
 void handleNotFound()
 {
 	String message = F("File Not Found\n\nURI: ");
@@ -1706,7 +1718,7 @@ void handleNotFound()
 	message += EOL;
 	for (uint8_t i = 0; i < http_server.args(); i++)
 	{
-		message += F(" ");
+		message += SPACE;
 		message += http_server.argName(i);
 		message += F(": ");
 		message += http_server.arg(i);
@@ -1930,10 +1942,11 @@ void setup()
 	tmpStr += CompactMac();
 	ArduinoOTA.setHostname(tmpStr.c_str());
 
-	ArduinoOTA.onStart(otaStartCallback);
+	//ArduinoOTA.onStart(otaStartCallback);
 	//ArduinoOTA.onEnd(otaEndCallback);
 	//ArduinoOTA.onProgress(otaProgressCallback);
 	//ArduinoOTA.onError(otaErrorCallback);
+
 	if (otaEnable) ArduinoOTA.begin();
 #endif
 	yield();
@@ -1988,7 +2001,7 @@ void setup()
 		{
 		http_server.send(200, F("text/plain"), F("this works as well"));
 		});*/
-	http_server.onNotFound(handleNotFound);
+		//http_server.onNotFound(handleNotFound);
 
 	if (httpServerEnable) http_server.begin(httpPort);
 #endif
@@ -2204,7 +2217,7 @@ void loop()
 #ifdef MQTT_ENABLE
 				if (mqttEnable && bitRead(autoReport, CHANNEL_MQTT))
 				{
-					String str = parseSensorReport(sensorData, ",", true);
+					String str = parseSensorReport(sensorData, F(","), true);
 					String topic = "";
 					topic.reserve(100);
 					mqtt_send(str, str.length(), topic);
@@ -2574,7 +2587,7 @@ void loop()
 				if (_hr < 10)
 					tmpStr += F("0");
 				tmpStr += String(_hr);
-				tmpStr += F(":");
+				tmpStr += COLON;
 				if (_min < 10)
 					tmpStr += F("0");
 				tmpStr += String(_min);
@@ -2926,9 +2939,9 @@ String set_output(uint8_t outNum, String& outStateStr)
 	uint16_t outState;
 	bool pwm_mode = false;
 	if (outStateStr == SWITCH_ON)
-		outState = uint16_t(OUT_ON);
+		outState = uint16_t(ON);
 	else if (outStateStr == SWITCH_OFF)
-		outState = uint16_t(OUT_OFF);
+		outState = uint16_t(OFF);
 	else
 	{
 		pwm_mode = true;
@@ -3742,11 +3755,11 @@ String printStatus(bool toJson = false)
 			str += String(month(runTime));
 			str += F(".");
 			str += String(day(runTime));
-			str += F(" ");
+			str += SPACE;
 			str += String(hour(runTime));
-			str += F(":");
+			str += COLON;
 			str += String(minute(runTime));
-			str += F(":");
+			str += COLON;
 			str += String(second(runTime));
 			str += delimiter;
 		}
@@ -3986,11 +3999,11 @@ String timeToString(uint32_t time)
 {
 	// digital clock display of the time
 	String tmp = String(hour(time));
-	tmp += F(":");
+	tmp += COLON;
 	tmp += String(minute(time));
-	tmp += F(":");
+	tmp += COLON;
 	tmp += String(second(time));
-	tmp += F(" ");
+	tmp += SPACE;
 	tmp += String(year(time));
 	tmp += F(".");
 	tmp += String(month(time));
@@ -4215,11 +4228,11 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 	str += F("Time");
 	str += eq;
 	str += String(data.hour);
-	str += F(":");
+	str += COLON;
 	str += String(data.minute);
-	str += F(":");
+	str += COLON;
 	str += String(data.second);
-	str += F(" ");
+	str += SPACE;
 	str += String(data.year);
 	str += F("/");
 	str += String(data.month);
@@ -4455,11 +4468,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			str += String(_month);
 			str += F(".");
 			str += String(_day);
-			str += F(" ");
+			str += SPACE;
 			str += String(_hr);
-			str += F(":");
+			str += COLON;
 			str += String(_min);
-			str += F(":");
+			str += COLON;
 			str += String(_sec);
 			timeIsSet = true;
 #ifdef NTP_TIME_ENABLE
@@ -5200,7 +5213,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint8_t i = 0;
 			uint8_t j = 0;
-			if (cmd.arguments[0] == "*") //if * then all
+			if (cmd.arguments[0] == STAR) //if * then all
 			{
 				i = 0;
 				j = GSM_USERS_NUMBER;
@@ -5283,7 +5296,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			uint8_t i = 0;
 			uint8_t j = 0;
-			if (cmd.arguments[0] == "*") //if * then all
+			if (cmd.arguments[0] == STAR) //if * then all
 			{
 				i = 0;
 				j = TELEGRAM_USERS_NUMBER;
@@ -5884,7 +5897,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		{
 			uint8_t i = 0;
 			uint8_t j = 0;
-			if (cmd.arguments[0] == "*") //if * then all
+			if (cmd.arguments[0] == STAR) //if * then all
 			{
 				i = 0;
 				j = GSM_USERS_NUMBER;
@@ -5903,7 +5916,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				if (gsmUser.length() > 0)
 				{
 					String tmpStr = deviceName;
-					tmpStr += F(":");
+					tmpStr += COLON;
 					tmpStr += cmd.arguments[1];
 					tmpStr += EOL;
 					tmpStr += parseSensorReport(sensorData, EOL);
@@ -5925,7 +5938,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 		{
 			uint8_t i = 0;
 			uint8_t j = 0;
-			if (cmd.arguments[0] == "*") //if * then all
+			if (cmd.arguments[0] == STAR) //if * then all
 			{
 				i = 0;
 				j = TELEGRAM_USERS_NUMBER;
@@ -5942,7 +5955,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 				if (user > 0)
 				{
 					String tmpStr = deviceName;
-					tmpStr += F(":");
+					tmpStr += COLON;
 					tmpStr += cmd.arguments[1];
 					tmpStr += EOL;
 					tmpStr += parseSensorReport(sensorData, EOL);
@@ -6368,7 +6381,7 @@ String MacToStr(const uint8_t mac[6])
 String CompactMac()
 {
 	String mac = WiFi.macAddress();
-	mac.replace(":", "");
+	mac.replace(COLON, F(""));
 	return mac;
 }
 

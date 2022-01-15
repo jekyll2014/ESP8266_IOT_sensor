@@ -14,6 +14,9 @@
 #define EOL F("\r\n")
 #define CSV_DIVIDER F(";")
 #define QUOTE F("\"")
+#define STAR F("*")
+#define SPACE F(" ")
+#define COLON F(":")
 
 #define SCHEDULES_NUMBER 10
 #define EVENTS_NUMBER 10
