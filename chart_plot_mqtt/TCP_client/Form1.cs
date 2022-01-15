@@ -303,16 +303,13 @@ namespace ChartPlotMQTT
 
             var recordTime = DateTime.Now;
 
-            /*foreach (var s in stringsSet)
-                if (s.Key == "Time" && DateTime.TryParse(s.Value, out recordTime))
-                    break;*/
-
-            Invoke((MethodInvoker)delegate { UpdateChart(stringsSet, recordTime, _keepLocalDb); });
+            var newData = ConvertStringsToSensorData(stringsSet, recordTime);
+            Invoke((MethodInvoker)delegate { UpdateChart(newData, _keepLocalDb); });
         }
 
         private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
         {
-            var dataCollection = new List<LiteDbLocal.SensorDataRec>();
+            var dataCollection = new List<DeviceRecord>();
             try
             {
                 dataCollection = ImportJsonFile(openFileDialog1.FileName);
@@ -338,153 +335,6 @@ namespace ChartPlotMQTT
             foreach (var record in dataCollection) UpdateChart(record, false);
         }
 
-        private async Task<bool> GetDataFromRest(int time, int retryCount = 3)
-        {
-            //http://jekyll-server:8080/api/Sensors/GetLatestRecords?minutes=60
-
-            var baseUrl = "http://" + _ipAddress + ":" + _ipPortRest;
-            var servicePath = "/api/Sensors/GetRecords?minutes=" + time;
-
-            var credentials = new NetworkCredential(_login, _password);
-
-            using (var client =
-                new HttpClient(new HttpClientHandler { Credentials = credentials, PreAuthenticate = true }))
-            {
-                client.Timeout = TimeSpan.FromMinutes(1);
-                var resultContentString = "";
-                //client.Timeout = TimeSpan.FromSeconds(30);
-                client.BaseAddress = new Uri(baseUrl);
-
-                var reqResult = false;
-                do
-                {
-                    retryCount--;
-                    try
-                    {
-                        var result = await client.GetAsync(servicePath).ConfigureAwait(true);
-
-                        result.EnsureSuccessStatusCode();
-
-                        var r = result.IsSuccessStatusCode;
-                        if (!r)
-                        {
-                            await Task.Delay(1000);
-                            continue;
-                        }
-
-                        resultContentString = await result.Content.ReadAsStringAsync();
-                        reqResult = true;
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.AddText("REST error: " + exception.Message + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
-                    }
-                } while (retryCount > 0 && !reqResult);
-
-                if (!reqResult) return false;
-
-                if (string.IsNullOrEmpty(resultContentString)) return true;
-
-                var restoredRange = new List<LiteDbLocal.SensorDataRec>();
-                try
-                {
-                    restoredRange = ImportJsonString(resultContentString);
-                }
-                catch (Exception ex)
-                {
-                    _logger.AddText("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message,
-                        (byte)DataDirection.Error, DateTime.Now);
-                }
-
-                if (restoredRange != null)
-                {
-                    var screenWidth = SystemInformation.PrimaryMonitorSize.Width;
-                    var ratio = restoredRange.Count / screenWidth;
-                    if (ratio < 1) ratio = 1;
-                    var counter = 0;
-                    var accumulatedRecord = new SensorDataRec
-                    {
-                        ValueList = new List<ValueItemRec>()
-                    };
-                    var recordTimes = new DateTime[ratio];
-                    foreach (var recordsGroup in restoredRange.GroupBy(n => n.DeviceName + n.DeviceMAC))
-                    {
-                        foreach (var record in recordsGroup.OrderBy(n => n.Time))
-                        {
-                            if (counter >= ratio)
-                            {
-                                counter = 0;
-                                if (accumulatedRecord.ValueList.Count > 0)
-                                {
-                                    if (ratio == 1) accumulatedRecord.Time = recordTimes[0];
-                                    else accumulatedRecord.Time = recordTimes.Min().AddSeconds(recordTimes.Max().Subtract(recordTimes.Min()).TotalSeconds / 2);
-
-                                    if (accumulatedRecord.DeviceName == null && accumulatedRecord.DeviceMAC == null)
-                                    {
-                                        accumulatedRecord.DeviceMAC = record.DeviceMAC;
-                                        accumulatedRecord.DeviceName = record.DeviceName;
-                                    }
-
-                                    UpdateChart(accumulatedRecord, false);
-                                }
-
-                                accumulatedRecord = new SensorDataRec
-                                {
-                                    DeviceMAC = record.DeviceMAC,
-                                    DeviceName = record.DeviceName,
-                                    ValueList = new List<ValueItemRec>()
-                                };
-                            }
-
-                            if (ratio == 1)
-                            {
-                                recordTimes[0] = record.Time;
-                                accumulatedRecord.ValueList = record.ValueList;
-                            }
-                            else
-                            {
-                                recordTimes[counter] = record.Time;
-
-                                foreach (var sensor in record.ValueList)
-                                {
-                                    var valueIndex = -1;
-                                    for (var i = 0; i < accumulatedRecord.ValueList.Count; i++)
-                                        if (accumulatedRecord.ValueList[i].ValueType == sensor.ValueType)
-                                        {
-                                            valueIndex = i;
-                                            break;
-                                        }
-                                    if (valueIndex == -1)
-                                    {
-                                        accumulatedRecord.ValueList.Add(sensor);
-                                    }
-                                    else
-                                    {
-                                        accumulatedRecord.ValueList[valueIndex].Value += sensor.Value;
-                                        accumulatedRecord.ValueList[valueIndex].Value /= 2;
-                                    }
-                                }
-                            }
-
-                            counter++;
-                        }
-
-                        if (accumulatedRecord.ValueList.Count > 0)
-                        {
-                            UpdateChart(accumulatedRecord, false);
-                            accumulatedRecord = new SensorDataRec
-                            {
-                                ValueList = new List<ValueItemRec>()
-                            };
-                        }
-                    }
-
-                }
-            }
-
-            return true;
-        }
-
         private void Timer_reconnect_Tick(object sender, EventArgs e)
         {
             _logger.AddText("Trying to reconnect..." + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
@@ -495,26 +345,30 @@ namespace ChartPlotMQTT
 
         #region Helpers
 
-        private bool ExportJsonFile(IEnumerable<SensorDataRec> data, string fileName, string item = null)
+        private bool ExportJsonFile(IEnumerable<DeviceRecord> data, string fileName, string item = null)
         {
-            var filteredData = new List<LiteDbLocal.SensorDataRec>();
+            var filteredData = new List<DeviceRecord>();
             if (!string.IsNullOrEmpty(item))
                 foreach (var pack in data)
                 {
-                    var newPack = new LiteDbLocal.SensorDataRec
+                    var newPack = new DeviceRecord
                     {
                         Time = pack.Time
                     };
-                    foreach (var line in newPack.ValueList)
-                        if (line.ValueType == item)
-                            newPack.ValueList.Add(line);
+                    foreach (var line in newPack.SensorValueList)
+                        if (line.SensorName == item)
+                            newPack.SensorValueList.Add(line);
 
-                    if (newPack.ValueList.Count > 0) filteredData.Add(newPack);
+                    if (newPack.SensorValueList.Count > 0) filteredData.Add(newPack);
                 }
             else
                 filteredData = data.ToList();
 
-            var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>));
+            var settings = new DataContractJsonSerializerSettings
+            {
+                DateTimeFormat = new DateTimeFormat("yyyy-MM-ddTHH:mm:ss.FFFK")
+            };
+            var jsonSerializer = new DataContractJsonSerializer(typeof(List<DeviceRecord>), settings);
             try
             {
                 var fileStream = File.Open(fileName, FileMode.Create);
@@ -532,15 +386,19 @@ namespace ChartPlotMQTT
             return true;
         }
 
-        private List<SensorDataRec> ImportJsonFile(string fileName)
+        private List<DeviceRecord> ImportJsonFile(string fileName)
         {
-            List<LiteDbLocal.SensorDataRec> newValues;
-            var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>));
+            List<DeviceRecord> newValues;
+            var settings = new DataContractJsonSerializerSettings
+            {
+                DateTimeFormat = new DateTimeFormat("yyyy-MM-ddTHH:mm:ss.FFFK")
+            };
+            var jsonSerializer = new DataContractJsonSerializer(typeof(List<DeviceRecord>), settings);
             try
             {
                 var fileStream = File.Open(fileName, FileMode.Open);
 
-                newValues = (List<LiteDbLocal.SensorDataRec>)jsonSerializer.ReadObject(fileStream);
+                newValues = (List<DeviceRecord>)jsonSerializer.ReadObject(fileStream);
                 fileStream.Close();
                 fileStream.Dispose();
             }
@@ -554,20 +412,20 @@ namespace ChartPlotMQTT
             return newValues;
         }
 
-        private List<SensorDataRec> ImportJsonString(string data)
+        private List<DeviceRecord> ImportJsonString(string data)
         {
-            List<LiteDbLocal.SensorDataRec> newValues;
+            List<DeviceRecord> newValues;
             var settings = new DataContractJsonSerializerSettings
             {
                 DateTimeFormat = new DateTimeFormat("yyyy-MM-ddTHH:mm:ss.FFFK")
             };
 
-            var jsonSerializer = new DataContractJsonSerializer(typeof(List<LiteDbLocal.SensorDataRec>), settings);
+            var jsonSerializer = new DataContractJsonSerializer(typeof(List<DeviceRecord>), settings);
             try
             {
                 using (var memo = new MemoryStream(Encoding.Unicode.GetBytes(data)))
                 {
-                    newValues = (List<LiteDbLocal.SensorDataRec>)jsonSerializer.ReadObject(memo);
+                    newValues = (List<DeviceRecord>)jsonSerializer.ReadObject(memo);
                 }
             }
             catch (Exception ex)
@@ -683,6 +541,217 @@ namespace ChartPlotMQTT
             }
         }
 
+        private async Task<List<DeviceRecord>> GetLatestDataFromRest(int time, int retryCount = 3)
+        {
+            //http://jekyll-server:8080/api/Sensors/GetLatestRecords?minutes=60
+
+            var servicePath = "/api/Sensors/GetRecords?minutes=" + time;
+
+            var resultContentString = await GetRestAsync(servicePath);
+
+            if (string.IsNullOrEmpty(resultContentString)) return null;
+
+            var restoredRange = new List<DeviceRecord>();
+            try
+            {
+                restoredRange = ImportJsonString(resultContentString);
+            }
+            catch (Exception ex)
+            {
+                _logger.AddText("Error parsing data from url " + servicePath + ": " + ex.Message,
+                    (byte)DataDirection.Error, DateTime.Now);
+            }
+
+            return restoredRange;
+        }
+
+        private async Task<List<DeviceRecord>> GetDayDataFromRest(DateTime date, int retryCount = 3)
+        {
+            var startTime = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0);
+            var endTime = new DateTime(date.Year, date.Month, date.Day, 23, 59, 59);
+
+            return await GetDataFromRest(startTime, endTime, retryCount);
+        }
+
+        private async Task<List<DeviceRecord>> GetDataFromRest(DateTime startTime, DateTime endTime, int retryCount = 3)
+        {
+            //http://jekyll-server:8080/api/Sensors/GetRecords?startTime=2020-10-11T16:20:45&endTime=2020-10-11T16:30:45
+
+            var servicePath = $"/api/Sensors/GetRecords?startTime={startTime.ToString("yyyy-MM-ddTHH:mm:ss")}&endTime={endTime.ToString("yyyy-MM-ddTHH:mm:ss")}";
+
+            var resultContentString = await GetRestAsync(servicePath);
+
+            if (string.IsNullOrEmpty(resultContentString)) return null;
+
+            var restoredRange = new List<DeviceRecord>();
+            try
+            {
+                restoredRange = ImportJsonString(resultContentString);
+            }
+            catch (Exception ex)
+            {
+                _logger.AddText("Error parsing data from url " + servicePath + ": " + ex.Message,
+                    (byte)DataDirection.Error, DateTime.Now);
+            }
+
+            return restoredRange;
+        }
+
+        private async Task<string> GetRestAsync(string servicePath, int retryCount = 3)
+        {
+            var baseUrl = "http://" + _ipAddress + ":" + _ipPortRest;
+            //var servicePath = "/api/Sensors/GetRecords?minutes=" + time;
+            var credentials = new NetworkCredential(_login, _password);
+            var resultContentString = string.Empty;
+
+            using (var client =
+                new HttpClient(new HttpClientHandler { Credentials = credentials, PreAuthenticate = true }))
+            {
+                client.Timeout = TimeSpan.FromMinutes(10);
+                client.BaseAddress = new Uri(baseUrl);
+
+                var reqResult = false;
+                do
+                {
+                    retryCount--;
+                    try
+                    {
+                        var result = await client.GetAsync(servicePath).ConfigureAwait(true);
+
+                        result.EnsureSuccessStatusCode();
+
+                        var r = result.IsSuccessStatusCode;
+                        if (!r)
+                        {
+                            await Task.Delay(1000);
+                            continue;
+                        }
+
+                        resultContentString = await result.Content.ReadAsStringAsync();
+                        reqResult = true;
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.AddText("REST error: " + exception.Message + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
+                    }
+                } while (retryCount > 0 && !reqResult);
+
+                if (!reqResult) return string.Empty;
+            }
+
+            return resultContentString;
+        }
+
+        private List<DeviceRecord> CompactData(List<DeviceRecord> data)
+        {
+            var result = new List<DeviceRecord>();
+
+            if (data != null)
+            {
+                var screenWidth = SystemInformation.PrimaryMonitorSize.Width;
+                var ratio = data.Count / screenWidth;
+                if (ratio < 1) ratio = 1;
+
+                foreach (var recordsGroup in data.GroupBy(n => n.DeviceName + n.DeviceMac))
+                {
+                    var accumulatedRecord = new DeviceRecord
+                    {
+                        DeviceMac = recordsGroup.First().DeviceMac,
+                        DeviceName = recordsGroup.First().DeviceName,
+                        Time = DateTime.MinValue,
+                        SensorValueList = new List<SensorRecord>()
+                    };
+                    var counter = 0;
+
+                    foreach (var record in recordsGroup.OrderBy(n => n.Time))
+                    {
+                        if (counter >= ratio)
+                        {
+                            if (accumulatedRecord.SensorValueList.Count > 0)
+                            {
+                                result.Add(accumulatedRecord);
+                            }
+
+                            counter = 0;
+                            accumulatedRecord = new DeviceRecord
+                            {
+                                DeviceMac = record.DeviceMac,
+                                DeviceName = record.DeviceName,
+                                Time = DateTime.MinValue,
+                                SensorValueList = new List<SensorRecord>()
+                            };
+                        }
+
+                        if (ratio == 1)
+                        {
+                            accumulatedRecord.DeviceMac = record.DeviceMac;
+                            accumulatedRecord.DeviceName = record.DeviceName;
+                            accumulatedRecord.Time = record.Time;
+                            accumulatedRecord.SensorValueList = record.SensorValueList;
+                        }
+                        else
+                        {
+                            if (accumulatedRecord.DeviceName == null && record.DeviceName == null)
+                            {
+                                accumulatedRecord.DeviceName = record.DeviceName;
+                            }
+
+                            if (accumulatedRecord.DeviceMac == null && record.DeviceMac == null)
+                            {
+                                accumulatedRecord.DeviceMac = record.DeviceMac;
+                            }
+
+                            if (accumulatedRecord.Time == DateTime.MinValue)
+                                accumulatedRecord.Time = record.Time;
+                            else
+                            {
+                                if (record.Time > accumulatedRecord.Time)
+                                {
+                                    accumulatedRecord.Time.AddTicks((record.Time.Ticks - accumulatedRecord.Time.Ticks) /
+                                                                    2);
+                                }
+
+                                if (record.Time < accumulatedRecord.Time)
+                                {
+                                    accumulatedRecord.Time.AddTicks((accumulatedRecord.Time.Ticks - record.Time.Ticks) /
+                                                                    2);
+                                }
+                            }
+
+                            foreach (var sensor in record.SensorValueList)
+                            {
+                                var valueIndex = -1;
+                                for (var i = 0; i < accumulatedRecord.SensorValueList.Count; i++)
+                                    if (accumulatedRecord.SensorValueList[i].SensorName == sensor.SensorName)
+                                    {
+                                        valueIndex = i;
+                                        break;
+                                    }
+                                if (valueIndex == -1)
+                                {
+                                    accumulatedRecord.SensorValueList.Add(sensor);
+                                }
+                                else
+                                {
+                                    accumulatedRecord.SensorValueList[valueIndex].Value += sensor.Value;
+                                    accumulatedRecord.SensorValueList[valueIndex].Value /= 2;
+                                }
+                            }
+                        }
+
+                        counter++;
+                    }
+
+                    if (accumulatedRecord.SensorValueList.Count > 0)
+                    {
+                        result.Add(accumulatedRecord);
+                    }
+                }
+            }
+
+            return result;
+        }
+
         [ReflectionPermission(SecurityAction.Demand, MemberAccess = true)]
         private void ResetExceptionState(Control control)
         {
@@ -752,6 +821,9 @@ namespace ChartPlotMQTT
 
         private void InitChart()
         {
+            _initTimeSet = false;
+            _valueRangeSet = false;
+
             chart1.Titles.Clear();
             chart1.Titles.Add("");
             chart1.Titles[0].Alignment = ContentAlignment.TopRight;
@@ -769,89 +841,34 @@ namespace ChartPlotMQTT
             _plotList.Clear();
         }
 
-        private void InitLog()
+        private DeviceRecord ConvertStringsToSensorData(IDictionary<string, string> stringsSet, DateTime recordTime)
         {
-            _initTimeSet = false;
-            _valueRangeSet = false;
-        }
-
-        // extract string processing to ConvertStringsToSensorData()
-        private void UpdateChart(IDictionary<string, string> stringsSet, DateTime recordTime, bool saveToDb)
-        {
-            var currentResult = new LiteDbLocal.SensorDataRec();
+            var currentResult = new DeviceRecord();
             if (stringsSet.TryGetValue(DeviceName, out var devName))
             {
                 stringsSet.Remove(DeviceName);
 
-                if (!_initTimeSet)
-                {
-                    _maxAllowedTime = recordTime;
-                    _minAllowedTime = recordTime.AddMilliseconds(-1);
-                    _initTimeSet = true;
-                    textBox_fromTime.Text =
-                        _minAllowedTime.ToShortDateString() + " " + _minAllowedTime.ToLongTimeString();
-                }
-                else if (recordTime > _maxAllowedTime)
-                {
-                    _maxAllowedTime = recordTime;
-                }
-                else if (recordTime < _minAllowedTime)
-                {
-                    _minAllowedTime = recordTime;
-                }
-
-                if (currentResult.ValueList == null)
-                    currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
+                if (currentResult.SensorValueList == null)
+                    currentResult.SensorValueList = new List<SensorRecord>();
 
                 currentResult.DeviceName = devName;
                 currentResult.Time = recordTime;
-
-                if (trackBar_max.Value == trackBar_max.Maximum)
-                {
-                    _maxShowTime = _maxAllowedTime;
-                    textBox_toTime.Text =
-                        _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
-                }
             }
             else if (stringsSet.TryGetValue(DeviceMac, out var devMac))
             {
                 stringsSet.Remove(DeviceMac);
 
-                if (!_initTimeSet)
+                if (!currentResult.SensorValueList.Any())
                 {
-                    _maxAllowedTime = recordTime;
-                    _minAllowedTime = recordTime.AddMilliseconds(-1);
-                    _initTimeSet = true;
-                    textBox_fromTime.Text =
-                        _minAllowedTime.ToShortDateString() + " " + _minAllowedTime.ToLongTimeString();
-                }
-                else if (recordTime > _maxAllowedTime)
-                {
-                    _maxAllowedTime = recordTime;
-                }
-                else if (recordTime < _minAllowedTime)
-                {
-                    _minAllowedTime = recordTime;
+                    currentResult.SensorValueList = new List<SensorRecord>();
                 }
 
-                if (!currentResult.ValueList.Any())
-                {
-                    currentResult.ValueList = new List<LiteDbLocal.ValueItemRec>();
-                }
-
-                currentResult.DeviceMAC = MacFromString(devMac);
+                currentResult.DeviceMac = devMac;
                 currentResult.Time = recordTime;
-
-                if (trackBar_max.Value == trackBar_max.Maximum)
-                {
-                    _maxShowTime = _maxAllowedTime;
-                    textBox_toTime.Text =
-                        _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
-                }
             }
             else
             {
-                return;
+                return null;
             }
 
             if (stringsSet.TryGetValue(FwVersion, out var fwVer))
@@ -862,49 +879,23 @@ namespace ChartPlotMQTT
 
             foreach (var item in stringsSet)
             {
-                var newValue = new LiteDbLocal.ValueItemRec();
+                var newValue = new SensorRecord();
                 var v = item.Value.Replace(".", CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
                 v = v.Replace(",", CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
                 if (!float.TryParse(v, out var value)) continue;
 
                 //add result to log
                 newValue.Value = value;
-                newValue.ValueType = item.Key;
-                currentResult.ValueList.Add(newValue);
-
-                var fullValueType = "[" + currentResult.DeviceName + "]" + item.Key;
-                //add new plot if not yet in collection
-                if (!_plotList.Contains(fullValueType))
-                    AddNewPlot(fullValueType, value);
-
-                if (currentResult.Time >= _minShowTime && currentResult.Time <= _maxShowTime)
-                    AddNewPoint(fullValueType, currentResult.Time, value);
+                newValue.SensorName = item.Key;
+                currentResult.SensorValueList.Add(newValue);
             }
 
-            if (saveToDb)
-            {
-                DbOpen();
-                currentResult.Id = _recordsDb.AddRecord(currentResult);
-            }
-
-            _minAllowedTime = DateTime.Now.Subtract(new TimeSpan(0, _keepTime, 0));
-            foreach (var item in chart1.Series)
-            {
-                item.Sort(PointSortOrder.Ascending, "X");
-                var points = item.Points;
-                if (points != null && points.Count > 0)
-                {
-                    while (points.Count > 0 && points[0].XValue < _minAllowedTime.ToOADate()) points.RemoveAt(0);
-                    TrackBar_min_Scroll(this, EventArgs.Empty);
-                }
-            }
-
-            chart1.Invalidate();
+            return currentResult;
         }
 
-        private void UpdateChart(LiteDbLocal.SensorDataRec newData, bool saveToDb)
+        private void UpdateChart(DeviceRecord newData, bool saveToDb)
         {
-            if (newData.ValueList.Count <= 0) return;
+            if (newData.SensorValueList.Count <= 0) return;
 
             if (!_initTimeSet)
             {
@@ -930,9 +921,9 @@ namespace ChartPlotMQTT
                     _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
             }
 
-            foreach (var item in newData.ValueList)
+            foreach (var item in newData.SensorValueList)
             {
-                var valType = item.ValueType;
+                var valType = item.SensorName;
                 if (!string.IsNullOrEmpty(valType))
                 {
                     var fullValueType = "[" + newData.DeviceName + "]" + valType;
@@ -950,10 +941,10 @@ namespace ChartPlotMQTT
             if (saveToDb)
             {
                 DbOpen();
-                newData.Id = _recordsDb.AddRecord(newData);
+                newData.DeviceRecordId = _recordsDb.AddRecord(newData);
             }
 
-            _minAllowedTime = DateTime.Now.Subtract(new TimeSpan(0, _keepTime, 0));
+            /*_minAllowedTime = DateTime.Now.Subtract(new TimeSpan(0, _keepTime, 0));
             foreach (var item in chart1.Series)
             {
                 item.Sort(PointSortOrder.Ascending, "X");
@@ -963,7 +954,7 @@ namespace ChartPlotMQTT
                     while (points.Count > 0 && points[0].XValue < _minAllowedTime.ToOADate()) points.RemoveAt(0);
                     TrackBar_min_Scroll(this, EventArgs.Empty);
                 }
-            }
+            }*/
 
             chart1.Invalidate();
         }
@@ -1118,7 +1109,6 @@ namespace ChartPlotMQTT
             _plotList.Clear();
             InitChart();
             checkedListBox_params.Items.Clear();
-            InitLog();
 
             // restore latest charts from database
             if (_keepLocalDb)
@@ -1129,6 +1119,11 @@ namespace ChartPlotMQTT
                 if (restoredRange != null)
                     foreach (var record in restoredRange)
                         UpdateChart(record, false);
+            }
+            // or from REST
+            else
+            {
+
             }
 
             if (_autoConnect) Button_connect_Click(this, EventArgs.Empty);
@@ -1188,7 +1183,6 @@ namespace ChartPlotMQTT
             checkedListBox_params.Items.Clear();
             _plotList.Clear();
             InitChart();
-            InitLog();
         }
 
         private void TextBox_message_Leave(object sender, EventArgs e)
@@ -1328,7 +1322,7 @@ namespace ChartPlotMQTT
 
             if (endTime <= startTime) return;
 
-            var restoredRange = new List<LiteDbLocal.SensorDataRec>();
+            List<DeviceRecord> restoredRange;
 
             if (_keepLocalDb)
             {
@@ -1337,57 +1331,14 @@ namespace ChartPlotMQTT
             }
             else
             {
-                var baseUrl = "http://" + _ipAddress + ":" + _ipPortRest;
-                var servicePath = "/api/Sensors/GetRecords?startTime=" + startTime.ToString("yyyy-MM-ddTHH:mm:ss") +
-                                  "&endTime=" + endTime.ToString("yyyy-MM-ddTHH:mm:ss");
-
-                var credentials = new NetworkCredential(_login, _password);
-
-                using (var client = new HttpClient(new HttpClientHandler { Credentials = credentials }))
-                {
-                    var resultContentString = "";
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                    client.BaseAddress = new Uri(baseUrl);
-
-                    var retryCount = 5;
-                    var reqResult = false;
-                    while (retryCount > 0 && !reqResult)
-                        try
-                        {
-                            var result = await client.GetAsync(servicePath).ConfigureAwait(true);
-
-                            if (!result.IsSuccessStatusCode)
-                            {
-                                retryCount--;
-                                await Task.Delay(100);
-                                continue;
-                            }
-
-                            resultContentString = await result.Content.ReadAsStringAsync().ConfigureAwait(true);
-                            reqResult = true;
-                        }
-                        catch (Exception exception)
-                        {
-                            _logger.AddText("REST error: " + exception + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
-                        }
-
-                    try
-                    {
-                        restoredRange = ImportJsonString(resultContentString);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.AddText("Error parsing data from url " + baseUrl + servicePath + ": " + ex.Message + Environment.NewLine,
-                            (byte)DataDirection.Error, DateTime.Now);
-                    }
-                }
+                restoredRange = await GetDataFromRest(startTime, endTime).ConfigureAwait(true);
             }
 
             if (restoredRange == null) return;
 
             try
             {
-                var jsonData = ExportJsonFile(restoredRange, saveFileDialog1.FileName, _saveItem);
+                ExportJsonFile(restoredRange, saveFileDialog1.FileName, _saveItem);
             }
             catch (Exception ex)
             {
@@ -1613,10 +1564,18 @@ namespace ChartPlotMQTT
                 }
 
                 textBox_keepTime.Enabled = false;
-                var result = await GetDataFromRest(_keepTime).ConfigureAwait(true);
 
-                if (result)
+
+                var data = await GetLatestDataFromRest(_keepTime).ConfigureAwait(true);
+                var compactedRange = CompactData(data);
+
+                if (compactedRange != null)
                 {
+                    foreach (var item in compactedRange)
+                    {
+                        UpdateChart(item, false);
+                    }
+
                     var endTime = DateTime.Now;
                     var startTime = endTime.Subtract(new TimeSpan(0, _keepTime, 0));
 
@@ -1699,5 +1658,49 @@ namespace ChartPlotMQTT
 
         #endregion
 
+        private async void DateTimePicker1_ValueChanged(object sender, EventArgs e)
+        {
+            dateTimePicker1.Enabled = false;
+            var start = DateTime.Now;
+
+            var endTime = new DateTime(dateTimePicker1.Value.Year, dateTimePicker1.Value.Month, dateTimePicker1.Value.Day, 23, 59, 59);
+            var startTime = new DateTime(dateTimePicker1.Value.Year, dateTimePicker1.Value.Month, dateTimePicker1.Value.Day, 0, 0, 0);
+            var data = await GetDataFromRest(startTime, endTime).ConfigureAwait(true);
+            var compactedRange = CompactData(data).OrderBy(n => n.Time);
+
+            checkedListBox_params.Items.Clear();
+            _plotList.Clear();
+            InitChart();
+            _minShowTime = _minAllowedTime = startTime;
+            trackBar_min.Value = trackBar_min.Minimum;
+            textBox_fromTime.Text = _minShowTime.ToShortDateString() + " " + _minShowTime.ToLongTimeString();
+            chart1.ChartAreas[0].AxisX.Minimum = _minShowTime.ToOADate();
+
+            _maxShowTime = _maxAllowedTime = endTime;
+            trackBar_max.Value = trackBar_max.Maximum;
+            textBox_toTime.Text = _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
+            chart1.ChartAreas[0].AxisX.Maximum = _maxShowTime.ToOADate();
+
+            foreach (var item in compactedRange)
+            {
+                UpdateChart(item, false);
+            }
+
+            _minShowTime = _minAllowedTime = startTime;
+            trackBar_min.Value = trackBar_min.Minimum;
+            textBox_fromTime.Text = _minShowTime.ToShortDateString() + " " + _minShowTime.ToLongTimeString();
+            chart1.ChartAreas[0].AxisX.Minimum = _minShowTime.ToOADate();
+
+            _maxShowTime = _maxAllowedTime = endTime;
+            trackBar_max.Value = trackBar_max.Maximum;
+            textBox_toTime.Text = _maxShowTime.ToShortDateString() + " " + _maxShowTime.ToLongTimeString();
+            chart1.ChartAreas[0].AxisX.Maximum = _maxShowTime.ToOADate();
+            chart1.Invalidate();
+            _logger.AddText("Data loaded from server" + Environment.NewLine, (byte)DataDirection.Info, DateTime.Now);
+
+            _logger.AddText($"Data load for \"{startTime}\" time: {DateTime.Now.Subtract(start).TotalSeconds} seconds" + Environment.NewLine, (byte)DataDirection.Info, DateTime.Now);
+
+            dateTimePicker1.Enabled = true;
+        }
     }
 }

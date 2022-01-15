@@ -9,50 +9,52 @@ namespace ChartPlotMQTT
 {
     public class LiteDbLocal : IDisposable
     {
-        private readonly LiteDatabase db;
-        private readonly ILiteCollection<SensorDataRec> sensors;
+        private readonly LiteDatabase _db;
+        private readonly ILiteCollection<DeviceRecord> _sensors;
 
         [DataContract]
-        public class ValueItemRec
+        public class SensorRecord
         {
-            [DataMember] public string ValueType { get; set; }
+            [DataMember] public long SensorRecordId { get; set; }
+            [DataMember] public string SensorName { get; set; }
             [DataMember] public float Value { get; set; }
+            public long? DeviceRecordId { get; set; }
         }
 
         [DataContract]
-        public class SensorDataRec
+        public class DeviceRecord
         {
-            [DataMember] public int Id { get; set; }
-            [DataMember] public byte[] DeviceMAC { get; set; }
+            [DataMember] public int DeviceRecordId { get; set; }
+            [DataMember] public string DeviceMac { get; set; }
             [DataMember] public string DeviceName { get; set; }
             [DataMember] public string FwVersion { get; set; }
             [DataMember] public DateTime Time { get; set; }
-            [DataMember] public List<ValueItemRec> ValueList { get; set; }
+            [DataMember] public List<SensorRecord> SensorValueList { get; set; } = new List<SensorRecord>();
         }
 
         public LiteDbLocal(string dbFileName, string collectionName)
         {
-            db = new LiteDatabase(dbFileName);
-            sensors = db.GetCollection<SensorDataRec>(collectionName);
-            sensors.EnsureIndex(x => x.Time);
+            _db = new LiteDatabase(dbFileName);
+            _sensors = _db.GetCollection<DeviceRecord>(collectionName);
+            _sensors.EnsureIndex(x => x.Time);
         }
 
         public LiteDbLocal(ConnectionString dbConnectionString, string collectionName)
         {
-            db = new LiteDatabase(dbConnectionString);
-            sensors = db.GetCollection<SensorDataRec>(collectionName);
-            sensors.EnsureIndex(x => x.Time);
+            _db = new LiteDatabase(dbConnectionString);
+            _sensors = _db.GetCollection<DeviceRecord>(collectionName);
+            _sensors.EnsureIndex(x => x.Time);
         }
 
         public bool Disposed { get; private set; }
 
-        public int AddRecord(SensorDataRec record)
+        public int AddRecord(DeviceRecord record)
         {
             if (record == null) return -1;
 
             try
             {
-                return sensors.Insert(record);
+                return _sensors.Insert(record);
             }
             catch (Exception e)
             {
@@ -63,44 +65,44 @@ namespace ChartPlotMQTT
 
         public void RemoveRecord(int id)
         {
-            sensors.Delete(id);
+            _sensors.Delete(id);
         }
 
-        public bool UpdateRecord(SensorDataRec record)
+        public bool UpdateRecord(DeviceRecord record)
         {
             if (record == null) return false;
 
-            return sensors.Update(record);
+            return _sensors.Update(record);
         }
 
         public List<int> GetRecordsIdList(string deviceName)
         {
             var list = new List<int>();
-            if (sensors.Count() > 0)
+            if (_sensors.Count() > 0)
             {
-                var results = sensors.Find(x => deviceName.Equals(x.DeviceName, StringComparison.Ordinal));
-                foreach (var n in results) list.Add(n.Id);
+                var results = _sensors.Find(x => deviceName.Equals(x.DeviceName, StringComparison.Ordinal));
+                foreach (var n in results) list.Add(n.DeviceRecordId);
             }
             return list;
         }
 
-        public SensorDataRec GetRecordById(int id)
+        public DeviceRecord GetRecordById(int id)
         {
-            var record = sensors.FindById(id);
+            var record = _sensors.FindById(id);
 
             return record;
         }
 
-        public List<SensorDataRec> GetRecordsByDevice(string deviceName)
+        public List<DeviceRecord> GetRecordsByDevice(string deviceName)
         {
-            var records = sensors.Find(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).ToList();
+            var records = _sensors.Find(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).ToList();
 
             return records;
         }
 
-        public List<SensorDataRec> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
+        public List<DeviceRecord> GetRecordsRange(List<string> deviceNameList, DateTime startTime, DateTime endTime)
         {
-            var records = sensors.Find(
+            var records = _sensors.Find(
                 x => deviceNameList.Contains(x.DeviceName)
                      && x.Time > startTime
                      && x.Time < endTime).ToList();
@@ -108,9 +110,9 @@ namespace ChartPlotMQTT
             return records;
         }
 
-        public List<SensorDataRec> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
+        public List<DeviceRecord> GetRecordsRange(string deviceName, DateTime startTime, DateTime endTime)
         {
-            var records = sensors.Find(
+            var records = _sensors.Find(
                 x => x.DeviceName == deviceName
                      && x.Time > startTime
                      && x.Time < endTime).ToList();
@@ -118,9 +120,9 @@ namespace ChartPlotMQTT
             return records;
         }
 
-        public List<SensorDataRec> GetRecordsRange(DateTime startTime, DateTime endTime)
+        public List<DeviceRecord> GetRecordsRange(DateTime startTime, DateTime endTime)
         {
-            var records = sensors.Find(
+            var records = _sensors.Find(
                 x => x.Time > startTime
                      && x.Time < endTime).ToList();
             if (records == null || !records.Any()) return null;
@@ -131,9 +133,9 @@ namespace ChartPlotMQTT
         public List<string> GetDeviceList()
         {
             var list = new List<string>();
-            if (sensors.Count() <= 0) return list;
+            if (_sensors.Count() <= 0) return list;
 
-            var results = sensors.Find(x => true).Distinct();
+            var results = _sensors.Find(x => true).Distinct();
             foreach (var n in results)
                 if (!list.Contains(n.DeviceName)) list.Add(n.DeviceName);
             return list;
@@ -157,7 +159,7 @@ namespace ChartPlotMQTT
             {
                 //db.Shrink();
                 //db.Rebuild();
-                db.Dispose();
+                _db.Dispose();
                 Disposed = true;
             }
         }

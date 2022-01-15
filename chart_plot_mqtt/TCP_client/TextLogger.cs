@@ -1,99 +1,4 @@
-﻿/*
-        private TextLogger _logger;
-
-        private enum DataDirection
-        {
-            Received,
-            Sent,
-            SignalIn,
-            SignalOut,
-            Error
-        }
-
-        private readonly Dictionary<byte, string> _directions = new Dictionary<byte, string>()
-        {
-            {(byte)DataDirection.Received, "<<"},
-            {(byte)DataDirection.Sent,">>"},
-            {(byte)DataDirection.SignalIn,"*<"},
-            {(byte)DataDirection.SignalOut,"*>"},
-            {(byte)DataDirection.Error,"!!"}
-        };
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            _logger = new TextLogger(this)
-            {
-                Channels = _directions,
-                FilterZeroChar = false,
-            };
-            textBox_terminal.DataBindings.Add("Text", _logger, "Text", false, DataSourceUpdateMode.OnPropertyChanged);
-
-            _logger.LineTimeLimit = 100;
-            _logger.LineLimit = 500;
-            _logger.AutoSave = true;
-            _logger.LogFileName = "log.txt";
-
-            _logger.DefaultTextFormat = checkBox_hexTerminal.Checked
-                ? TextLogger.TextFormat.Hex
-                : TextLogger.TextFormat.AutoReplaceHex;
-
-            _logger.DefaultTimeFormat =
-                checkBox_saveTime.Checked ? TextLogger.TimeFormat.LongTime : TextLogger.TimeFormat.None;
-
-            _logger.DefaultDateFormat =
-                checkBox_saveTime.Checked ? TextLogger.DateFormat.ShortDate : TextLogger.DateFormat.None;
-
-            _logger.AutoScroll = checkBox_autoscroll.Checked;
-
-            CheckBox_autoscroll_CheckedChanged(null, EventArgs.Empty);
-        }
-
-        private void Button_Clear_Click(object sender, EventArgs e)
-        {
-            _logger.Clear();
-        }
-
-        private void Button_closeport_Click(object sender, EventArgs e)
-        {
-            _logger.RefreshStop();
-        }
-
-        private void CheckBox_saveTo_CheckedChanged(object sender, EventArgs e)
-        {
-            _logger.AutoSave = checkBox_saveTo.Checked;
-        }
-
-        private void TextBox_saveTo_Leave(object sender, EventArgs e)
-        {
-            _logger.LogFileName = textBox_saveTo.Text;
-        }
-
-        private void CheckBox_autoscroll_CheckedChanged(object sender, EventArgs e)
-        {
-            if (checkBox_autoscroll.Checked)
-            {
-                _logger.AutoScroll = true;
-                textBox_terminal.TextChanged += TextBox_terminal_TextChanged;
-            }
-            else
-            {
-                _logger.AutoScroll = false;
-                textBox_terminal.TextChanged -= TextBox_terminal_TextChanged;
-            }
-        }
-
-        private void TextBox_terminal_TextChanged(object sender, EventArgs e)
-        {
-            if (checkBox_autoScroll.Checked)
-            {
-                textBox_terminal.SelectionStart = textBox_terminal.Text.Length;
-                textBox_terminal.ScrollToCaret();
-            }
-        }
-
-*/
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -505,6 +410,5 @@ namespace TextLogger
             }
             finally { if (lockWasTaken) { Monitor.Exit(temp); } }
         }
-
     }
 }
