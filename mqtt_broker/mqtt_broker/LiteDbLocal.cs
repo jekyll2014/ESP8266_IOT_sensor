@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DbRecords;
-
 using LiteDB;
 
-namespace LiteDb
+namespace MqttBroker
 {
     public class LiteDbLocal : ILocalDb
     {
@@ -22,35 +20,35 @@ namespace LiteDb
 
         private bool Disposed { get; set; }
 
-        public long AddRecord(DeviceRecord record)
+        public async Task<long> AddRecord(DeviceRecord record)
         {
             if (record == null) return -1;
 
             return _sensors.Insert(record);
         }
 
-        public bool RemoveRecord(long id)
+        public async Task<bool> RemoveRecord(long id)
         {
             return _sensors.Delete(id);
         }
 
-        public bool UpdateRecord(DeviceRecord record)
+        public async Task<bool> UpdateRecord(DeviceRecord record)
         {
             if (record == null) return false;
 
             return _sensors.Update(record);
         }
 
-        public byte[] GetDeviceMacByDeviceName(string deviceName)
+        public string GetDeviceMacByDeviceName(string deviceName)
         {
-            var deviceMac = _sensors.FindOne(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).DeviceMAC;
+            var deviceMac = _sensors.FindOne(x => x.DeviceName.Equals(deviceName, StringComparison.Ordinal)).DeviceMac;
 
             return deviceMac;
         }
 
-        public IEnumerable<string> GetDeviceNamesByDeviceMac(byte[] deviceMac)
+        public IEnumerable<string> GetDeviceNamesByDeviceMac(string deviceMac)
         {
-            var deviceNames = _sensors.Find(x => x.DeviceMAC == deviceMac).Select(x => x.DeviceName);
+            var deviceNames = _sensors.Find(x => x.DeviceMac == deviceMac).Select(x => x.DeviceName);
 
             return deviceNames;
         }
@@ -58,7 +56,7 @@ namespace LiteDb
         public List<long> GetIdList(string deviceName)
         {
             var results = _sensors.Find(x => deviceName.Equals(x.DeviceName, StringComparison.Ordinal));
-            return results.Select(n => n.Id).ToList();
+            return results.Select(n => n.DeviceRecordId).ToList();
         }
 
         public DeviceRecord GetRecordById(long id)

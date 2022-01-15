@@ -3,14 +3,12 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Web.Http;
 
-using DbRecords;
-
 namespace MqttBroker
 {
     public class SensorsController : ApiController
     {
         [Route("api/Sensors")]
-        public static async Task<IEnumerable<string>> Get()
+        public async Task<IEnumerable<string>> Get()
         {
             Program.LogToScreen("REST request received: GetDeviceList() by default");
             var result = await Task
@@ -24,7 +22,7 @@ namespace MqttBroker
         [ActionName("GetNamesByMAC")]
         public async Task<IEnumerable<string>> GetNameByMAC(string deviceMac)
         {
-            var macBytes = Program.MacFromString(deviceMac);
+            var macBytes = deviceMac;
             Program.LogToScreen("REST request received: GetNameByMAC(" + deviceMac + ")");
             var result = await Task
                 .Run(() => Program.RecordsDb.GetDeviceNamesByDeviceMac(macBytes))
@@ -39,7 +37,7 @@ namespace MqttBroker
         {
             Program.LogToScreen("REST request received: GetMACByName(" + deviceName + ")");
             var result = await Task
-                .Run(() => Program.MacToString(Program.RecordsDb.GetDeviceMacByDeviceName(deviceName)))
+                .Run(() => Program.RecordsDb.GetDeviceMacByDeviceName(deviceName))
                 .ConfigureAwait(true);
 
             return result;
