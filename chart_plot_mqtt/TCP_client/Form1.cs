@@ -1,10 +1,13 @@
 ﻿using ChartPlotMQTT.Properties;
 
+using LiteDB;
+
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Client.Disconnecting;
 using MQTTnet.Client.Options;
 using MQTTnet.Client.Receiving;
+using MQTTnet.Diagnostics.Logger;
 using MQTTnet.Implementations;
 
 using System;
@@ -26,8 +29,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
-using LiteDB;
-using MQTTnet.Diagnostics.Logger;
+
 using static ChartPlotMQTT.LiteDbLocal;
 
 namespace ChartPlotMQTT
@@ -52,7 +54,7 @@ namespace ChartPlotMQTT
         private bool _keepLocalDb;
         private const int ReconnectTimeOut = 10000;
 
-        private static readonly IMqttNetLogger Logger = new MqttNetNullLogger();
+        private static readonly IMqttNetLogger Logger = new MqttNetEventLogger();
         private readonly IMqttClient _mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
 
         private const string DefaultFormCaption = "ChartPlotMQTT";
@@ -644,108 +646,109 @@ namespace ChartPlotMQTT
 
         private List<DeviceRecord> CompactData(List<DeviceRecord> data)
         {
+            if (data == null) return null;
+
             var result = new List<DeviceRecord>();
 
-            if (data != null)
+            var screenWidth = SystemInformation.PrimaryMonitorSize.Width;
+            var ratio = data.Count / screenWidth;
+            if (ratio < 1) ratio = 1;
+
+            foreach (var recordsGroup in data.GroupBy(n => n.DeviceName + n.DeviceMac))
             {
-                var screenWidth = SystemInformation.PrimaryMonitorSize.Width;
-                var ratio = data.Count / screenWidth;
-                if (ratio < 1) ratio = 1;
-
-                foreach (var recordsGroup in data.GroupBy(n => n.DeviceName + n.DeviceMac))
+                var accumulatedRecord = new DeviceRecord
                 {
-                    var accumulatedRecord = new DeviceRecord
-                    {
-                        DeviceMac = recordsGroup.First().DeviceMac,
-                        DeviceName = recordsGroup.First().DeviceName,
-                        Time = DateTime.MinValue,
-                        SensorValueList = new List<SensorRecord>()
-                    };
-                    var counter = 0;
+                    DeviceMac = recordsGroup.First().DeviceMac,
+                    DeviceName = recordsGroup.First().DeviceName,
+                    Time = DateTime.MinValue,
+                    SensorValueList = new List<SensorRecord>()
+                };
+                var counter = 0;
 
-                    foreach (var record in recordsGroup.OrderBy(n => n.Time))
+                foreach (var record in recordsGroup.OrderBy(n => n.Time))
+                {
+                    if (counter >= ratio)
                     {
-                        if (counter >= ratio)
+                        if (accumulatedRecord.SensorValueList?.Count > 0)
                         {
-                            if (accumulatedRecord.SensorValueList.Count > 0)
-                            {
-                                result.Add(accumulatedRecord);
-                            }
-
-                            counter = 0;
-                            accumulatedRecord = new DeviceRecord
-                            {
-                                DeviceMac = record.DeviceMac,
-                                DeviceName = record.DeviceName,
-                                Time = DateTime.MinValue,
-                                SensorValueList = new List<SensorRecord>()
-                            };
+                            result.Add(accumulatedRecord);
                         }
 
-                        if (ratio == 1)
+                        counter = 0;
+                        accumulatedRecord = new DeviceRecord
+                        {
+                            DeviceMac = record.DeviceMac,
+                            DeviceName = record.DeviceName,
+                            Time = DateTime.MinValue,
+                            SensorValueList = new List<SensorRecord>()
+                        };
+                    }
+
+                    if (ratio == 1)
+                    {
+                        accumulatedRecord.DeviceMac = record.DeviceMac;
+                        accumulatedRecord.DeviceName = record.DeviceName;
+                        accumulatedRecord.Time = record.Time;
+                        accumulatedRecord.SensorValueList = record.SensorValueList ?? new List<SensorRecord>();
+                    }
+                    else
+                    {
+                        if (accumulatedRecord.DeviceName == null && record.DeviceName == null)
+                        {
+                            accumulatedRecord.DeviceName = record.DeviceName;
+                        }
+
+                        if (accumulatedRecord.DeviceMac == null && record.DeviceMac == null)
                         {
                             accumulatedRecord.DeviceMac = record.DeviceMac;
-                            accumulatedRecord.DeviceName = record.DeviceName;
-                            accumulatedRecord.Time = record.Time;
-                            accumulatedRecord.SensorValueList = record.SensorValueList;
                         }
+
+                        if (accumulatedRecord.Time == DateTime.MinValue)
+                            accumulatedRecord.Time = record.Time;
                         else
                         {
-                            if (accumulatedRecord.DeviceName == null && record.DeviceName == null)
+                            if (record.Time > accumulatedRecord.Time)
                             {
-                                accumulatedRecord.DeviceName = record.DeviceName;
+                                accumulatedRecord.Time = accumulatedRecord.Time.AddTicks((record.Time.Ticks - accumulatedRecord.Time.Ticks) /
+                                                                2);
                             }
 
-                            if (accumulatedRecord.DeviceMac == null && record.DeviceMac == null)
+                            if (record.Time < accumulatedRecord.Time)
                             {
-                                accumulatedRecord.DeviceMac = record.DeviceMac;
-                            }
-
-                            if (accumulatedRecord.Time == DateTime.MinValue)
-                                accumulatedRecord.Time = record.Time;
-                            else
-                            {
-                                if (record.Time > accumulatedRecord.Time)
-                                {
-                                    accumulatedRecord.Time.AddTicks((record.Time.Ticks - accumulatedRecord.Time.Ticks) /
-                                                                    2);
-                                }
-
-                                if (record.Time < accumulatedRecord.Time)
-                                {
-                                    accumulatedRecord.Time.AddTicks((accumulatedRecord.Time.Ticks - record.Time.Ticks) /
-                                                                    2);
-                                }
-                            }
-
-                            foreach (var sensor in record.SensorValueList)
-                            {
-                                var valueIndex = -1;
-                                for (var i = 0; i < accumulatedRecord.SensorValueList.Count; i++)
-                                    if (accumulatedRecord.SensorValueList[i].SensorName == sensor.SensorName)
-                                    {
-                                        valueIndex = i;
-                                        break;
-                                    }
-                                if (valueIndex == -1)
-                                {
-                                    accumulatedRecord.SensorValueList.Add(sensor);
-                                }
-                                else
-                                {
-                                    accumulatedRecord.SensorValueList[valueIndex].Value += sensor.Value;
-                                    accumulatedRecord.SensorValueList[valueIndex].Value /= 2;
-                                }
+                                accumulatedRecord.Time = accumulatedRecord.Time.AddTicks((accumulatedRecord.Time.Ticks - record.Time.Ticks) /
+                                                                2);
                             }
                         }
 
-                        counter++;
+                        if (record.SensorValueList == null) continue;
+
+                        foreach (var sensor in record.SensorValueList)
+                        {
+                            var valueIndex = -1;
+                            for (var i = 0; i < accumulatedRecord.SensorValueList.Count; i++)
+                                if (accumulatedRecord.SensorValueList[i].SensorName == sensor.SensorName)
+                                {
+                                    valueIndex = i;
+                                    break;
+                                }
+                            if (valueIndex == -1)
+                            {
+                                accumulatedRecord.SensorValueList.Add(sensor);
+                            }
+                            else
+                            {
+                                accumulatedRecord.SensorValueList[valueIndex].Value += sensor.Value;
+                                accumulatedRecord.SensorValueList[valueIndex].Value /= 2;
+                            }
+                        }
                     }
 
-                    if (accumulatedRecord.SensorValueList.Count > 0)
-                    {
-                        result.Add(accumulatedRecord);
-                    }
+                    counter++;
+                }
+
+                if (accumulatedRecord.SensorValueList.Count > 0)
+                {
+                    result.Add(accumulatedRecord);
                 }
             }
 
