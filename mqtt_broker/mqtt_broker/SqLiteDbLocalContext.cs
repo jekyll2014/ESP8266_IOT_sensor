@@ -101,7 +101,7 @@ namespace MqttBroker
             return deviceNames;
         }
 
-        public List<long> GetIdList(string deviceName)
+        public IEnumerable<long> GetIdList(string deviceName)
         {
             var results = DeviceRecords.Include(n => n.SensorValueList).Where(x => deviceName.Equals(x.DeviceName, StringComparison.Ordinal)).Select(n => n.DeviceRecordId);
             return results.ToList();

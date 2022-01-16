@@ -56,7 +56,7 @@ namespace MqttBroker
             }
             catch (Exception e)
             {
-                LogToScreen("MQTT server database connection error: " + e);
+                LogToScreen("Database connection error: " + e);
                 _dbStarted = false;
             }
 
