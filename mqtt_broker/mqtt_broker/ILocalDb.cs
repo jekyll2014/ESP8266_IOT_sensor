@@ -16,7 +16,7 @@ namespace MqttBroker
 
         IEnumerable<string> GetDeviceNamesByDeviceMac(string deviceMac);
 
-        List<long> GetIdList(string deviceName);
+        IEnumerable<long> GetIdList(string deviceName);
 
         DeviceRecord GetRecordById(long id);
 

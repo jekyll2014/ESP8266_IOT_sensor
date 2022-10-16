@@ -129,7 +129,7 @@ namespace MqttBroker
                         LogToScreen("Can't start REST server.");
                     }
 
-                    if (!mqttStarted || !restStarted)
+                    if (!mqttStarted && !restStarted)
                     {
                         LogToScreen("Closing application...");
                         await mqttServer.StopAsync().ConfigureAwait(false);
