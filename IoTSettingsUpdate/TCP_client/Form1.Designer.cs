@@ -33,7 +33,6 @@
             this.button_send = new System.Windows.Forms.Button();
             this.button_connect = new System.Windows.Forms.Button();
             this.button_disconnect = new System.Windows.Forms.Button();
-            this.button_receive = new System.Windows.Forms.Button();
             this.checkBox_hex = new System.Windows.Forms.CheckBox();
             this.contextMenuStrip_item = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.toolStripMenuItem_delete = new System.Windows.Forms.ToolStripMenuItem();
@@ -116,18 +115,6 @@
             this.button_disconnect.Text = "Disconnect";
             this.button_disconnect.UseVisualStyleBackColor = true;
             this.button_disconnect.Click += new System.EventHandler(this.Button_disconnect_Click);
-            // 
-            // button_receive
-            // 
-            this.button_receive.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.button_receive.Enabled = false;
-            this.button_receive.Location = new System.Drawing.Point(576, 399);
-            this.button_receive.Name = "button_receive";
-            this.button_receive.Size = new System.Drawing.Size(75, 23);
-            this.button_receive.TabIndex = 7;
-            this.button_receive.Text = "Receive";
-            this.button_receive.UseVisualStyleBackColor = true;
-            this.button_receive.Click += new System.EventHandler(this.Button_receive_Click);
             // 
             // checkBox_hex
             // 
@@ -231,7 +218,7 @@
             this.checkBox_addCrLf.AutoSize = true;
             this.checkBox_addCrLf.Checked = true;
             this.checkBox_addCrLf.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox_addCrLf.Location = new System.Drawing.Point(489, 403);
+            this.checkBox_addCrLf.Location = new System.Drawing.Point(570, 403);
             this.checkBox_addCrLf.Name = "checkBox_addCrLf";
             this.checkBox_addCrLf.Size = new System.Drawing.Size(81, 17);
             this.checkBox_addCrLf.TabIndex = 8;
@@ -340,7 +327,7 @@
             // 
             this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(348, 403);
+            this.label1.Location = new System.Drawing.Point(429, 403);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(69, 13);
             this.label1.TabIndex = 22;
@@ -349,7 +336,7 @@
             // textBox_replyTimeout
             // 
             this.textBox_replyTimeout.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBox_replyTimeout.Location = new System.Drawing.Point(424, 400);
+            this.textBox_replyTimeout.Location = new System.Drawing.Point(505, 400);
             this.textBox_replyTimeout.MaxLength = 5;
             this.textBox_replyTimeout.Name = "textBox_replyTimeout";
             this.textBox_replyTimeout.Size = new System.Drawing.Size(59, 20);
@@ -439,12 +426,14 @@
             // button_reset
             // 
             this.button_reset.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.button_reset.Enabled = false;
             this.button_reset.Location = new System.Drawing.Point(255, 373);
             this.button_reset.Name = "button_reset";
             this.button_reset.Size = new System.Drawing.Size(75, 23);
             this.button_reset.TabIndex = 21;
             this.button_reset.Text = "Reset";
             this.button_reset.UseVisualStyleBackColor = true;
+            this.button_reset.Click += new System.EventHandler(this.Button_reset_Click);
             // 
             // button_help
             // 
@@ -484,7 +473,6 @@
             this.Controls.Add(this.button_send);
             this.Controls.Add(this.checkBox_hex);
             this.Controls.Add(this.button_disconnect);
-            this.Controls.Add(this.button_receive);
             this.Controls.Add(this.checkBox_addCrLf);
             this.Controls.Add(this.button_connect);
             this.Controls.Add(this.checkBox_autoScroll);
@@ -510,7 +498,6 @@
         private System.Windows.Forms.Button button_send;
         private System.Windows.Forms.Button button_connect;
         private System.Windows.Forms.Button button_disconnect;
-        private System.Windows.Forms.Button button_receive;
         private System.Windows.Forms.CheckBox checkBox_hex;
         private System.Windows.Forms.CheckBox checkBox_autoScroll;
         private System.Windows.Forms.Timer timer1;

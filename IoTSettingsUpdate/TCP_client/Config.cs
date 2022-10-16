@@ -4,28 +4,18 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Windows.Forms;
 
-
-namespace JsonDictionaryCore
+namespace IoTSettingsUpdate
 {
-    public class JsonDictionarySettings
-    {
-        public string Command { get; set; } = "";
-        public string DefaultValue { get; set; } = "";
-        public string CustomValue { get; set; } = "";
-        public string OkReplyString { get; set; } = "";
-        public string ErrorReplyString { get; set; } = "";
-        public string ParameterName { get; set; } = "";
-    }
-
-    public class Config
+    public class Config<T> where T : class
     {
         private readonly string _configFileName;
-        private List<JsonDictionarySettings> _configStorage;
+        private List<T> _configStorage;
 
-        public List<JsonDictionarySettings> ConfigStorage
+        public List<T> ConfigStorage
         {
-            get => _configStorage ?? new List<JsonDictionarySettings>();
+            get => _configStorage ?? new List<T>();
             set => _configStorage = value;
         }
 
@@ -43,10 +33,12 @@ namespace JsonDictionaryCore
             try
             {
                 var json = JArray.Parse(File.ReadAllText(fileName));
-                ConfigStorage = GetSection<List<JsonDictionarySettings>>(json, "");
+                ConfigStorage = GetSection<List<T>>(json, "");
             }
-            catch(Exception e)
+            catch (Exception e)
             {
+                //MessageBox.Show($"Error loading file: {e.Message}");
+
                 return false;
             }
 

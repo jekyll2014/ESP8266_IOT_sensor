@@ -15,7 +15,6 @@ using System.Windows.Forms;
 using TextLoggerHelper;
 
 using IoTSettingsUpdate.Properties;
-using JsonDictionaryCore;
 
 namespace IoTSettingsUpdate
 {
@@ -28,7 +27,7 @@ namespace IoTSettingsUpdate
         private string _comName;
         private int _comSpeed;
         private int _replyTimeout = 10000;
-        private readonly List<char> _stringsDivider = new List<char> { '\x0d', '\x0a' };
+        private readonly List<char> _stringsDivider = new List<char> { '\r', '\n' };
 
         private string _unparsedData = "";
 
@@ -37,16 +36,24 @@ namespace IoTSettingsUpdate
 
         private readonly DataTable _configData = new DataTable();
 
-        private readonly string[] _columnNames = { "Command", "Default value", "Custom value", "OK reply", "Error reply", "Parameter name" };
+        private readonly string[] _columnNames =
+            {
+            "Command",
+            "Default value",
+            "Custom value",
+            "Parameter description",
+            "ParameterName",
+            "ErrorReplyString"
+        };
 
         private enum Columns
         {
             Command,
             DefaultValue,
             CustomValue,
-            OkReplyString,
-            ErrorReplyString,
-            ParameterName
+            ParameterDescription,
+            ParameterName,
+            ErrorReplyString
         }
 
         private enum DataDirection
@@ -67,159 +74,27 @@ namespace IoTSettingsUpdate
 
         private TextLogger _logger;
 
-        private Config _espSettings;
+        private Config<CommandSettings> _espSettings;
 
-        private volatile List<string> _inputStrings = new List<string>();
-        private volatile bool _waitReply;
+        private readonly List<AwaitedReply> _awaitedReplies = new List<AwaitedReply>();
         private volatile bool _sending;
 
+        private class AwaitedReply
+        {
+            public string ParameterPattern = "";
+            public string IncorrectReplyPattern = "";
+            public bool found;
+            public bool incorrect;
+        }
+
         #region Data acquisition
-
-        private void Button_connect_Click(object sender, EventArgs e)
-        {
-            if (comboBox_portname1.SelectedIndex == 0)
-            {
-                try
-                {
-                    _clientSocket = new TcpClient();
-                    _clientSocket.Connect(_ipAddress, _ipPort);
-                    _clientSocket.ReceiveTimeout = 1000;
-                    _clientSocket.SendTimeout = 1000;
-                    _clientSocket.Client.ReceiveTimeout = 1000;
-                    _clientSocket.Client.SendTimeout = 1000;
-                    _serverStream = _clientSocket.GetStream();
-                }
-                catch (Exception ex)
-                {
-                    _logger.AddText("Connect error to: " + _ipAddress + ":" + _ipPort + ex + Environment.NewLine,
-                        (byte)DataDirection.Error, DateTime.Now);
-                    if (_clientSocket.Client.Connected) _clientSocket.Client.Disconnect(false);
-
-                    //serverStream.Close();
-                    if (_clientSocket.Connected) _clientSocket.Close();
-
-                    _clientSocket = new TcpClient();
-                    return;
-                }
-
-                _logger.AddText("Device connected to: " + _ipAddress + ":" + _ipPort + Environment.NewLine,
-                    (byte)DataDirection.Note, DateTime.Now);
-                button_receive.Enabled = true;
-                timer1.Enabled = true;
-            }
-            else
-            {
-                if (serialPort1.IsOpen) serialPort1.Close();
-
-                serialPort1.PortName = comboBox_portname1.Text;
-                serialPort1.BaudRate = _comSpeed;
-                serialPort1.DataBits = 8;
-                serialPort1.Handshake = Handshake.None;
-                serialPort1.Parity = Parity.None;
-                serialPort1.StopBits = StopBits.One;
-                serialPort1.ReadTimeout = 500;
-                serialPort1.WriteTimeout = 500;
-                serialPort1.ReadBufferSize = 8192;
-                try
-                {
-                    serialPort1.Open();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Error opening netPort " + serialPort1.PortName + ": " + ex.Message);
-                    return;
-                }
-
-                _logger.AddText("Port opened\r\n", (byte)DataDirection.Note, DateTime.Now);
-            }
-
-            if (!serialPort1.IsOpen && !IsClientConnected())
-            {
-                Button_disconnect_Click(this, EventArgs.Empty);
-                return;
-            }
-
-            button_connect.Enabled = false;
-            button_disconnect.Enabled = true;
-            button_send.Enabled = true;
-            button_sendAll.Enabled = true;
-            button_sendCommand.Enabled = true;
-            button_getConfig.Enabled = true;
-            button_getStatus.Enabled = true;
-            button_getSensor.Enabled = true;
-            button_setTime.Enabled = true;
-            comboBox_portname1.Enabled = false;
-            comboBox_portspeed1.Enabled = false;
-        }
-
-        private void Button_disconnect_Click(object sender, EventArgs e)
-        {
-            if (comboBox_portname1.SelectedIndex == 0)
-            {
-                timer1.Enabled = false;
-                button_receive.Enabled = false;
-                try
-                {
-                    _clientSocket.Client.Disconnect(false);
-                    _serverStream.Close();
-                    _clientSocket.Close();
-                    _clientSocket = new TcpClient();
-                }
-                catch (Exception ex)
-                {
-                    _logger.AddText("Disconnect error: " + ex + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
-                    return;
-                }
-
-                _logger.AddText("Device disconnected ...\r\n", (byte)DataDirection.Note, DateTime.Now);
-            }
-            else
-            {
-                try
-                {
-                    serialPort1.Close();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Error closing netPort " + serialPort1.PortName + ": " + ex.Message);
-                }
-
-                _logger.AddText("Port disconnected ...\r\n", (byte)DataDirection.Note, DateTime.Now);
-            }
-
-            button_connect.Enabled = true;
-            button_disconnect.Enabled = false;
-            button_send.Enabled = false;
-            button_sendAll.Enabled = false;
-            button_sendCommand.Enabled = false;
-            button_getConfig.Enabled = false;
-            button_getStatus.Enabled = false;
-            button_getSensor.Enabled = false;
-            button_setTime.Enabled = false;
-            comboBox_portname1.Enabled = true;
-            ComboBox_portname1_SelectedIndexChanged(this, EventArgs.Empty);
-        }
-
-        private void Button_send_Click(object sender, EventArgs e)
-        {
-            if (dataGridView_config.CurrentRow == null)
-                return;
-
-            var currentRow = dataGridView_config.CurrentCell.RowIndex;
-            var currentCell = dataGridView_config.CurrentCell.ColumnIndex;
-
-            if (currentCell != (int)Columns.CustomValue
-                && currentCell != (int)Columns.DefaultValue)
-                return;
-
-            SendParameter(currentRow, currentCell);
-        }
 
         private async void Button_sendAll_Click(object sender, EventArgs e)
         {
             if (_sending)
             {
                 _sending = false;
+
                 return;
             }
 
@@ -230,7 +105,7 @@ namespace IoTSettingsUpdate
                 return;
 
             _sending = true;
-            dataGridView_config.Enabled = false;
+            //dataGridView_config.Enabled = false;
             button_send.Enabled = false;
             button_sendAll.Text = "Stop";
             button_sendCommand.Enabled = false;
@@ -245,11 +120,15 @@ namespace IoTSettingsUpdate
             for (var currentRow = 0; currentRow < _configData.Rows.Count; currentRow++)
             {
                 await SendParameter(currentRow, currentCell);
-                if (!_sending) break;
+                Thread.Sleep(200);
+                Application.DoEvents();
+
+                if (!_sending)
+                    break;
             }
 
             _sending = false;
-            dataGridView_config.Enabled = true;
+            //dataGridView_config.Enabled = true;
             button_send.Enabled = true;
             button_sendAll.Text = "Send all";
             button_sendCommand.Enabled = true;
@@ -264,9 +143,6 @@ namespace IoTSettingsUpdate
 
         private async Task<bool> SendParameter(int currentRow, int currentCell)
         {
-            _waitReply = false;
-            _inputStrings.Clear();
-
             var par = _configData.Rows[currentRow].ItemArray[currentCell].ToString();
 
             if (string.IsNullOrEmpty(par))
@@ -276,19 +152,17 @@ namespace IoTSettingsUpdate
             var outStream = new List<byte>();
             outStream.AddRange(Encoding.ASCII.GetBytes(tmpStr));
 
-            var waitSample = new[]
-            {
-                _configData.Rows[currentRow].ItemArray[(int) Columns.OkReplyString].ToString(),
-                _configData.Rows[currentRow].ItemArray[(int) Columns.ErrorReplyString].ToString()
-            };
+            var paramName = _configData.Rows[currentRow].ItemArray[(int)Columns.ParameterName].ToString();
+            var incorrectSample = _configData.Rows[currentRow].ItemArray[(int)Columns.ErrorReplyString].ToString();
 
-            if (waitSample.Any(n => !string.IsNullOrEmpty(n))) _waitReply = true;
             SendData(outStream.ToArray(), checkBox_addCrLf.Checked);
-            if (waitSample.All(n => string.IsNullOrEmpty(n))) return true;
+
+            if (string.IsNullOrEmpty(paramName))
+                return true;
 
             dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.Yellow;
 
-            var res = await WaitForReply(waitSample, _replyTimeout);
+            var res = await WaitForReply(paramName, incorrectSample, _replyTimeout);
             if (res)
             {
                 dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.GreenYellow;
@@ -298,10 +172,7 @@ namespace IoTSettingsUpdate
                 dataGridView_config.Rows[currentRow].Cells[currentCell].Style.BackColor = Color.Red;
             }
 
-            dataGridView_config.CurrentCell = dataGridView_config.Rows[currentRow].Cells[currentCell];
-
-            _waitReply = false;
-            _inputStrings.Clear();
+            //dataGridView_config.CurrentCell = dataGridView_config.Rows[currentRow].Cells[currentCell];
 
             return res;
         }
@@ -362,8 +233,13 @@ namespace IoTSettingsUpdate
             return true;
         }
 
-        private void Button_receive_Click(object sender, EventArgs e)
+        private void ReadTelnet()
         {
+            if (!IsClientConnected())
+            {
+                TryReconnect();
+            }
+
             if (IsClientConnected())
             {
                 var data = new List<byte>();
@@ -381,10 +257,6 @@ namespace IoTSettingsUpdate
                     }
 
                 ProcessInput(data.ToArray());
-            }
-            else
-            {
-                TryReconnect();
             }
         }
 
@@ -418,51 +290,28 @@ namespace IoTSettingsUpdate
         {
             var ipProperties = IPGlobalProperties.GetIPGlobalProperties();
             var tcpConnections = ipProperties.GetActiveTcpConnections();
-            foreach (var c in tcpConnections)
+            try
             {
-                var stateOfConnection = c.State;
                 if (_clientSocket != null)
-                    try
+                {
+                    foreach (var c in tcpConnections.Where(c => c.LocalEndPoint.Equals(_clientSocket.Client.LocalEndPoint) &&
+                                    c.RemoteEndPoint.Equals(_clientSocket.Client.RemoteEndPoint)))
                     {
-                        if (c.LocalEndPoint.Equals(_clientSocket.Client.LocalEndPoint) &&
-                            c.RemoteEndPoint.Equals(_clientSocket.Client.RemoteEndPoint))
-                        {
-                            if (stateOfConnection == TcpState.Established)
-                                return true;
-                            return false;
-                        }
+                        if (c.State == TcpState.Established)
+                            return true;
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.AddText("Socket error: " + ex + Environment.NewLine,
-                            (byte)DataDirection.Error, DateTime.Now);
-                        return false;
-                    }
+                }
                 else
                     return false;
             }
+            catch (Exception ex)
+            {
+                _logger.AddText("Socket error: " + ex + Environment.NewLine,
+                    (byte)DataDirection.Error, DateTime.Now);
+                return false;
+            }
 
             return false;
-        }
-
-        private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
-        {
-            _espSettings = new Config(openFileDialog1.FileName);
-            if (_espSettings.ConfigStorage.Count > 0)
-            {
-                _configData.Rows.Clear();
-                foreach (var par in _espSettings.ConfigStorage)
-                {
-                    var newRow = _configData.NewRow();
-                    newRow[(int)Columns.Command] = par.Command;
-                    newRow[(int)Columns.DefaultValue] = par.DefaultValue;
-                    newRow[(int)Columns.CustomValue] = par.CustomValue;
-                    newRow[(int)Columns.OkReplyString] = par.OkReplyString;
-                    newRow[(int)Columns.ErrorReplyString] = par.ErrorReplyString;
-                    newRow[(int)Columns.ParameterName] = par.ParameterName;
-                    _configData.Rows.Add(newRow);
-                }
-            }
         }
 
         private void ProcessInput(byte[] data)
@@ -475,51 +324,50 @@ namespace IoTSettingsUpdate
             var stringsCollection = ConvertBytesToStrings(data, ref _unparsedData);
             foreach (var s in stringsCollection)
             {
-                if (_waitReply) _inputStrings.Add(s);
-
-                var foundParam = _espSettings?
-                    .ConfigStorage?
-                    .FirstOrDefault(n => !string.IsNullOrEmpty(n.ParameterName) && s.StartsWith(n.ParameterName));
-                if (foundParam != null)
+                // try to find awaited reply
+                foreach (var item in _awaitedReplies)
                 {
-                    var row = _configData.Rows.Cast<DataRow>()
-                        .FirstOrDefault(n => n.ItemArray[(int)Columns.Command].ToString() == foundParam.Command);
-                    if (row != null) row[(int)Columns.CustomValue] = s.Substring(foundParam.ParameterName.Length);
+                    if (s.StartsWith(item.ParameterPattern))
+                    {
+                        var parts = s.Split('=');
+                        item.found = true;
+                        if (parts.Length > 1 && parts[1].StartsWith(item.IncorrectReplyPattern))
+                        {
+                            item.incorrect = true;
+                        }
+                    }
                 }
             }
         }
 
-        private async Task<bool> WaitForReply(string[] stringStart, int timeout)
+        private async Task<bool> WaitForReply(string paramName, string incorrectName, int timeout)
         {
-            var reply = false;
+            var result = false;
+
+            var reply = new AwaitedReply()
+            {
+                ParameterPattern = paramName,
+                IncorrectReplyPattern = incorrectName
+            };
+            _awaitedReplies.Add(reply);
 
             var start = DateTime.Now;
-            var stringsNum = 0;
-
             await Task.Run(() =>
             {
                 while (DateTime.Now.Subtract(start).TotalMilliseconds < timeout)
                 {
                     Thread.Sleep(200);
                     Application.DoEvents();
-                    if (stringsNum != _inputStrings.Count)
+
+                    if (reply.found)
                     {
-                        stringsNum = _inputStrings.Count;
-                        for (var i = 0; i < stringsNum; i++)
-                        {
-                            if (stringStart.Any(s => _inputStrings[i].StartsWith(s)))
-                            {
-                                reply = true;
-                                _inputStrings.RemoveAt(i);
-                                return;
-                            }
-                        }
+                        result = !reply.incorrect;
+                        break;
                     }
                 }
-            }
-            ).ConfigureAwait(true);
+            }).ConfigureAwait(true);
 
-            return reply;
+            return result;
         }
 
         #endregion
@@ -559,20 +407,14 @@ namespace IoTSettingsUpdate
 
         private void Timer1_Tick(object sender, EventArgs e)
         {
-            if (IsClientConnected())
-            {
-                Button_receive_Click(this, EventArgs.Empty);
-            }
-            else if (!serialPort1.IsOpen)
-            {
-                TryReconnect();
-            }
+            ReadTelnet();
         }
 
         private void TryReconnect()
         {
             _logger.AddText("not connected\r\n", (byte)DataDirection.Note, DateTime.Now);
             Button_disconnect_Click(this, EventArgs.Empty);
+            Button_connect_Click(this, EventArgs.Empty);
         }
 
         private string[] ConvertBytesToStrings(IEnumerable<byte> data, ref string unparsedData)
@@ -628,12 +470,12 @@ namespace IoTSettingsUpdate
         private void PrepareConfig()
         {
             var newConfig = _configData.Rows.Cast<DataRow>()
-                .Select(row => new JsonDictionarySettings
+                .Select(row => new CommandSettings
                 {
                     Command = row[(int)Columns.Command].ToString(),
                     DefaultValue = row[(int)Columns.DefaultValue].ToString(),
                     CustomValue = row[(int)Columns.CustomValue].ToString(),
-                    OkReplyString = row[(int)Columns.OkReplyString].ToString(),
+                    ParameterDescription = row[(int)Columns.ParameterDescription].ToString(),
                     ErrorReplyString = row[(int)Columns.ErrorReplyString].ToString(),
                     ParameterName = row[(int)Columns.ParameterName].ToString()
                 })
@@ -776,17 +618,18 @@ namespace IoTSettingsUpdate
                 DefaultTextFormat = TextLogger.TextFormat.PlainText,
                 DefaultTimeFormat = TextLogger.TimeFormat.LongTime,
                 LogFileName = "loader.log",
-                LineTimeLimit = 500
+                LineTimeLimit = 500,
+                Channels = _directions
             };
-            _logger.Channels = _directions;
 
             textBox_dataLog.DataBindings.Add("Text", _logger, "Text", false, DataSourceUpdateMode.OnPropertyChanged);
 
-            foreach (var col in _columnNames) _configData.Columns.Add(col);
+            foreach (var col in _columnNames)
+                _configData.Columns.Add(col);
 
             _configData.Columns[(int)Columns.Command].ReadOnly = true;
             _configData.Columns[(int)Columns.DefaultValue].ReadOnly = true;
-            _configData.Columns[(int)Columns.OkReplyString].ReadOnly = true;
+            _configData.Columns[(int)Columns.ParameterDescription].ReadOnly = true;
             _configData.Columns[(int)Columns.ErrorReplyString].ReadOnly = true;
             _configData.Columns[(int)Columns.ParameterName].ReadOnly = true;
 
@@ -798,6 +641,8 @@ namespace IoTSettingsUpdate
                 col.SortMode = DataGridViewColumnSortMode.NotSortable;
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
             }
+            dataGridView_config.Columns[Columns.ErrorReplyString.ToString()].Visible = false;
+            dataGridView_config.Columns[Columns.ParameterName.ToString()].Visible = false;
 
             _autoScroll = _logger.AutoScroll = checkBox_autoScroll.Checked;
         }
@@ -878,12 +723,33 @@ namespace IoTSettingsUpdate
             openFileDialog1.ShowDialog();
         }
 
+        private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
+        {
+            _espSettings = new Config<CommandSettings>(openFileDialog1.FileName);
+            if (_espSettings.ConfigStorage.Count > 0)
+            {
+                _configData.Rows.Clear();
+                foreach (var par in _espSettings.ConfigStorage)
+                {
+                    var newRow = _configData.NewRow();
+                    newRow[(int)Columns.Command] = par.Command;
+                    newRow[(int)Columns.DefaultValue] = par.DefaultValue;
+                    newRow[(int)Columns.ParameterDescription] = par.ParameterDescription;
+                    newRow[(int)Columns.CustomValue] = par.CustomValue;
+                    newRow[(int)Columns.ErrorReplyString] = par.ErrorReplyString;
+                    newRow[(int)Columns.ParameterName] = par.ParameterName;
+                    _configData.Rows.Add(newRow);
+                }
+            }
+        }
+
         private void Button_save_Click(object sender, EventArgs e)
         {
             saveFileDialog1.Title = "Save config...";
             saveFileDialog1.DefaultExt = "json";
             saveFileDialog1.Filter = "JSON files|*.json|All files|*.*";
-            saveFileDialog1.FileName = "config.json";
+            saveFileDialog1.FileName = string.IsNullOrEmpty(openFileDialog1.FileName) ? "config.json" : saveFileDialog1.FileName = openFileDialog1.FileName;
+
             saveFileDialog1.ShowDialog();
         }
 
@@ -916,9 +782,150 @@ namespace IoTSettingsUpdate
             SendData(outStream.ToArray(), checkBox_addCrLf.Checked);
         }
 
+        private void Button_connect_Click(object sender, EventArgs e)
+        {
+            if (comboBox_portname1.SelectedIndex == 0)
+            {
+                try
+                {
+                    _clientSocket = new TcpClient();
+                    _clientSocket.Connect(_ipAddress, _ipPort);
+                    _clientSocket.ReceiveTimeout = 1000;
+                    _clientSocket.SendTimeout = 1000;
+                    _clientSocket.Client.ReceiveTimeout = 1000;
+                    _clientSocket.Client.SendTimeout = 1000;
+                    _serverStream = _clientSocket.GetStream();
+                }
+                catch (Exception ex)
+                {
+                    _logger.AddText("Connect error to: " + _ipAddress + ":" + _ipPort + ex + Environment.NewLine,
+                        (byte)DataDirection.Error, DateTime.Now);
+                    if (_clientSocket.Client.Connected) _clientSocket.Client.Disconnect(false);
+
+                    //serverStream.Close();
+                    if (_clientSocket.Connected) _clientSocket.Close();
+
+                    _clientSocket = new TcpClient();
+                    return;
+                }
+
+                _logger.AddText("Device connected to: " + _ipAddress + ":" + _ipPort + Environment.NewLine,
+                    (byte)DataDirection.Note, DateTime.Now);
+                timer1.Enabled = true;
+            }
+            else
+            {
+                if (serialPort1.IsOpen) serialPort1.Close();
+
+                serialPort1.PortName = comboBox_portname1.Text;
+                serialPort1.BaudRate = _comSpeed;
+                serialPort1.DataBits = 8;
+                serialPort1.Handshake = Handshake.None;
+                serialPort1.Parity = Parity.None;
+                serialPort1.StopBits = StopBits.One;
+                serialPort1.ReadTimeout = 500;
+                serialPort1.WriteTimeout = 500;
+                serialPort1.ReadBufferSize = 8192;
+                try
+                {
+                    serialPort1.Open();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error opening netPort " + serialPort1.PortName + ": " + ex.Message);
+                    return;
+                }
+
+                _logger.AddText("Port opened\r\n", (byte)DataDirection.Note, DateTime.Now);
+            }
+
+            if (!serialPort1.IsOpen && !IsClientConnected())
+            {
+                Button_disconnect_Click(this, EventArgs.Empty);
+                return;
+            }
+
+            button_connect.Enabled = false;
+            button_disconnect.Enabled = true;
+            button_send.Enabled = true;
+            button_sendAll.Enabled = true;
+            button_sendCommand.Enabled = true;
+            button_getConfig.Enabled = true;
+            button_getStatus.Enabled = true;
+            button_getSensor.Enabled = true;
+            button_setTime.Enabled = true;
+            button_reset.Enabled = true;
+            comboBox_portname1.Enabled = false;
+            comboBox_portspeed1.Enabled = false;
+        }
+
+        private void Button_disconnect_Click(object sender, EventArgs e)
+        {
+            if (comboBox_portname1.SelectedIndex == 0)
+            {
+                timer1.Enabled = false;
+                try
+                {
+                    _clientSocket.Client.Disconnect(false);
+                    _serverStream.Close();
+                    _clientSocket.Close();
+                    _clientSocket = new TcpClient();
+                }
+                catch (Exception ex)
+                {
+                    _logger.AddText("Disconnect error: " + ex + Environment.NewLine, (byte)DataDirection.Error, DateTime.Now);
+                    return;
+                }
+
+                _logger.AddText("Device disconnected ...\r\n", (byte)DataDirection.Note, DateTime.Now);
+            }
+            else
+            {
+                try
+                {
+                    serialPort1.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error closing netPort " + serialPort1.PortName + ": " + ex.Message);
+                }
+
+                _logger.AddText("Port disconnected ...\r\n", (byte)DataDirection.Note, DateTime.Now);
+            }
+
+            button_connect.Enabled = true;
+            button_disconnect.Enabled = false;
+            button_send.Enabled = false;
+            button_sendAll.Enabled = false;
+            button_sendCommand.Enabled = false;
+            button_getConfig.Enabled = false;
+            button_getStatus.Enabled = false;
+            button_getSensor.Enabled = false;
+            button_setTime.Enabled = false;
+            button_reset.Enabled = false;
+            comboBox_portname1.Enabled = true;
+            ComboBox_portname1_SelectedIndexChanged(this, EventArgs.Empty);
+        }
+
+        private async void Button_send_Click(object sender, EventArgs e)
+        {
+            if (dataGridView_config.CurrentRow == null)
+                return;
+
+            var currentRow = dataGridView_config.CurrentCell.RowIndex;
+            var currentCell = dataGridView_config.CurrentCell.ColumnIndex;
+
+            if (currentCell != (int)Columns.CustomValue
+                && currentCell != (int)Columns.DefaultValue)
+                return;
+
+            await SendParameter(currentRow, currentCell);
+        }
+
         private void TextBox_customCommand_KeyUp(object sender, KeyEventArgs e)
         {
-            if (button_sendCommand.Enabled && e.KeyCode == Keys.Enter) Button_sendCommand_Click(this, EventArgs.Empty);
+            if (button_sendCommand.Enabled && e.KeyCode == Keys.Enter)
+                Button_sendCommand_Click(this, EventArgs.Empty);
         }
 
         private void Button_getConfig_Click(object sender, EventArgs e)
@@ -1048,7 +1055,14 @@ namespace IoTSettingsUpdate
             }
         }
 
-        #endregion
+        private void Button_reset_Click(object sender, EventArgs e)
+        {
+            const string tmpStr = "reset";
+            var outStream = Encoding.ASCII.GetBytes(tmpStr);
 
+            SendData(outStream, checkBox_addCrLf.Checked);
+        }
+
+        #endregion
     }
 }
