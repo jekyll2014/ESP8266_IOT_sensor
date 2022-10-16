@@ -182,7 +182,7 @@ namespace MqttBroker
 
             if (_verboseLog)
             {
-                LogToScreen("MQTT: Client " + c.ClientId + " posted to: " + c.ApplicationMessage.Topic);
+                LogToScreen("MQTT: Client \"" + c.ClientId + "\" posted to topic \"" + c.ApplicationMessage.Topic + "\"");
             }
 
             await Task.Run(() => { Mqtt_DataReceived(c.ApplicationMessage.Payload, c.ApplicationMessage.Topic); }).ConfigureAwait(true);
@@ -210,7 +210,10 @@ namespace MqttBroker
             }
             catch (Exception e)
             {
-                if (_verboseLog) LogToScreen("Deserialize error: " + e);
+                if (_verboseLog) LogToScreen("Deserialize error: " + e + Environment.NewLine
+                    + "===="
+                    + tmpStr + Environment.NewLine
+                    + "====");
                 //throw;
                 return;
             }
@@ -232,35 +235,34 @@ namespace MqttBroker
                     if (nameFound) currentResult.DeviceName = devName ?? "";
                     if (macFound) currentResult.DeviceMac = devMac;
                     currentResult.Time = DateTime.Now;
+
+                    if (stringsSet.TryGetValue(FwVersion, out var fwVer))
+                    {
+                        currentResult.FwVersion = fwVer;
+                        stringsSet.Remove(FwVersion);
+                    }
+
+                    var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+                    foreach (var item in stringsSet)
+                    {
+                        var newValue = new SensorRecord();
+                        var v = "";
+                        v = floatSeparator == "," ? item.Value.Replace(".", floatSeparator) : v.Replace(",", floatSeparator);
+
+                        if (!float.TryParse(v, out var value)) continue;
+
+                        //add result to log
+                        newValue.Value = value;
+                        newValue.SensorName = item.Key;
+                        currentResult.SensorValueList.Add(newValue);
+                    }
+
+                    RecordsDb.AddRecord(currentResult);
                 }
                 else
                 {
-                    if (_verboseLog) LogToScreen("Message parse error: No device name found");
-                    return;
+                    if (_verboseLog) LogToScreen("Message parse error: No device name or MAC found");
                 }
-
-                if (stringsSet.TryGetValue(FwVersion, out var fwVer))
-                {
-                    currentResult.FwVersion = fwVer;
-                    stringsSet.Remove(FwVersion);
-                }
-
-                var floatSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-                foreach (var item in stringsSet)
-                {
-                    var newValue = new SensorRecord();
-                    var v = "";
-                    v = floatSeparator == "," ? item.Value.Replace(".", floatSeparator) : v.Replace(",", floatSeparator);
-
-                    if (!float.TryParse(v, out var value)) continue;
-
-                    //add result to log
-                    newValue.Value = value;
-                    newValue.SensorName = item.Key;
-                    currentResult.SensorValueList.Add(newValue);
-                }
-
-                RecordsDb.AddRecord(currentResult);
             }
 
             // save to log if needed
@@ -270,7 +272,7 @@ namespace MqttBroker
 
                 foreach (var s in stringsSet)
                 {
-                    resultStr.AppendLine("\t[" + topic + "]<< " + s.Key + "=" + s.Value);
+                    resultStr.AppendLine("\t[" + topic + "]<< " + s.Key + " = " + s.Value);
                 }
                 LogToScreen(resultStr + Environment.NewLine);
             }
