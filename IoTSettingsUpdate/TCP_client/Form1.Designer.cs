@@ -63,6 +63,8 @@
             this.button_scanIp = new System.Windows.Forms.Button();
             this.button_reset = new System.Windows.Forms.Button();
             this.button_help = new System.Windows.Forms.Button();
+            this.checkBox_DTR = new System.Windows.Forms.CheckBox();
+            this.checkBox_RTS = new System.Windows.Forms.CheckBox();
             this.contextMenuStrip_item.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView_config)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -446,11 +448,37 @@
             this.button_help.Text = "Help";
             this.button_help.UseVisualStyleBackColor = true;
             // 
+            // checkBox_DTR
+            // 
+            this.checkBox_DTR.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkBox_DTR.AutoSize = true;
+            this.checkBox_DTR.Location = new System.Drawing.Point(657, 422);
+            this.checkBox_DTR.Name = "checkBox_DTR";
+            this.checkBox_DTR.Size = new System.Drawing.Size(49, 17);
+            this.checkBox_DTR.TabIndex = 27;
+            this.checkBox_DTR.Text = "DTR";
+            this.checkBox_DTR.UseVisualStyleBackColor = true;
+            this.checkBox_DTR.CheckedChanged += new System.EventHandler(this.CheckBox_DTR_CheckedChanged);
+            // 
+            // checkBox_RTS
+            // 
+            this.checkBox_RTS.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkBox_RTS.AutoSize = true;
+            this.checkBox_RTS.Location = new System.Drawing.Point(735, 422);
+            this.checkBox_RTS.Name = "checkBox_RTS";
+            this.checkBox_RTS.Size = new System.Drawing.Size(48, 17);
+            this.checkBox_RTS.TabIndex = 27;
+            this.checkBox_RTS.Text = "RTS";
+            this.checkBox_RTS.UseVisualStyleBackColor = true;
+            this.checkBox_RTS.CheckedChanged += new System.EventHandler(this.CheckBox_RTS_CheckedChanged);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(790, 438);
+            this.Controls.Add(this.checkBox_RTS);
+            this.Controls.Add(this.checkBox_DTR);
             this.Controls.Add(this.button_scanIp);
             this.Controls.Add(this.button_sendCommand);
             this.Controls.Add(this.textBox_customCommand);
@@ -528,6 +556,8 @@
         private System.Windows.Forms.Button button_scanIp;
         private System.Windows.Forms.Button button_reset;
         private System.Windows.Forms.Button button_help;
+        private System.Windows.Forms.CheckBox checkBox_DTR;
+        private System.Windows.Forms.CheckBox checkBox_RTS;
     }
 }
 

@@ -1064,5 +1064,15 @@ namespace IoTSettingsUpdate
         }
 
         #endregion
+
+        private void CheckBox_DTR_CheckedChanged(object sender, EventArgs e)
+        {
+            serialPort1.DtrEnable = checkBox_DTR.Checked;
+        }
+
+        private void CheckBox_RTS_CheckedChanged(object sender, EventArgs e)
+        {
+            serialPort1.RtsEnable = checkBox_RTS.Checked;
+        }
     }
 }
