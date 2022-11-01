@@ -1,6 +1,4 @@
-﻿using MqttBroker.Properties;
-
-using MQTTnet;
+﻿using MQTTnet;
 using MQTTnet.Protocol;
 using MQTTnet.Server;
 
@@ -22,35 +20,45 @@ namespace MqttBroker
 {
     internal class Program
     {
+        private static readonly string _appConfigFile = "appsettings.json";
+        private static MqttBrokerSettings _appConfig;
+
         private static bool _verboseLog;
         private static bool _dbStarted;
         public static ILocalDb RecordsDb;
-        private static readonly string User = Settings.Default.User;
-        private static readonly string Pass = Settings.Default.Password;
-        private const string DeviceName = "DeviceName";
-        private const string DeviceMac = "DeviceMAC";
-        private const string FwVersion = "FW Version";
+        private static string User = "";
+        private static string Pass = "";
+        private static string DeviceName = "DeviceName";
+        private static string DeviceMac = "DeviceMAC";
+        private static string FwVersion = "FW Version";
 
         private static async Task Main()
         {
+            _appConfig = LoadConfig();
+            User = _appConfig.User;
+            Pass = _appConfig.Password;
+            DeviceName = _appConfig.DeviceNameProperty;
+            DeviceMac = _appConfig.DeviceMacProperty;
+            FwVersion = _appConfig.FwVersionProperty;
+            _verboseLog = _appConfig.VerboseLog;
+
             var mqttStarted = true;
             var restStarted = true;
-            _verboseLog = Settings.Default.VerboseLog;
 
             LogToScreen("MQTTBroker");
 
             try
             {
-                if (Settings.Default.UseLiteDb)
+                if (_appConfig.UseLiteDb)
                 {
-                    RecordsDb = new LiteDbLocal(Settings.Default.DbFileName + ".litedb", Settings.Default.ClientID);
-                    LogToScreen("DataBase name: " + Settings.Default.DbFileName + ".litedb");
-                    LogToScreen("Collection name: " + Settings.Default.ClientID);
+                    RecordsDb = new LiteDbLocal(_appConfig.DbFileName + ".litedb", _appConfig.ClientID);
+                    LogToScreen("DataBase name: " + _appConfig.DbFileName + ".litedb");
+                    LogToScreen("Collection name: " + _appConfig.ClientID);
                 }
                 else
                 {
-                    RecordsDb = new SqLiteDbLocalContext(Settings.Default.DbFileName + ".sqlite");
-                    LogToScreen("DataBase name: " + Settings.Default.DbFileName + ".sqlite");
+                    RecordsDb = new SqLiteDbLocalContext(_appConfig.DbFileName + ".sqlite");
+                    LogToScreen("DataBase name: " + _appConfig.DbFileName + ".sqlite");
                 }
                 _dbStarted = true;
             }
@@ -67,7 +75,7 @@ namespace MqttBroker
                 .WithApplicationMessageInterceptor(MqttPublishHandler)
                 .WithUnsubscriptionInterceptor(new MqttUnSubscribeHandler())
                 .WithConnectionBacklog(100)
-                .WithDefaultEndpointPort(Settings.Default.MQTTPort);
+                .WithDefaultEndpointPort(_appConfig.MQTTPort);
 
             var mqttServer = new MqttFactory().CreateMqttServer();
             mqttServer.ClientDisconnectedHandler = new MqttDisconnectHandler();
@@ -76,7 +84,7 @@ namespace MqttBroker
             try
             {
                 await mqttServer.StartAsync(optionsBuilder.Build()).ConfigureAwait(true);
-                LogToScreen("MQTT: port: " + Settings.Default.MQTTPort);
+                LogToScreen("MQTT: port: " + _appConfig.MQTTPort);
             }
             catch (Exception e)
             {
@@ -86,7 +94,7 @@ namespace MqttBroker
 
             // REST API start
             using (var restConfig =
-                new HttpSelfHostConfiguration(Settings.Default.RESTHost + ":" + Settings.Default.RESTPort))
+                new HttpSelfHostConfiguration(_appConfig.RESTHost + ":" + _appConfig.RESTPort))
             {
                 restConfig.Routes.MapHttpRoute(
                     "API Default",
@@ -111,7 +119,7 @@ namespace MqttBroker
                     try
                     {
                         restServer.OpenAsync().Wait();
-                        LogToScreen("REST: started at: " + Settings.Default.RESTHost + ":" + Settings.Default.RESTPort);
+                        LogToScreen("REST: started at: " + _appConfig.RESTHost + ":" + _appConfig.RESTPort);
                     }
                     catch (Exception e)
                     {
@@ -148,6 +156,16 @@ namespace MqttBroker
 
             await mqttServer.StopAsync().ConfigureAwait(false);
             RecordsDb?.Dispose();
+        }
+
+        private static MqttBrokerSettings LoadConfig()
+        {
+            var configBuilder = new Config<MqttBrokerSettings>(_appConfigFile);
+
+            if (!File.Exists(_appConfigFile))
+                configBuilder.SaveConfig();
+
+            return configBuilder.ConfigStorage;
         }
 
         private static void MqttConnectHandler(MqttConnectionValidatorContext c)
