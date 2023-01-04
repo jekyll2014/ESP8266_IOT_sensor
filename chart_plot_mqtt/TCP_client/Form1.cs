@@ -36,10 +36,11 @@ namespace ChartPlotMQTT
 {
     public partial class Form1 : Form
     {
-        private const string DeviceName = "DeviceName";
-        private const string DeviceMac = "DeviceMAC";
-        private const string FwVersion = "FW Version";
+        private readonly Config<ChartPlotMQTTSettings> _appConfig = new Config<ChartPlotMQTTSettings>("appsettings.json");
 
+        private string DeviceName = "DeviceName";
+        private string DeviceMac = "DeviceMAC";
+        private string FwVersion = "FW Version";
         private string _ipAddress = string.Empty;
         private int _ipPortMqtt = 1883;
         private int _ipPortRest = 8080;
@@ -49,16 +50,19 @@ namespace ChartPlotMQTT
         private string _publishTopic = string.Empty;
         private bool _autoConnect;
         private bool _autoReConnect;
-        private volatile bool _forcedDisconnect;
         private int _keepTime = 60;
         private bool _keepLocalDb;
-        private const int ReconnectTimeOut = 10000;
+        private string _clientId = "ChartPlotter";
+        private int ReconnectTimeOut = 10000;
+
+
 
         private static readonly IMqttNetLogger Logger = new MqttNetEventLogger();
         private readonly IMqttClient _mqttClient = new MqttClient(new MqttClientAdapterFactory(Logger), Logger);
 
+        private TextLogger.TextLogger _logger;
+
         private const string DefaultFormCaption = "ChartPlotMQTT";
-        private string _clientId = "ChartPlotter";
         private bool _initTimeSet;
         private bool _valueRangeSet;
 
@@ -96,9 +100,9 @@ namespace ChartPlotMQTT
         private readonly double _minChartValue = Convert.ToDouble(decimal.MinValue) / ScaleFactor;
         private readonly double _maxChartValue = Convert.ToDouble(decimal.MaxValue) / ScaleFactor;
 
-        private readonly PlotItems _plotList = new PlotItems();
+        private volatile bool _forcedDisconnect;
 
-        private TextLogger.TextLogger _logger;
+        private readonly PlotItems _plotList = new PlotItems();
 
         private enum DataDirection
         {
@@ -444,8 +448,8 @@ namespace ChartPlotMQTT
         {
             if (string.IsNullOrEmpty(ipText))
             {
-                _ipAddress = Settings.Default.DefaultAddress;
-                _ipPortMqtt = Settings.Default.DefaultPort;
+                _ipAddress = _appConfig.ConfigStorage.DefaultAddress;
+                _ipPortMqtt = _appConfig.ConfigStorage.DefaultPort;
                 return;
             }
 
@@ -454,17 +458,17 @@ namespace ChartPlotMQTT
             {
                 _ipAddress = ipText.Substring(0, portPosition);
                 if (!int.TryParse(ipText.Substring(portPosition + 1), out _ipPortMqtt))
-                    _ipPortMqtt = Settings.Default.DefaultPort;
+                    _ipPortMqtt = _appConfig.ConfigStorage.DefaultPort;
             }
             else if (portPosition == 0)
             {
-                _ipAddress = Settings.Default.DefaultAddress;
-                if (!int.TryParse(ipText.Substring(1), out _ipPortMqtt)) _ipPortMqtt = Settings.Default.DefaultPort;
+                _ipAddress = _appConfig.ConfigStorage.DefaultAddress;
+                if (!int.TryParse(ipText.Substring(1), out _ipPortMqtt)) _ipPortMqtt = _appConfig.ConfigStorage.DefaultPort;
             }
             else
             {
                 _ipAddress = ipText;
-                _ipPortMqtt = Settings.Default.DefaultPort;
+                _ipPortMqtt = _appConfig.ConfigStorage.DefaultPort;
             }
         }
 
@@ -527,16 +531,16 @@ namespace ChartPlotMQTT
             if (!_keepLocalDb) return;
             if (_recordsDb == null || _recordsDb.Disposed)
             {
-                if (string.IsNullOrEmpty(Settings.Default.DbPassword))
+                if (string.IsNullOrEmpty(_appConfig.ConfigStorage.DbPassword))
                 {
-                    _recordsDb = new LiteDbLocal(Settings.Default.DbFileName, _clientId);
+                    _recordsDb = new LiteDbLocal(_appConfig.ConfigStorage.DbFileName, _clientId);
                 }
                 else
                 {
                     var connString = new ConnectionString
                     {
-                        Filename = Settings.Default.DbFileName,
-                        Password = Settings.Default.DbPassword
+                        Filename = _appConfig.ConfigStorage.DbFileName,
+                        Password = _appConfig.ConfigStorage.DbPassword
                     };
                     _recordsDb = new LiteDbLocal(connString, _clientId);
                 }
@@ -1070,22 +1074,22 @@ namespace ChartPlotMQTT
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            _ipAddress = Settings.Default.DefaultAddress;
-            _ipPortMqtt = Settings.Default.DefaultPort;
+            _ipAddress = _appConfig.ConfigStorage.DefaultAddress;
+            _ipPortMqtt = _appConfig.ConfigStorage.DefaultPort;
             textBox_mqttServer.Text = _ipAddress + ":" + _ipPortMqtt;
-            _ipPortRest = Settings.Default.RESTPort;
+            _ipPortRest = _appConfig.ConfigStorage.RESTPort;
             textBox_restPort.Text = _ipPortRest.ToString();
-            textBox_login.Text = _login = Settings.Default.DefaultLogin;
-            textBox_password.Text = _password = Settings.Default.DefaultPassword;
-            textBox_publishTopic.Text = _publishTopic = Settings.Default.DefaultPublishTopic;
-            textBox_subscribeTopic.Text = _subscribeTopic = Settings.Default.DefaultSubscribeTopic;
-            checkBox_autoConnect.Checked = _autoConnect = Settings.Default.AutoConnect;
-            checkBox_autoReConnect.Checked = _autoReConnect = Settings.Default.AutoReConnect;
-            textBox1.Text = _clientId = Settings.Default.ClientID;
-            checkBox_addTimeStamp.Checked = Settings.Default.AddTimeStamp;
-            _keepTime = Settings.Default.KeepTime;
+            textBox_login.Text = _login = _appConfig.ConfigStorage.DefaultLogin;
+            textBox_password.Text = _password = _appConfig.ConfigStorage.DefaultPassword;
+            textBox_publishTopic.Text = _publishTopic = _appConfig.ConfigStorage.DefaultPublishTopic;
+            textBox_subscribeTopic.Text = _subscribeTopic = _appConfig.ConfigStorage.DefaultSubscribeTopic;
+            checkBox_autoConnect.Checked = _autoConnect = _appConfig.ConfigStorage.AutoConnect;
+            checkBox_autoReConnect.Checked = _autoReConnect = _appConfig.ConfigStorage.AutoReConnect;
+            textBox1.Text = _clientId = _appConfig.ConfigStorage.ClientID;
+            checkBox_addTimeStamp.Checked = _appConfig.ConfigStorage.AddTimeStamp;
+            _keepTime = _appConfig.ConfigStorage.KeepTime;
             textBox_keepTime.Text = _keepTime.ToString();
-            _keepLocalDb = Settings.Default.keepLocalDb;
+            _keepLocalDb = _appConfig.ConfigStorage.keepLocalDb;
 
             _logger = new TextLogger.TextLogger(this)
             {
@@ -1152,19 +1156,19 @@ namespace ChartPlotMQTT
 
             if (_keepLocalDb) _recordsDb?.Dispose();
 
-            Settings.Default.DefaultAddress = _ipAddress;
-            Settings.Default.DefaultPort = _ipPortMqtt;
-            Settings.Default.RESTPort = _ipPortRest;
-            Settings.Default.DefaultLogin = _login;
-            Settings.Default.DefaultPassword = _password;
-            Settings.Default.AutoConnect = _autoConnect;
-            Settings.Default.AutoReConnect = _autoReConnect;
-            Settings.Default.DefaultPublishTopic = _publishTopic;
-            Settings.Default.DefaultSubscribeTopic = _subscribeTopic;
-            Settings.Default.ClientID = _clientId;
-            Settings.Default.AddTimeStamp = checkBox_addTimeStamp.Checked;
-            Settings.Default.KeepTime = _keepTime;
-            Settings.Default.Save();
+            _appConfig.ConfigStorage.DefaultAddress = _ipAddress;
+            _appConfig.ConfigStorage.DefaultPort = _ipPortMqtt;
+            _appConfig.ConfigStorage.RESTPort = _ipPortRest;
+            _appConfig.ConfigStorage.DefaultLogin = _login;
+            _appConfig.ConfigStorage.DefaultPassword = _password;
+            _appConfig.ConfigStorage.AutoConnect = _autoConnect;
+            _appConfig.ConfigStorage.AutoReConnect = _autoReConnect;
+            _appConfig.ConfigStorage.DefaultPublishTopic = _publishTopic;
+            _appConfig.ConfigStorage.DefaultSubscribeTopic = _subscribeTopic;
+            _appConfig.ConfigStorage.ClientID = _clientId;
+            _appConfig.ConfigStorage.AddTimeStamp = checkBox_addTimeStamp.Checked;
+            _appConfig.ConfigStorage.KeepTime = _keepTime;
+            _appConfig.SaveConfig();
         }
 
         private void CheckBox_hex_CheckedChanged(object sender, EventArgs e)
@@ -1659,8 +1663,6 @@ namespace ChartPlotMQTT
             }
         }
 
-        #endregion
-
         private async void DateTimePicker1_ValueChanged(object sender, EventArgs e)
         {
             dateTimePicker1.Enabled = false;
@@ -1705,5 +1707,8 @@ namespace ChartPlotMQTT
 
             dateTimePicker1.Enabled = true;
         }
+
+        #endregion
+
     }
 }
