@@ -3,10 +3,6 @@
 #ifndef ESP8266_IOT_sensor
 #define ESP8266_IOT_sensor
 
-#define PROPERTY_DEVICE_NAME								F("DeviceName") //get_sensor
-#define PROPERTY_DEVICE_MAC									F("DeviceMAC") //get_sensor
-#define PROPERTY_FW_VERSION									F("FW Version") //get_sensor
-
 #define SWITCH_ON_NUMBER F("1")
 #define SWITCH_OFF_NUMBER F("0")
 #define SWITCH_ON F("on")

@@ -26,13 +26,7 @@
 #define WIFI_MODE_addr	WIFI_POWER_addr + WIFI_POWER_size
 #define WIFI_MODE_size	1
 
-#define CONNECT_TIME_addr	WIFI_MODE_addr + WIFI_MODE_size
-#define CONNECT_TIME_size	5
-
-#define CONNECT_PERIOD_addr	CONNECT_TIME_addr + CONNECT_TIME_size
-#define CONNECT_PERIOD_size	5
-
-#define SENSOR_READ_DELAY_addr	CONNECT_PERIOD_addr + CONNECT_PERIOD_size
+#define SENSOR_READ_DELAY_addr	WIFI_MODE_addr + WIFI_MODE_size
 #define SENSOR_READ_DELAY_size	5
 
 #define LOG_PERIOD_addr	SENSOR_READ_DELAY_addr + SENSOR_READ_DELAY_size
@@ -191,23 +185,13 @@
 #define FINAL_CRC_addr	OTA_ENABLE_addr + OTA_ENABLE_size
 #define FINAL_CRC_size	2
 
-#define RADIO_STOP 0
-#define RADIO_CONNECTING 1
-#define RADIO_CONNECTED 2
-#define RADIO_WAITING 3
-
 #define ON true
 #define OFF false
 
 #define HARD_UART 0
 #define SOFT_UART 1
 
-#define WIFI_MODE_OFF 0
-#define WIFI_MODE_STA 1
-#define WIFI_MODE_AP 2
-#define WIFI_MODE_AP_STA 3
-#define WIFI_MODE_AUTO 4
-const String wifiModes[5] = { "Off", "Station", "Access point",  "Access point + Station", "Auto" };
+const String wifiModes[4] = { "Off", "Station", "Access point",  "Access point + Station" };
 
 #define CHANNELS_NUMBER 8
 #define CHANNEL_UART 0
@@ -248,6 +232,12 @@ const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
 #define DISPLAY_ENABLED
 #endif
 
+#if defined(TM1637DISPLAY_ENABLE)
+#if !defined(TM1637_CLK) || !defined(TM1637_DIO)
+#error "TM1637 display pins not defined"
+#endif
+#endif
+
 #if defined(GSM_M590_ENABLE) || defined(GSM_SIM800_ENABLE)
 #define GSM_ENABLE
 struct smsMessage
@@ -259,34 +249,50 @@ struct smsMessage
 #endif
 
 #if defined(GSM_M590_ENABLE)
-#if GSM_M590_ENABLE == HARD_UART
-#define HARD_UART_ENABLE
+#if GSM_M590_ENABLE == HARD_UART		
+#if !defined(HARD_UART_ENABLE) || !defined(HARD_UART_TX)||!defined(HARD_UART_RX)||!defined(HARD_UART_SPEED)
+#error "Hardware UART not enabled or pins not defined"
+#endif
 #elif GSM_M590_ENABLE == SOFT_UART
-#define SOFT_UART_ENABLE
+#if !defined(SOFT_UART_ENABLE) || !defined(SOFT_UART_TX)||!defined(SOFT_UART_RX)||!defined(SOFT_UART_SPEED)
+#error "Software UART not enabled or pins not defined"
+#endif
 #endif
 #endif
 
 #if defined(GSM_SIM800_ENABLE)
-#if GSM_SIM800_ENABLE == HARD_UART
-#define HARD_UART_ENABLE
+#if GSM_SIM800_ENABLE == HARD_UART		
+#if !defined(HARD_UART_ENABLE) || !defined(HARD_UART_TX)||!defined(HARD_UART_RX)||!defined(HARD_UART_SPEED)
+#error "Hardware UART not enabled or pins not defined"
+#endif
 #elif GSM_SIM800_ENABLE == SOFT_UART
-#define SOFT_UART_ENABLE
+#if !defined(SOFT_UART_ENABLE) || !defined(SOFT_UART_TX)||!defined(SOFT_UART_RX)||!defined(SOFT_UART_SPEED)
+#error "Software UART not enabled or pins not defined"
+#endif
 #endif
 #endif
 
 #if defined(MH_Z19_UART_ENABLE)
-#if MH_Z19_UART_ENABLE == HARD_UART
-#define HARD_UART_ENABLE
+#if MH_Z19_UART_ENABLE == HARD_UART		
+#if !defined(HARD_UART_ENABLE) || !defined(HARD_UART_TX)||!defined(HARD_UART_RX)||!defined(HARD_UART_SPEED)
+#error "Hardware UART not enabled or pins not defined"
+#endif
 #elif MH_Z19_UART_ENABLE == SOFT_UART
-#define SOFT_UART_ENABLE
+#if !defined(SOFT_UART_ENABLE) || !defined(SOFT_UART_TX)||!defined(SOFT_UART_RX)||!defined(SOFT_UART_SPEED)
+#error "Software UART not enabled or pins not defined"
+#endif
 #endif
 #endif
 
 #if defined(DEBUG_MODE)
-#if DEBUG_MODE == HARD_UART
-#define HARD_UART_ENABLE
+#if DEBUG_MODE == HARD_UART		
+#if !defined(HARD_UART_ENABLE) || !defined(HARD_UART_TX)||!defined(HARD_UART_RX)||!defined(HARD_UART_SPEED)
+#error "Hardware UART not enabled or pins not defined"
+#endif
 #elif DEBUG_MODE == SOFT_UART
-#define SOFT_UART_ENABLE
+#if !defined(SOFT_UART_ENABLE) || !defined(SOFT_UART_TX)||!defined(SOFT_UART_RX)||!defined(SOFT_UART_SPEED)
+#error "Software UART not enabled or pins not defined"
+#endif
 #endif
 #endif
 

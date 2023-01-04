@@ -65,15 +65,9 @@ uint16_t outputs[PIN_NUMBER];
 uint32_t InterruptCounter[PIN_NUMBER];
 
 String deviceName = "";
-uint8_t wifi_mode = WIFI_MODE_OFF;
-uint32_t connectTimeLimit = 30000; //time for connection await
-uint32_t reconnectPeriod = 600000; //time for sleep between connection retries
+uint8_t wifi_mode = WIFI_OFF;
+uint32_t connectTimeLimit = 30000; //time for connection await after sleep
 uint8_t APclientsConnected = 0;
-uint8_t currentWiFiMode = 0;
-uint8_t wifiIntendedStatus = RADIO_STOP;
-uint32_t wifiReconnectLastTime = 0;
-uint32_t ConnectionStarted = 0;
-uint32_t WaitingStarted = 0;
 bool wifiEnable = true;
 
 uint32_t checkSensorLastTime = 0;
@@ -170,7 +164,6 @@ bool dht_enable;
 
 SoftwareSerial uart2(SOFT_UART_TX, SOFT_UART_RX);
 
-uint32_t mhz19UartSpeed = 9600;
 uint16_t co2_uart_avg[3] = { 0, 0, 0 };
 int mhtemp_s = 0;
 
@@ -184,7 +177,7 @@ int co2SerialRead()
 	//const int STATUS_SERIAL_NOT_CONFIGURED = -7;
 
 	//unsigned long lastRequest = 0;
-	uart2.begin(mhz19UartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+	uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 	uart2.flush();
 	delay(50);
 
@@ -436,11 +429,11 @@ bool NTPenable = false;
 // send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress& address)
 {
-	uint8_t packetBuffer[NTP_PACKET_SIZE]; //buffer to hold incoming & outgoing packets
+	//buffer to hold incoming & outgoing packets
+	uint8_t packetBuffer[NTP_PACKET_SIZE];
 	// set all bytes in the buffer to 0
 	memset(packetBuffer, 0, NTP_PACKET_SIZE);
-	// Initialize values needed to form NTP request
-	// (see URL above for details on the packets)
+	// Initialize values needed to form NTP request (see URL above for details on the packets)
 	packetBuffer[0] = 0b11100011; // LI, Version, Mode
 	packetBuffer[1] = 0;		  // Stratum, or type of clock
 	packetBuffer[2] = 6;		  // Polling Interval
@@ -450,8 +443,7 @@ void sendNTPpacket(IPAddress& address)
 	packetBuffer[13] = 0x4E;
 	packetBuffer[14] = 49;
 	packetBuffer[15] = 52;
-	// all NTP fields have been given values, now
-	// you can send a packet requesting a timestamp:
+	// all NTP fields have been given values, now you can send a packet requesting a timestamp:
 	Udp.beginPacket(address, 123); //NTP requests are to port 123
 	Udp.write(packetBuffer, NTP_PACKET_SIZE);
 	Udp.endPacket();
@@ -506,16 +498,16 @@ time_t getNtpTime()
 
 void restartNTP()
 {
-	ntpRefreshDelay = readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size).toInt();
 	if (readConfigString(NTP_ENABLE_addr, NTP_ENABLE_size) == SWITCH_ON_NUMBER)
 		NTPenable = true;
 
 	if (NTPenable)
 	{
-		timeRefershPeriod = readConfigString(TELNET_PORT_addr, TELNET_PORT_size).toInt() * 1000;
+		ntpRefreshDelay = readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size).toInt();
 		Udp.begin(UDP_LOCAL_PORT);
 		setSyncProvider(getNtpTime);
 		setSyncInterval(ntpRefreshDelay); //60 sec. = 1 min.
+		timeRefershPeriod = readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size).toInt() * 1000;
 	}
 }
 
@@ -884,7 +876,7 @@ void processSchedule(uint8_t scheduleNum)
 // TELNET
 #ifdef TELNET_ENABLE
 WiFiServer telnetServer(23);
-WiFiClient serverClient[TELNET_ENABLE];
+WiFiClient serverClient[TELNET_MAX_CONNECTIONS];
 bool telnetEnable = true;
 
 void sendToTelnet(String& str, uint8_t clientN)
@@ -1258,7 +1250,6 @@ uint64_t getTelegramUser(uint8_t n)
 #include <SoftwareSerial.h>
 
 uint32_t gsmTimeOut = 0;
-uint32_t gsmUartSpeed = 19200;
 bool gsmEnable = false;
 
 SoftwareSerial uart2(SOFT_UART_TX, SOFT_UART_RX);
@@ -1276,7 +1267,7 @@ String sendATCommand(String cmd, bool waiting)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1321,7 +1312,7 @@ bool initModem()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1349,7 +1340,7 @@ bool sendSMS(String& phone, String& smsText)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1480,7 +1471,7 @@ smsMessage getSMS()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1515,7 +1506,7 @@ bool deleteSMS(int n)
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1534,7 +1525,7 @@ String getModemStatus()
 	bool stopSerial = false;
 	if (!uart2.isListening())
 	{
-		uart2.begin(gsmUartSpeed, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
+		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 		stopSerial = true;
 	}
 
@@ -1773,7 +1764,7 @@ void setup()
 #endif
 	}
 	uartCommand.reserve(100);
-	Serial.begin(115200);
+	Serial.begin(HARD_UART_SPEED);
 #endif
 	yield();
 
@@ -1891,15 +1882,8 @@ void setup()
 		clearEeprom();
 	}
 	yield();
-	connectTimeLimit = uint32_t(readConfigString(CONNECT_TIME_addr, CONNECT_TIME_size).toInt() * 1000UL);
-	if (connectTimeLimit == 0)
-		connectTimeLimit = 60000UL;
-	reconnectPeriod = uint32_t(readConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size).toInt() * 1000UL);
-	if (reconnectPeriod == 0)
-		reconnectPeriod = 600000UL;
 
 	deviceName = readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
-
 	checkSensorPeriod = readConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size).toInt() * 1000UL;
 	autoReport = readConfigString(AUTOREPORT_addr, AUTOREPORT_size).toInt();
 	yield();
@@ -1911,8 +1895,14 @@ void setup()
 	startWiFi();
 	yield();
 #ifdef TELNET_ENABLE
+	if (readConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size) == SWITCH_ON_NUMBER)
+		telnetEnable = true;
+
 	uint16_t telnetPort = readConfigString(TELNET_PORT_addr, TELNET_PORT_size).toInt();
-	telnetServer.begin(telnetPort);
+
+	if (telnetEnable)
+		telnetServer.begin(telnetPort);
+
 	telnetServer.setNoDelay(true);
 #endif
 	yield();
@@ -1933,10 +1923,17 @@ void setup()
 		otaEnable = true;
 
 	uint16_t otaPort = readConfigString(OTA_PORT_addr, OTA_PORT_size).toInt();
-	ArduinoOTA.setPort(otaPort);
+	if (otaPort > 0)
+	{
+		ArduinoOTA.setPort(otaPort);
+	}
 
 	tmpStr = readConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size);
-	ArduinoOTA.setPassword(tmpStr.c_str());
+	if (tmpStr.length() > 0)
+	{
+		ArduinoOTA.setPassword(tmpStr.c_str());
+	}
+
 	tmpStr = readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
 	tmpStr += F("_");
 	tmpStr += CompactMac();
@@ -2115,60 +2112,17 @@ void setup()
 
 void loop()
 {
-
 #ifdef NTP_TIME_ENABLE
 	//refersh NTP time if time has come
-	/*if (NTPenable && millis() - lastTimeRefersh > timeRefershPeriod)
+	if (NTPenable && millis() - lastTimeRefersh > timeRefershPeriod)
 	{
 		restartNTP();
-	}*/
+	}
 #endif
 	//check if connection is present and reconnect
-	if (wifi_mode == WIFI_MODE_STA || wifi_mode == WIFI_MODE_AP_STA || wifi_mode == WIFI_MODE_AUTO)
-	{
-		//check if connection is lost
-		if (wifiIntendedStatus == RADIO_CONNECTED && WiFi.status() != WL_CONNECTED)
-		{
-			wifiIntendedStatus = RADIO_CONNECTING;
-			ConnectionStarted = millis();
-		}
-
-		//check if connection is established
-		if (wifiIntendedStatus == RADIO_CONNECTING && WiFi.status() == WL_CONNECTED)
-		{
-#ifdef DEBUG_MODE
-			Serial.print(F("STA connected to \""));
-			Serial.print(getStaSsid());
-			Serial.println(F("\" AP."));
-			Serial.print(F("IP: "));
-			Serial.println(WiFi.localIP());
-#endif
-			wifiIntendedStatus = RADIO_CONNECTED;
-		}
-	}
-	yield();
-	//check if connecting is too long and switch AP/STA
-	if (wifi_mode == WIFI_MODE_AUTO)
-	{
-		//check connect to AP time limit and switch to AP if AUTO mode
-		if (wifiIntendedStatus == RADIO_CONNECTING && ConnectionStarted + connectTimeLimit < millis())
-		{
-			Start_AP_Mode();
-			wifiIntendedStatus = RADIO_WAITING;
-			WaitingStarted = millis();
-		}
-
-		//check if waiting time finished and no clients connected to AP
-		if (wifiIntendedStatus == RADIO_WAITING && WaitingStarted + reconnectPeriod < millis() && WiFi.softAPgetStationNum() <= 0)
-		{
-			Start_STA_Mode();
-			wifiIntendedStatus = RADIO_CONNECTING;
-			ConnectionStarted = millis();
-		}
-	}
 	yield();
 	//check if clients connected/disconnected to AP
-	if ((wifi_mode == WIFI_MODE_AP || wifi_mode == WIFI_MODE_AP_STA) && APclientsConnected != WiFi.softAPgetStationNum())
+	if ((wifi_mode == WIFI_AP || wifi_mode == WIFI_AP_STA) && APclientsConnected != WiFi.softAPgetStationNum())
 	{
 		if (APclientsConnected < WiFi.softAPgetStationNum())
 		{
@@ -2202,7 +2156,7 @@ void loop()
 			if ((WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0) && telnetEnable && bitRead(autoReport, CHANNEL_TELNET))
 			{
 				String str = parseSensorReport(sensorData, EOL, false);
-				for (uint8_t i = 0; i < TELNET_ENABLE; i++)
+				for (uint8_t i = 0; i < TELNET_MAX_CONNECTIONS; i++)
 				{
 					if (serverClient[i] && serverClient[i].connected())
 					{
@@ -2359,7 +2313,7 @@ void loop()
 				yield();
 				uint8_t i;
 				//find free/disconnected spot
-				for (i = 0; i < TELNET_ENABLE; i++)
+				for (i = 0; i < TELNET_MAX_CONNECTIONS; i++)
 				{
 					if (!serverClient[i] || !serverClient[i].connected())
 					{
@@ -2372,7 +2326,7 @@ void loop()
 					}
 				}
 				//no free/disconnected spot so reject
-				if (i >= TELNET_ENABLE)
+				if (i >= TELNET_MAX_CONNECTIONS)
 				{
 					WiFiClient serverClient = telnetServer.available();
 					serverClient.stop();
@@ -2383,7 +2337,7 @@ void loop()
 			}
 
 			//check network clients for incoming data and process commands
-			for (uint8_t i = 0; i < TELNET_ENABLE; i++)
+			for (uint8_t i = 0; i < TELNET_MAX_CONNECTIONS; i++)
 			{
 				if (serverClient[i] && serverClient[i].connected())
 				{
@@ -2436,7 +2390,7 @@ void loop()
 		yield();
 #ifdef TELEGRAM_ENABLE
 		//check TELEGRAM for data
-		if (telegramEnable && currentWiFiMode != WIFI_MODE_AP && millis() - telegramLastTime > TELEGRAM_MESSAGE_DELAY)
+		if (telegramEnable && WiFi.getMode() != WIFI_AP && millis() - telegramLastTime > TELEGRAM_MESSAGE_DELAY)
 		{
 			sendBufferToTelegram();
 			telegramLastTime = millis();
@@ -2720,7 +2674,10 @@ void writeConfigString(uint16_t startAt, uint16_t maxLen, String str)
 		if (i < str.length())
 			EEPROM.write(startAt + i, (uint8_t)str[i]);
 		else
+		{
 			EEPROM.write(startAt + i, 0);
+			break;
+		}
 		yield();
 	}
 	refreshEepromCrc();
@@ -2984,7 +2941,7 @@ String printConfig(bool toJson = false)
 		str = F("{\"");
 	}
 
-	str += PROPERTY_DEVICE_NAME;
+	str += REPLY_DEVICE_NAME;
 	str += eq;
 	str += readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
 	str += delimiter;
@@ -3019,16 +2976,6 @@ String printConfig(bool toJson = false)
 	str += readConfigString(AP_PASS_addr, AP_PASS_size);
 	str += delimiter;
 
-	str += REPLY_WIFI_CONNECT_TIME;
-	str += eq;
-	str += readConfigString(CONNECT_TIME_addr, CONNECT_TIME_size);
-	str += delimiter;
-
-	str += REPLY_WIFI_RECONNECT_PERIOD;
-	str += eq;
-	str += readConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size);
-	str += delimiter;
-
 	str += REPLY_WIFI_POWER;
 	str += eq;
 	str += String(readConfigFloat(WIFI_POWER_addr));
@@ -3044,7 +2991,7 @@ String printConfig(bool toJson = false)
 	str += eq;
 	long m = readConfigString(WIFI_MODE_addr, WIFI_MODE_size).toInt();
 	if (m < 0 || m >= wifiModes->length())
-		m = WIFI_MODE_AUTO;
+		m = WIFI_AP_STA;
 	str += wifiModes[m];
 	str += delimiter;
 
@@ -3069,7 +3016,7 @@ String printConfig(bool toJson = false)
 
 	for (m = 0; m < PIN_NUMBER; m++)
 	{
-		str += F("Pin");
+		str += F("Pin D");
 		str += String(m + 1);
 		str += F("(port ");
 		str += String(pins[m]);
@@ -3175,7 +3122,7 @@ String printConfig(bool toJson = false)
 	str += String(LOG_SIZE);
 	str += delimiter;
 
-	str += CFG_LOG_PERIOD;
+	str += REPLY_LOG_PERIOD;
 	str += eq;
 	str += String(readConfigString(LOG_PERIOD_addr, LOG_PERIOD_size).toInt());
 	str += delimiter;
@@ -3223,7 +3170,7 @@ String printConfig(bool toJson = false)
 
 	str += F("Telnet clients limit");
 	str += eq;
-	str += String(TELNET_ENABLE);
+	str += String(TELNET_MAX_CONNECTIONS);
 	str += delimiter;
 
 	str += REPLY_TELNET_ENABLE;
@@ -3292,32 +3239,32 @@ String printConfig(bool toJson = false)
 #endif
 	yield();
 #ifdef SMTP_ENABLE
-	str += CFG_SMTP_SERVER;
+	str += REPLY_SMTP_SERVER;
 	str += eq;
 	str += readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
 	str += delimiter;
 
-	str += CFG_SMTP_PORT;
+	str += REPLY_SMTP_PORT;
 	str += eq;
 	str += readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size);
 	str += delimiter;
 
-	str += CFG_SMTP_LOGIN;
+	str += REPLY_SMTP_LOGIN;
 	str += eq;
 	str += readConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size);
 	str += delimiter;
 
-	str += CFG_SMTP_PASS;
+	str += REPLY_SMTP_PASS;
 	str += eq;
 	str += readConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size);
 	str += delimiter;
 
-	str += CFG_SMTP_TO;
+	str += REPLY_SMTP_TO;
 	str += eq;
 	str += readConfigString(SMTP_TO_addr, SMTP_TO_size);
 	str += delimiter;
 
-	str += CFG_SMTP_ENABLE;
+	str += REPLY_SMTP_ENABLE;
 	str += eq;
 	str += readConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size);
 	str += delimiter;
@@ -3329,15 +3276,14 @@ String printConfig(bool toJson = false)
 	str += readConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size);
 	str += delimiter;
 
-	str += F("Admin #0");
-	str += eq;
-	str += uint64ToString(getTelegramUser(0));
-	str += delimiter;
-
-	for (m = 1; m < TELEGRAM_USERS_NUMBER; m++)
+	for (m = 0; m < TELEGRAM_USERS_NUMBER; m++)
 	{
 		str += REPLY_TELEGRAM_USER;
 		str += String(m);
+		if (m == 0)
+		{
+			str += F("(admin)");
+		}
 		str += eq;
 		str += uint64ToString(getTelegramUser(m));
 		str += delimiter;
@@ -3351,29 +3297,29 @@ String printConfig(bool toJson = false)
 #endif
 	yield();
 #ifdef GSCRIPT_ENABLE
-	str += CFG_GSCRIPT_TOKEN;
+	str += REPLY_GSCRIPT_TOKEN;
 	str += eq;
 	str += readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
 	str += delimiter;
 
-	str += CFG_GSCRIPT_ENABLE;
+	str += REPLY_GSCRIPT_ENABLE;
 	str += eq;
 	str += readConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size);
 	str += delimiter;
 #endif
 	yield();
 #ifdef PUSHINGBOX_ENABLE
-	str += CFG_PUSHINGBOX_TOKEN;
+	str += REPLY_PUSHINGBOX_TOKEN;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size);
 	str += delimiter;
 
-	str += CFG_PUSHINGBOX_PARAMETER;
+	str += REPLY_PUSHINGBOX_PARAMETER;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size);
 	str += delimiter;
 
-	str += CFG_PUSHINGBOX_ENABLE;
+	str += REPLY_PUSHINGBOX_ENABLE;
 	str += eq;
 	str += readConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size);
 	str += delimiter;
@@ -3472,14 +3418,14 @@ String printConfig(bool toJson = false)
 #ifdef GSM_ENABLE
 	for (m = 0; m < GSM_USERS_NUMBER; m++)
 	{
-		str += CFG_GSM_USER;
+		str += REPLY_GSM_USER;
 		str += String(m);
 		str += eq;
 		str += getGsmUser(m);
 		str += delimiter;
 		yield();
 	}
-	str += CFG_GSM_ENABLE;
+	str += REPLY_GSM_ENABLE;
 	str += eq;
 	str += readConfigString(GSM_ENABLE_addr, GSM_ENABLE_size);
 	str += delimiter;
@@ -3502,7 +3448,7 @@ String printConfig(bool toJson = false)
 #endif
 	yield();
 #ifdef DISPLAY_ENABLED
-	str += CFG_DISPLAY_REFRESH;
+	str += REPLY_DISPLAY_REFRESH;
 	str += eq;
 	str += readConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size);
 	str += delimiter;
@@ -3610,7 +3556,7 @@ String printStatus(bool toJson = false)
 	if (toJson)
 		str = F("{\"");
 
-	str += PROPERTY_DEVICE_NAME;
+	str += REPLY_DEVICE_NAME;
 	str += eq;
 	str += readConfigString(DEVICE_NAME_addr, DEVICE_NAME_size);
 	str += delimiter;
@@ -3640,7 +3586,7 @@ String printStatus(bool toJson = false)
 
 	str += F("WiFi mode");
 	str += eq;
-	str += wifiModes[currentWiFiMode];
+	str += wifiModes[WiFi.getMode()];
 	str += delimiter;
 
 	str += F("WiFi connection");
@@ -3666,18 +3612,6 @@ String printStatus(bool toJson = false)
 		str += delimiter;
 	}
 
-	str += F("Telnet enabled");
-	str += eq;
-	str += String(telnetEnable);
-	str += delimiter;
-
-#ifdef NTP_TIME_ENABLE
-	str += F("NTP enabled");
-	str += eq;
-	str += String(NTPenable);
-	str += delimiter;
-#endif
-
 	if (WiFi.softAPgetStationNum() > 0)
 	{
 		str += F("AP Clients connected");
@@ -3690,7 +3624,7 @@ String printStatus(bool toJson = false)
 	if (WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0)
 	{
 		uint8_t netClientsNum = 0;
-		for (uint8_t i = 0; i < TELNET_ENABLE; i++)
+		for (uint8_t i = 0; i < TELNET_MAX_CONNECTIONS; i++)
 		{
 			if (serverClient[i] && serverClient[i].connected())
 				netClientsNum++;
@@ -3700,7 +3634,7 @@ String printStatus(bool toJson = false)
 		str += eq;
 		str += String(netClientsNum);
 		str += F("/");
-		str += TELNET_ENABLE;
+		str += TELNET_MAX_CONNECTIONS;
 		str += delimiter;
 	}
 #endif
@@ -3715,10 +3649,6 @@ String printStatus(bool toJson = false)
 #endif
 
 #ifdef EVENTS_ENABLE
-	str += F("Events enabled");
-	str += eq;
-	str += String(eventsEnable);
-	str += delimiter;
 	for (uint8_t i = 0; i < EVENTS_NUMBER; i++)
 	{
 		String eventStr = getEvent(i);
@@ -3736,10 +3666,6 @@ String printStatus(bool toJson = false)
 #endif
 
 #ifdef SCHEDULER_ENABLE
-	str += F("Scheduler enabled");
-	str += eq;
-	str += String(schedulerEnable);
-	str += delimiter;
 	for (uint8_t i = 0; i < SCHEDULES_NUMBER; i++)
 	{
 		String scheduleStr = getSchedule(i);
@@ -3772,27 +3698,6 @@ String printStatus(bool toJson = false)
 	str += F("Log records collected");
 	str += eq;
 	str += String(history_record_number);
-	str += delimiter;
-#endif
-
-#ifdef GSM_ENABLE
-	str += F("GSM enabled");
-	str += eq;
-	str += String(gsmEnable);
-	str += delimiter;
-#endif
-
-#ifdef SLEEP_ENABLE
-	str += F("SLEEP enabled");
-	str += eq;
-	str += String(sleepEnable);
-	str += delimiter;
-#endif
-
-#ifdef OTA_UPDATE
-	str += F("OTA enabled");
-	str += eq;
-	str += String(otaEnable);
 	str += delimiter;
 #endif
 
@@ -3895,8 +3800,6 @@ String printHelp()
 		"[ADMIN][FLASH] wifi_standart=B/G/N\r\n"
 		"[ADMIN][FLASH] wifi_power=n (0..20.5)\r\n"
 		"[ADMIN][FLASH] wifi_mode=AUTO/STATION/APSTATION/AP/OFF\r\n"
-		"[ADMIN][FLASH] wifi_connect_time=n (sec.)\r\n"
-		"[ADMIN][FLASH] wifi_reconnect_period=n (sec.)\r\n"
 		"[ADMIN]        wifi_enable=on/off\r\n"
 
 #ifdef LOG_ENABLE
@@ -4215,7 +4118,7 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 	str.reserve(512);
 	if (toJson)
 		str = F("{\"");
-	str += PROPERTY_DEVICE_NAME;
+	str += REPLY_DEVICE_NAME;
 	str += eq;
 	str += deviceName;
 	str += delimiter;
@@ -4463,6 +4366,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			uint16_t _yr = cmd.arguments[0].substring(0, 4).toInt();
 			setTime(_hr, _min, _sec, _day, _month, _yr);
 			str += REPLY_TIME_SET;
+			str += eq;
 			str += String(_yr);
 			str += F(".");
 			str += String(_month);
@@ -4474,6 +4378,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			str += String(_min);
 			str += COLON;
 			str += String(_sec);
+			str += QUOTE;
 			timeIsSet = true;
 #ifdef NTP_TIME_ENABLE
 			NTPenable = false;
@@ -4531,124 +4436,99 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		}
 		else if (cmd.command == CMD_WIFI_STANDART)
 		{
+			str += REPLY_WIFI_STANDART;
+			str += eq;
 			if (cmd.arguments[0] == F("B") || cmd.arguments[0] == F("G") || cmd.arguments[0] == F("N"))
 			{
-				str += REPLY_WIFI_STANDART;
-				str += eq;
-				str += String(cmd.arguments[0]);
+				str += cmd.arguments[0];
 				str += QUOTE;
 				writeConfigString(WIFI_STANDART_addr, WIFI_STANDART_size, cmd.arguments[0]);
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
-				str += F("WiFi standart: ");
-				str += String(cmd.arguments[0]);
+				str += REPLY_INCORRECT;
+				str += cmd.arguments[0];
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_WIFI_POWER)
 		{
+			str += REPLY_WIFI_POWER;
+			str += eq;
 			float power = cmd.arguments[0].toFloat();
 			if (power >= 0 && power <= 20.5)
 			{
-				str += REPLY_WIFI_POWER;
-				str += eq;
 				str += String(power);
-				str += QUOTE;
 				writeConfigFloat(WIFI_POWER_addr, power);
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
-				str += F("WiFi power: ");
+				str += REPLY_INCORRECT;
 				str += cmd.arguments[0];
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_WIFI_MODE)
 		{
 			cmd.arguments[0].toUpperCase();
 			uint8_t wifi_mode = 255;
-			if (cmd.arguments[0] == F("AUTO"))
+			str += REPLY_WIFI_MODE;
+			str += eq;
+			if (cmd.arguments[0] == F("STATION"))
 			{
-				wifi_mode = WIFI_MODE_AUTO;
-			}
-			else if (cmd.arguments[0] == F("STATION"))
-			{
-				wifi_mode = WIFI_MODE_STA;
+				wifi_mode = WIFI_STA;
 			}
 			else if (cmd.arguments[0] == F("APSTATION"))
 			{
-				wifi_mode = WIFI_MODE_AP_STA;
+				wifi_mode = WIFI_AP_STA;
 			}
 			else if (cmd.arguments[0] == F("AP"))
 			{
-				wifi_mode = WIFI_MODE_AP;
+				wifi_mode = WIFI_AP;
 			}
 			else if (cmd.arguments[0] == F("OFF"))
 			{
-				wifi_mode = WIFI_MODE_OFF;
+				wifi_mode = WIFI_OFF;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 			if (wifi_mode != 255)
 			{
-				str += REPLY_WIFI_MODE;
-				str += eq;
 				str += wifiModes[wifi_mode];
-				str += QUOTE;
 				writeConfigString(WIFI_MODE_addr, WIFI_MODE_size, String(wifi_mode));
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
-				str += F("WiFi mode: ");
-				str += String(cmd.arguments[0]);
+				str += REPLY_INCORRECT;
+				str += cmd.arguments[0];
 			}
-		}
-		else if (cmd.command == CMD_WIFI_CONNECT_TIME)
-		{
-			connectTimeLimit = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			str += REPLY_WIFI_CONNECT_TIME;
-			str += eq;
-			str += String(uint16_t(connectTimeLimit / 1000UL));
 			str += QUOTE;
-			writeConfigString(CONNECT_TIME_addr, CONNECT_TIME_size, String(uint16_t(connectTimeLimit / 1000UL)));
-		}
-		else if (cmd.command == CMD_WIFI_RECONNECT_PERIOD)
-		{
-			reconnectPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			str += REPLY_WIFI_RECONNECT_PERIOD;
-			str += eq;
-			str += String(uint16_t(reconnectPeriod / 1000UL));
-			str += QUOTE;
-			writeConfigString(CONNECT_PERIOD_addr, CONNECT_PERIOD_size, String(uint16_t(reconnectPeriod / 1000UL)));
 		}
 		else if (cmd.command == CMD_WIFI_ENABLE)
 		{
+			str += REPLY_WIFI_ENABLE;
+			str += eq;
 			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
 			{
 				wifiEnable = false;
 				Start_OFF_Mode();
-				str += REPLY_WIFI_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
 				wifiEnable = true;
 				startWiFi();
-				str += REPLY_WIFI_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_RESET)
 		{
@@ -4685,6 +4565,8 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		}
 		else if (cmd.command == CMD_PIN_MODE_SET)
 		{
+			str += REPLY_PIN_MODE_SET;
+			str += eq;
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
 				cmd.arguments[0].toUpperCase();
@@ -4699,16 +4581,16 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 					intModeNum = INPUT_PULLUP;
 				else
 				{
-					str = REPLY_INCORRECT;
+					str += REPLY_INCORRECT;
 					str += F("pin mode: ");
 					str += cmd.arguments[0];
 				}
+
 				if (intModeNum != 255)
 				{
 					uint16_t l = PIN_MODE_size / PIN_NUMBER;
 					writeConfigString(PIN_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
 
-					str += REPLY_PIN_MODE_SET;
 					str += String(cmd.index);
 					str += F(" mode: ");
 					str += pinModeList[intModeNum];
@@ -4716,13 +4598,16 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
+				str += REPLY_INCORRECT;
 				str += F("pin: ");
 				str += String(cmd.index);
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_INTERRUPT_MODE_SET)
 		{
+			str += REPLY_INTERRUPT_MODE_SET;
+			str += eq;
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
 				cmd.arguments[0].toUpperCase();
@@ -4737,15 +4622,14 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 					intModeNum = CHANGE;
 				else
 				{
-					str = REPLY_INCORRECT;
+					str += REPLY_INCORRECT;
 					str += F("INT mode: ");
-					str += String(cmd.arguments[0]);
+					str += cmd.arguments[0];
 				}
 				if (intModeNum != 255)
 				{
 					uint16_t l = INTERRUPT_MODE_size / PIN_NUMBER;
 					writeConfigString(INTERRUPT_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
-					str += REPLY_INTERRUPT_MODE_SET;
 					str += String(cmd.index);
 					str += F(" mode: ");
 					str += intModeList[intModeNum];
@@ -4753,13 +4637,16 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
+				str += REPLY_INCORRECT;
 				str += F("INT: ");
 				str += String(cmd.index);
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_OUTPUT_INIT_SET)
 		{
+			str += REPLY_OUTPUT_INIT_SET;
+			str += eq;
 			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
 			{
 				if (cmd.arguments[0] != SWITCH_ON && cmd.arguments[0] != SWITCH_OFF)
@@ -4770,17 +4657,17 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				}
 				uint16_t l = OUTPUT_INIT_size / PIN_NUMBER;
 				writeConfigString(OUTPUT_INIT_addr + (cmd.index - 1) * l, l, cmd.arguments[0]);
-				str += REPLY_OUTPUT_INIT_SET;
 				str += String(cmd.index);
 				str += F(" initial state: ");
 				str += cmd.arguments[0];
 			}
 			else
 			{
-				str = REPLY_INCORRECT;
+				str += REPLY_INCORRECT;
 				str += F("OUT");
 				str += String(cmd.index);
 			}
+			str += QUOTE;
 		}
 		else if (cmd.command == CMD_OUTPUT_SET)
 		{
@@ -4868,24 +4755,26 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		{
 			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
 			{
+				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_OFF_NUMBER);
 				telnetEnable = false;
 				telnetServer.stop();
 				str += REPLY_TELNET_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
+				writeConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size, SWITCH_ON_NUMBER);
 				telnetEnable = true;
 				telnetServer.begin();
 				telnetServer.setNoDelay(true);
 				str += REPLY_TELNET_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -4921,7 +4810,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -4986,7 +4875,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5085,7 +4974,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 			}
 			str += cmd.arguments[0];
 		}
@@ -5097,7 +4986,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				mqttEnable = false;
 				str += REPLY_MQTT_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 				mqtt_client.disconnect();
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5106,12 +4995,12 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				mqttEnable = true;
 				str += REPLY_MQTT_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 				mqtt_connect();
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5201,7 +5090,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5257,7 +5146,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = F("User #");
+				str += F("User #");
 				str += String(cmd.index);
 				str += F(" is out of range [0,");
 				str += String(GSM_USERS_NUMBER - 1);
@@ -5284,7 +5173,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5365,7 +5254,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//telegramEnable = false;
 				str += REPLY_TELEGRAM_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
@@ -5376,11 +5265,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				//myBot.testConnection();
 				str += REPLY_TELEGRAM_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5416,7 +5305,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5460,7 +5349,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5513,7 +5402,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				Udp.stop();
 				str += REPLY_NTP_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
@@ -5524,11 +5413,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				setSyncInterval(ntpRefreshDelay);
 				str += REPLY_NTP_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5550,7 +5439,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = F("Event #");
+				str += F("Event #");
 				str += String(cmd.index);
 				str += F(" is out of range [0,");
 				str += String(EVENTS_NUMBER - 1);
@@ -5565,7 +5454,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				eventsEnable = false;
 				str += REPLY_EVENTS_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
@@ -5573,11 +5462,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				eventsEnable = true;
 				str += REPLY_EVENTS_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5604,7 +5493,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = F("Event #");
+				str += F("Event #");
 				str += String(cmd.index);
 				str += F(" is out of range [0,");
 				str += String(EVENTS_NUMBER - 1);
@@ -5634,7 +5523,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = F("Schedule #");
+				str += F("Schedule #");
 				str += String(cmd.index);
 				str += F(" is out of range [0,");
 				str += String(SCHEDULES_NUMBER - 1);
@@ -5649,7 +5538,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				schedulerEnable = false;
 				str += REPLY_SCHEDULER_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
@@ -5657,11 +5546,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				schedulerEnable = true;
 				str += REPLY_SCHEDULER_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5676,7 +5565,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			}
 			else
 			{
-				str = F("Schedule #");
+				str += F("Schedule #");
 				str += String(cmd.index);
 				str += F(" is out of range [0,");
 				str += String(SCHEDULES_NUMBER - 1);
@@ -5734,7 +5623,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				otaEnable = false;
 				str += REPLY_OTA_ENABLE;
 				str += eq;
-				str += REPLY_DISABLED;
+				str += SWITCH_OFF_NUMBER;
 				ArduinoOTA.begin();
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
@@ -5743,11 +5632,11 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 				otaEnable = true;
 				str += REPLY_OTA_ENABLE;
 				str += eq;
-				str += REPLY_ENABLED;
+				str += SWITCH_ON;
 			}
 			else
 			{
-				str = REPLY_INCORRECT_VALUE;
+				str += REPLY_INCORRECT_VALUE;
 				str += cmd.arguments[0];
 			}
 		}
@@ -5755,7 +5644,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 	}
 	if (str.length() == 0)
 	{
-		str = REPLY_INCORRECT;
+		str += REPLY_INCORRECT;
 		str += F("command: \"");
 		str += command;
 		str += QUOTE;
@@ -6238,27 +6127,23 @@ void startWiFi()
 {
 	wifi_mode = readConfigString(WIFI_MODE_addr, WIFI_MODE_size).toInt();
 	if (wifi_mode < 0 || wifi_mode > 4)
-		wifi_mode = WIFI_MODE_AUTO;
+		wifi_mode = WIFI_AP_STA;
 
-	if (wifi_mode == WIFI_MODE_STA || wifi_mode == WIFI_MODE_AUTO)
+	if (wifi_mode == WIFI_STA)
 	{
 		Start_STA_Mode();
-		wifiIntendedStatus = RADIO_CONNECTING;
 	}
-	else if (wifi_mode == WIFI_MODE_AP)
+	else if (wifi_mode == WIFI_AP)
 	{
 		Start_AP_Mode();
-		wifiIntendedStatus = RADIO_WAITING;
 	}
-	else if (wifi_mode == WIFI_MODE_AP_STA)
+	else if (wifi_mode == WIFI_AP_STA)
 	{
 		Start_AP_STA_Mode();
-		wifiIntendedStatus = RADIO_CONNECTING;
 	}
 	else
 	{
 		Start_OFF_Mode();
-		wifiIntendedStatus = RADIO_STOP;
 	}
 }
 
@@ -6268,7 +6153,6 @@ void Start_OFF_Mode()
 	WiFi.softAPdisconnect(true);
 	WiFi.persistent(true);
 	WiFi.mode(WIFI_OFF);
-	currentWiFiMode = WIFI_MODE_OFF;
 	delay(1000UL);
 }
 
@@ -6290,8 +6174,6 @@ void Start_STA_Mode()
 	WiFi.mode(WIFI_STA);
 	WiFi.hostname(deviceName);
 	WiFi.begin(STA_Ssid.c_str(), STA_Password.c_str());
-	ConnectionStarted = millis();
-	currentWiFiMode = WIFI_MODE_STA;
 }
 
 void Start_AP_Mode()
@@ -6312,7 +6194,6 @@ void Start_AP_Mode()
 	WiFi.hostname(deviceName);
 	WiFi.softAP(AP_Ssid.c_str(), AP_Password.c_str());
 	//WiFi.softAPConfig(apIP, apIPgate, IPAddress(192, 168, 4, 1));
-	currentWiFiMode = WIFI_MODE_AP;
 }
 
 void Start_AP_STA_Mode()
@@ -6335,9 +6216,7 @@ void Start_AP_STA_Mode()
 	WiFi.hostname(deviceName);
 	WiFi.softAP(AP_Ssid.c_str(), AP_Password.c_str());
 	WiFi.begin(STA_Ssid.c_str(), STA_Password.c_str());
-	ConnectionStarted = millis();
 	//WiFi.softAPConfig(apIP, apIPgate, IPAddress(192, 168, 4, 1));
-	currentWiFiMode = WIFI_MODE_AP_STA;
 }
 
 void int1count()
