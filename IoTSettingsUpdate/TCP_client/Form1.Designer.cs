@@ -83,7 +83,9 @@
             this.textBox_dataLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.textBox_dataLog.Size = new System.Drawing.Size(383, 328);
             this.textBox_dataLog.TabIndex = 9;
+            this.textBox_dataLog.Click += new System.EventHandler(this.UpdateDataLogCursorPosition);
             this.textBox_dataLog.TextChanged += new System.EventHandler(this.TextBox_dataLog_TextChanged);
+            this.textBox_dataLog.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.UpdateDataLogCursorPosition);
             // 
             // button_send
             // 
@@ -251,8 +253,8 @@
             // 
             // splitContainer1
             // 
-            this.splitContainer1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.splitContainer1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.splitContainer1.Location = new System.Drawing.Point(12, 39);
             this.splitContainer1.Name = "splitContainer1";
@@ -347,7 +349,7 @@
             // 
             // textBox_customCommand
             // 
-            this.textBox_customCommand.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox_customCommand.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_customCommand.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.SuggestAppend;
             this.textBox_customCommand.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.CustomSource;

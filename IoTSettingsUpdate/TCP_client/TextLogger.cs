@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
-using Timer = System.Windows.Forms.Timer;
+using Timer = System.Timers.Timer;
 
 namespace TextLoggerHelper
 {
@@ -39,8 +39,6 @@ namespace TextLoggerHelper
             LongDate,
         }
 
-        private readonly object _textOutThreadLock = new object();
-
         public bool NoScreenOutput = false;
         public int LineLimit = 0;
         public int CharLimit = 0;
@@ -49,19 +47,46 @@ namespace TextLoggerHelper
         public bool AutoSave = false;
         public bool AutoScroll = true;
         public bool FilterZeroChar = true;
+        public int RefreshPeriod
+        {
+            get
+            {
+                return _refreshPeriod;
+            }
+            set
+            {
+                _refreshPeriod = value;
+                if (_textBox != null && _refreshTimer.Enabled)
+                {
+                    RefreshStart(RefreshPeriod);
+                }
+            }
+        }
         public TextFormat DefaultTextFormat = TextFormat.AutoReplaceHex; //Text, HEX, Auto (change non-readable to <HEX>)
         public TimeFormat DefaultTimeFormat = TimeFormat.LongTime;
         public DateFormat DefaultDateFormat = DateFormat.ShortDate;
         public Dictionary<byte, string> Channels = new Dictionary<byte, string>();
         public event PropertyChangedEventHandler PropertyChanged;
+        public string Text { get; private set; } = "";
+        public TextBox TextBox
+        {
+            get
+            {
+                return _textBox;
+            }
 
-        private Form _mainForm;
-        private TextBox _textBox;
-        private int _selStart, _selLength;
-        private volatile bool _textChanged;
-        private Timer _refreshTimer;
-        private byte _prevChannel;
-        private DateTime _lastEvent = DateTime.Now;
+            private set
+            {
+                _textBox = value;
+                if (_textBox != null)
+                {
+                    _textBox.Click += new System.EventHandler(UpdateDataLogCursorPosition);
+                    _textBox.KeyPress += new System.Windows.Forms.KeyPressEventHandler(UpdateDataLogCursorPosition);
+                    _selStart = _selLength = 0;
+                    RefreshStart(RefreshPeriod);
+                }
+            }
+        }
 
         protected void OnPropertyChanged()
         {
@@ -72,30 +97,40 @@ namespace TextLoggerHelper
            });
         }
 
-        public string Text { get; private set; } = "";
+        private Form _mainForm;
+        private TextBox _textBox;
+        private int _refreshPeriod = 1000;
+        private int _selStart, _selLength;
+        private volatile bool _textChanged;
+        private Timer _refreshTimer;
+        private byte _prevChannel;
+        private DateTime _lastEvent = DateTime.Now;
+        private readonly object _textOutThreadLock = new object();
 
-        public TextLogger(Form mainForm, TextBox textBox = null)
+        public TextLogger(Form mainForm = null, TextBox textBox = null)
         {
             this._mainForm = mainForm;
             this._textBox = textBox;
         }
 
-        public void RefreshStart(int delay)
+        public bool RefreshStart(int delay)
         {
-            if (_mainForm != null && _textBox != null)
-            {
-                _refreshTimer = new Timer();
-                _refreshTimer.Tick += RefreshTimerTick;
-                _refreshTimer.Interval = delay;
-                _refreshTimer.Start();
-            }
+            if (_mainForm == null || _textBox == null)
+                return false;
+
+            _refreshTimer = new Timer();
+            _refreshTimer.Elapsed += RefreshTimerTick;
+            _refreshTimer.Interval = delay;
+            _refreshTimer.Start();
+
+            return true;
         }
 
         public void RefreshStop()
         {
             if (_refreshTimer == null) return;
 
-            _refreshTimer.Tick -= RefreshTimerTick;
+            _refreshTimer.Elapsed -= RefreshTimerTick;
             _refreshTimer?.Stop();
             _refreshTimer?.Dispose();
         }
@@ -319,13 +354,9 @@ namespace TextLoggerHelper
                     Text = Text.Substring(textSizeReduced);
                 }
 
-                if (_textBox != null && !AutoScroll)
+                if (!AutoScroll)
                 {
-                    _mainForm?.Invoke((MethodInvoker)delegate
-                   {
-                       _selStart = _textBox.SelectionStart;
-                       _selLength = _textBox.SelectionLength;
-                   });
+                    UpdateDataLogCursorPosition();
                     _selStart -= textSizeReduced;
                     if (_selStart < 0)
                     {
@@ -343,8 +374,9 @@ namespace TextLoggerHelper
 
         private void UpdateDisplay()
         {
-            if (_textBox != null && _textChanged)
-                _mainForm?.Invoke((MethodInvoker)delegate
+            if (_mainForm != null && _textBox != null && _textChanged)
+            {
+                _mainForm.Invoke((MethodInvoker)delegate
                {
                    _textBox.Text = Text;
                    if (AutoScroll)
@@ -361,6 +393,19 @@ namespace TextLoggerHelper
 
                    _textChanged = false;
                });
+            }
+        }
+
+        private void UpdateDataLogCursorPosition(object sender = null, EventArgs e = null)
+        {
+            if (_mainForm != null && _textBox != null)
+            {
+                _mainForm.Invoke((MethodInvoker)delegate
+                {
+                    _selStart = _textBox.SelectionStart;
+                    _selLength = _textBox.SelectionLength;
+                });
+            }
         }
 
         private static bool GetLinesCount(string data, int lineLimit, out int pos)
@@ -434,6 +479,5 @@ namespace TextLoggerHelper
             }
             finally { if (lockWasTaken) { Monitor.Exit(temp); } }
         }
-
     }
 }

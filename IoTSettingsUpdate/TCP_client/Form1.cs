@@ -33,6 +33,7 @@ namespace IoTSettingsUpdate
 
         //private int _maxLogLength = 4096;
         private bool _autoScroll;
+        private int _selStart = 0;
 
         private readonly DataTable _configData = new DataTable();
 
@@ -610,7 +611,7 @@ namespace IoTSettingsUpdate
             _stringsDivider.AddRange(Settings.Default.StringsDivider);
 
             SerialPopulate();
-            _logger = new TextLogger(this)
+            _logger = new TextLogger()
             {
                 FilterZeroChar = true,
                 AutoSave = true,
@@ -644,7 +645,7 @@ namespace IoTSettingsUpdate
             dataGridView_config.Columns[Columns.ErrorReplyString.ToString()].Visible = false;
             dataGridView_config.Columns[Columns.ParameterName.ToString()].Visible = false;
 
-            _autoScroll = _logger.AutoScroll = checkBox_autoScroll.Checked;
+            _autoScroll = checkBox_autoScroll.Checked;
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -1023,17 +1024,14 @@ namespace IoTSettingsUpdate
         private void TextBox_dataLog_TextChanged(object sender, EventArgs e)
         {
             if (_autoScroll)
-            {
                 textBox_dataLog.SelectionStart = textBox_dataLog.Text.Length;
-                textBox_dataLog.ScrollToCaret();
-            }
-            /*else
-            {
+            else
                 textBox_dataLog.SelectionStart = _selStart;
-                textBox_dataLog.ScrollToCaret();
-            }
 
-            if (textBox_dataLog != null) _selStart = textBox_dataLog.SelectionStart;*/
+            textBox_dataLog.ScrollToCaret();
+
+            /*if (textBox_dataLog != null)
+                _selStart = textBox_dataLog.SelectionStart;*/
         }
 
         private void ComboBox_portname1_KeyUp(object sender, KeyEventArgs e)
@@ -1047,7 +1045,6 @@ namespace IoTSettingsUpdate
 
         private void ComboBox_portspeed1_KeyUp(object sender, KeyEventArgs e)
         {
-            button_connect.Focus();
             if (comboBox_portname1.Enabled && e.KeyCode == Keys.Enter)
             {
                 button_connect.Focus();
@@ -1073,6 +1070,11 @@ namespace IoTSettingsUpdate
         private void CheckBox_RTS_CheckedChanged(object sender, EventArgs e)
         {
             serialPort1.RtsEnable = checkBox_RTS.Checked;
+        }
+
+        private void UpdateDataLogCursorPosition(object sender, EventArgs e)
+        {
+            _selStart = textBox_dataLog.SelectionStart;
         }
     }
 }
