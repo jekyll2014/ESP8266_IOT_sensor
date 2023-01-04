@@ -611,7 +611,7 @@ namespace IoTSettingsUpdate
             _stringsDivider.AddRange(Settings.Default.StringsDivider);
 
             SerialPopulate();
-            _logger = new TextLogger()
+            _logger = new TextLogger(this)
             {
                 FilterZeroChar = true,
                 AutoSave = true,

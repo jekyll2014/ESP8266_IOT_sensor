@@ -56,7 +56,7 @@ namespace TextLoggerHelper
             set
             {
                 _refreshPeriod = value;
-                if (_textBox != null && _refreshTimer.Enabled)
+                if (_textBox != null && (_refreshTimer?.Enabled ?? false))
                 {
                     RefreshStart(RefreshPeriod);
                 }
@@ -91,6 +91,7 @@ namespace TextLoggerHelper
         protected void OnPropertyChanged()
         {
             _textChanged = true;
+
             _mainForm?.Invoke((MethodInvoker)delegate
            {
                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Text"));
@@ -107,7 +108,7 @@ namespace TextLoggerHelper
         private DateTime _lastEvent = DateTime.Now;
         private readonly object _textOutThreadLock = new object();
 
-        public TextLogger(Form mainForm = null, TextBox textBox = null)
+        public TextLogger(Form mainForm, TextBox textBox = null)
         {
             this._mainForm = mainForm;
             this._textBox = textBox;
