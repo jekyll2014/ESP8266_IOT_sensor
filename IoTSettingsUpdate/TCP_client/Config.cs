@@ -1,23 +1,19 @@
-﻿using Newtonsoft.Json;
+﻿// This is an independent project of an individual developer. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Windows.Forms;
 
 namespace IoTSettingsUpdate
 {
-    public class Config<T> where T : class
+    public class Config<T> where T : class, new()
     {
         private readonly string _configFileName;
-        private List<T> _configStorage;
 
-        public List<T> ConfigStorage
-        {
-            get => _configStorage ?? new List<T>();
-            set => _configStorage = value;
-        }
+        public T ConfigStorage { get; set; } = new T();
 
         public Config(string file)
         {
@@ -25,50 +21,52 @@ namespace IoTSettingsUpdate
             LoadConfig();
         }
 
-        public bool LoadConfig(string fileName = null)
+        public bool LoadConfig()
         {
-            if (string.IsNullOrEmpty(fileName))
-                fileName = _configFileName;
+            if (string.IsNullOrEmpty(_configFileName))
+                return false;
 
             try
             {
-                var json = JArray.Parse(File.ReadAllText(fileName));
-                ConfigStorage = GetSection<List<T>>(json, "");
+                var json = JObject.Parse(File.ReadAllText(_configFileName));
+                ConfigStorage = GetSection<T>(json, "");
             }
-            catch (Exception e)
+            catch
             {
-                //MessageBox.Show($"Error loading file: {e.Message}");
-
                 return false;
             }
 
             return true;
         }
 
-        public T GetSection<T>(JArray json, string sectionName = null) where T : class
+        public TK GetSection<TK>(JObject json, string sectionName = null) where TK : class, new()
         {
             if (string.IsNullOrEmpty(_configFileName))
                 return default;
 
             if (string.IsNullOrEmpty(sectionName))
-            {
-                return json?.ToObject<T>() ??
+                return json?.ToObject<TK>() ??
                        throw new InvalidOperationException($"Cannot find section {sectionName}");
-            }
 
-            return json[sectionName]?.ToObject<T>() ??
+            return json[sectionName]?.ToObject<TK>() ??
                    throw new InvalidOperationException($"Cannot find section {sectionName}");
         }
 
-        public bool SaveConfig(string fileName = null)
+        public bool SaveConfig()
         {
             if (string.IsNullOrEmpty(_configFileName))
-                fileName = _configFileName;
+                return false;
 
             try
             {
-                File.WriteAllText(fileName,
-                    JsonConvert.SerializeObject(ConfigStorage, Formatting.Indented));
+                File.WriteAllText(_configFileName,
+                    JsonConvert.SerializeObject(ConfigStorage, Formatting.Indented, new Newtonsoft.Json.JsonSerializerSettings()
+                    {
+                        Converters = new List<Newtonsoft.Json.JsonConverter>
+                        {
+                            new Newtonsoft.Json.Converters.StringEnumConverter()
+                        }
+                    }));
             }
             catch
             {

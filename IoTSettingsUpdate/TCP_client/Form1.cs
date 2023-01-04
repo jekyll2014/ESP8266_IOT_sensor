@@ -20,6 +20,8 @@ namespace IoTSettingsUpdate
 {
     public partial class Form1 : Form
     {
+        private readonly Config<IoTSettingsUpdateSettings> _appConfig = new Config<IoTSettingsUpdateSettings>("appsettings.json");
+
         private TcpClient _clientSocket = new TcpClient();
         private static NetworkStream _serverStream;
         private string _ipAddress;
@@ -75,7 +77,7 @@ namespace IoTSettingsUpdate
 
         private TextLogger _logger;
 
-        private Config<CommandSettings> _espSettings;
+        private CommandConfig<CommandSettings> _espSettings;
 
         private readonly List<AwaitedReply> _awaitedReplies = new List<AwaitedReply>();
         private volatile bool _sending;
@@ -453,7 +455,7 @@ namespace IoTSettingsUpdate
             var portPosition = ipText.IndexOf(':');
             if (portPosition == 0)
             {
-                _ipAddress = Settings.Default.DefaultAddress;
+                _ipAddress = _appConfig.ConfigStorage.DefaultAddress;
                 int.TryParse(ipText.Substring(portPosition + 1), out _ipPort);
             }
             else if (portPosition > 0)
@@ -464,7 +466,7 @@ namespace IoTSettingsUpdate
             else
             {
                 _ipAddress = ipText;
-                _ipPort = Settings.Default.DefaultPort;
+                _ipPort = _appConfig.ConfigStorage.DefaultPort;
             }
         }
 
@@ -601,14 +603,14 @@ namespace IoTSettingsUpdate
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.DoubleBuffer, true);
 
-            serialPort1.Encoding = Encoding.GetEncoding(Settings.Default.CodePage);
-            _ipAddress = Settings.Default.DefaultAddress;
-            _ipPort = Settings.Default.DefaultPort;
-            _comName = Settings.Default.DefaultComName;
-            _comSpeed = Settings.Default.DefaultComSpeed;
-            _replyTimeout = Settings.Default.ReplyTimeout;
+            serialPort1.Encoding = Encoding.GetEncoding(_appConfig.ConfigStorage.CodePage);
+            _ipAddress = _appConfig.ConfigStorage.DefaultAddress;
+            _ipPort = _appConfig.ConfigStorage.DefaultPort;
+            _comName = _appConfig.ConfigStorage.DefaultComName;
+            _comSpeed = _appConfig.ConfigStorage.DefaultComSpeed;
+            _replyTimeout = _appConfig.ConfigStorage.ReplyTimeout;
             textBox_replyTimeout.Text = _replyTimeout.ToString();
-            _stringsDivider.AddRange(Settings.Default.StringsDivider);
+            _stringsDivider.AddRange(_appConfig.ConfigStorage.StringsDivider);
 
             SerialPopulate();
             _logger = new TextLogger(this)
@@ -658,14 +660,14 @@ namespace IoTSettingsUpdate
                 //_clientSocket.Dispose();
             }
 
-            Settings.Default.DefaultAddress = _ipAddress;
-            Settings.Default.DefaultPort = _ipPort;
+            _appConfig.ConfigStorage.DefaultAddress = _ipAddress;
+            _appConfig.ConfigStorage.DefaultPort = _ipPort;
             if (comboBox_portname1.SelectedIndex > 0)
-                Settings.Default.DefaultComName = comboBox_portname1.Items[comboBox_portname1.SelectedIndex].ToString();
+                _appConfig.ConfigStorage.DefaultComName = comboBox_portname1.Items[comboBox_portname1.SelectedIndex].ToString();
             else
-                Settings.Default.DefaultComName = "";
-            Settings.Default.DefaultComSpeed = int.Parse(comboBox_portspeed1.SelectedItem.ToString());
-            Settings.Default.Save();
+                _appConfig.ConfigStorage.DefaultComName = "";
+            _appConfig.ConfigStorage.DefaultComSpeed = int.Parse(comboBox_portspeed1.SelectedItem.ToString());
+            _appConfig.SaveConfig();
         }
 
         private void CheckBox_hex_CheckedChanged(object sender, EventArgs e)
@@ -726,7 +728,7 @@ namespace IoTSettingsUpdate
 
         private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
         {
-            _espSettings = new Config<CommandSettings>(openFileDialog1.FileName);
+            _espSettings = new CommandConfig<CommandSettings>(openFileDialog1.FileName);
             if (_espSettings.ConfigStorage.Count > 0)
             {
                 _configData.Rows.Clear();
