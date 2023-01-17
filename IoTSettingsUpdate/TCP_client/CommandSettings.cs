@@ -1,6 +1,13 @@
-﻿namespace IoTSettingsUpdate
+﻿using System.Collections.Generic;
+
+namespace IoTSettingsUpdate
 {
     public class CommandSettings
+    {
+        public List<CommandSetting> Commands { get; set; } = new List<CommandSetting>();
+    }
+
+    public class CommandSetting
     {
         public string Command { get; set; } = "";
         public string DefaultValue { get; set; } = "";

@@ -237,7 +237,6 @@
 #define CMD_BUZZ							F("buzz")
 
 #define CMD_RESET							F("reset") //reset
-#define CFG_RESET							F("Resetting...") //reset
 
 // Incorrect command reply
 #define REPLY_INCORRECT_VALUE				F("Incorrect value: ")

@@ -13,7 +13,7 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 //#define SLEEP_ENABLE						//connect D0(16) and RST pins to start controller after sleep
 #define OTA_UPDATE
 #define NTP_TIME_ENABLE
-#define TELNET_ENABLE						
+#define TELNET_ENABLE
 //#define HTTP_ENABLE						//WIFI problem if mixed with some other services
 #define EVENTS_ENABLE
 #define SCHEDULER_ENABLE

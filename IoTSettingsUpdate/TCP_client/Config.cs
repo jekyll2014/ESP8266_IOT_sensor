@@ -11,24 +11,29 @@ namespace IoTSettingsUpdate
 {
     public class Config<T> where T : class, new()
     {
-        private readonly string _configFileName;
+        public string ConfigFileName;
 
         public T ConfigStorage { get; set; } = new T();
 
+        public Config()
+        {
+            ConfigFileName = string.Empty;
+        }
+
         public Config(string file)
         {
-            _configFileName = file;
+            ConfigFileName = file;
             LoadConfig();
         }
 
         public bool LoadConfig()
         {
-            if (string.IsNullOrEmpty(_configFileName))
+            if (string.IsNullOrEmpty(ConfigFileName))
                 return false;
 
             try
             {
-                var json = JObject.Parse(File.ReadAllText(_configFileName));
+                var json = JObject.Parse(File.ReadAllText(ConfigFileName));
                 ConfigStorage = GetSection<T>(json, "");
             }
             catch
@@ -39,9 +44,9 @@ namespace IoTSettingsUpdate
             return true;
         }
 
-        public TK GetSection<TK>(JObject json, string sectionName = null) where TK : class, new()
+        private TK GetSection<TK>(JObject json, string sectionName = null) where TK : class, new()
         {
-            if (string.IsNullOrEmpty(_configFileName))
+            if (string.IsNullOrEmpty(ConfigFileName))
                 return default;
 
             if (string.IsNullOrEmpty(sectionName))
@@ -52,14 +57,20 @@ namespace IoTSettingsUpdate
                    throw new InvalidOperationException($"Cannot find section {sectionName}");
         }
 
+        public bool SaveConfig(string fileName)
+        {
+            ConfigFileName = fileName;
+            return SaveConfig();
+        }
+
         public bool SaveConfig()
         {
-            if (string.IsNullOrEmpty(_configFileName))
+            if (string.IsNullOrEmpty(ConfigFileName))
                 return false;
 
             try
             {
-                File.WriteAllText(_configFileName,
+                File.WriteAllText(ConfigFileName,
                     JsonConvert.SerializeObject(ConfigStorage, Formatting.Indented, new Newtonsoft.Json.JsonSerializerSettings()
                     {
                         Converters = new List<Newtonsoft.Json.JsonConverter>

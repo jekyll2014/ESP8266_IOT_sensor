@@ -15,6 +15,7 @@ using System.Windows.Forms;
 using TextLoggerHelper;
 
 using IoTSettingsUpdate.Properties;
+using System.IO;
 
 namespace IoTSettingsUpdate
 {
@@ -22,8 +23,8 @@ namespace IoTSettingsUpdate
     {
         private readonly Config<IoTSettingsUpdateSettings> _appConfig = new Config<IoTSettingsUpdateSettings>("appsettings.json");
 
-        private TcpClient _clientSocket = new TcpClient();
-        private static NetworkStream _serverStream;
+        private TcpClient _clientSocket;
+        private NetworkStream _serverStream;
         private string _ipAddress;
         private int _ipPort;
         private string _comName;
@@ -31,7 +32,7 @@ namespace IoTSettingsUpdate
         private int _replyTimeout = 10000;
         private readonly List<char> _stringsDivider = new List<char> { '\r', '\n' };
 
-        private string _unparsedData = "";
+        private StringBuilder _unparsedData = new StringBuilder();
 
         //private int _maxLogLength = 4096;
         private bool _autoScroll;
@@ -77,7 +78,7 @@ namespace IoTSettingsUpdate
 
         private TextLogger _logger;
 
-        private CommandConfig<CommandSettings> _espSettings;
+        private Config<CommandSettings> _espSettings;
 
         private readonly List<AwaitedReply> _awaitedReplies = new List<AwaitedReply>();
         private volatile bool _sending;
@@ -420,7 +421,7 @@ namespace IoTSettingsUpdate
             Button_connect_Click(this, EventArgs.Empty);
         }
 
-        private string[] ConvertBytesToStrings(IEnumerable<byte> data, ref string unparsedData)
+        private string[] ConvertBytesToStrings(IEnumerable<byte> data, ref StringBuilder unparsedData)
         {
             var stringCollection = new List<string>();
             foreach (var t in data)
@@ -437,13 +438,13 @@ namespace IoTSettingsUpdate
                 {
                     if (unparsedData.Length > 0)
                     {
-                        stringCollection.Add(unparsedData);
-                        unparsedData = "";
+                        stringCollection.Add(unparsedData.ToString());
+                        unparsedData.Clear();
                     }
                 }
                 else
                 {
-                    unparsedData += (char)t;
+                    unparsedData.Append((char)t);
                 }
             }
 
@@ -473,7 +474,7 @@ namespace IoTSettingsUpdate
         private void PrepareConfig()
         {
             var newConfig = _configData.Rows.Cast<DataRow>()
-                .Select(row => new CommandSettings
+                .Select(row => new CommandSetting
                 {
                     Command = row[(int)Columns.Command].ToString(),
                     DefaultValue = row[(int)Columns.DefaultValue].ToString(),
@@ -484,7 +485,7 @@ namespace IoTSettingsUpdate
                 })
                 .ToList();
 
-            _espSettings.ConfigStorage = newConfig;
+            _espSettings.ConfigStorage.Commands = newConfig;
         }
 
         private async Task<Dictionary<IPAddress, string>> PingAddress(byte[] addressBytes, int num, int netPort, int pingTimeout = 3000, int dataTimeOut = 20000)
@@ -552,7 +553,7 @@ namespace IoTSettingsUpdate
                         } while (DateTime.Now.Subtract(startTime).TotalMilliseconds < dataTimeOut);
                     }
 
-                    var tmp = "";
+                    var tmp = new StringBuilder();
                     var stringsCollection = ConvertBytesToStrings(data.ToArray(), ref tmp);
                     if (stringsCollection.Length > 0) deviceFound[destIp] = stringsCollection[0];
                 }
@@ -588,6 +589,73 @@ namespace IoTSettingsUpdate
 
                 Clipboard.SetText(copyText.ToString());
             }
+        }
+
+        private List<CommandSetting> ParseCommands(string text)
+        {
+            var result = new List<CommandSetting>();
+
+            var lineBuffer = text
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(n => n.Trim().StartsWith("#define"))
+                .Select(n => n.Replace("#define ", "").Trim())
+                .ToList();
+
+            var replyIncorrectProperty = FindSubString(lineBuffer.FirstOrDefault(n => n.StartsWith("REPLY_INCORRECT")) ?? "");
+            lineBuffer.Remove(replyIncorrectProperty);
+
+            for (var i = 0; i < lineBuffer.Count; i++)
+            {
+                if (lineBuffer[i].StartsWith("CMD_"))
+                {
+                    var command = FindSubString(lineBuffer[i]);
+                    var comment = FindComment(lineBuffer[i]);
+                    var newCommand = new CommandSetting()
+                    {
+                        ErrorReplyString = replyIncorrectProperty,
+                        Command = command,
+                        ParameterDescription = comment
+                    };
+                    result.Add(newCommand);
+
+                    if ((i + 1) < lineBuffer.Count && lineBuffer[i + 1].StartsWith("REPLY_"))
+                    {
+                        i++;
+                        newCommand.ParameterName = FindSubString(lineBuffer[i]);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private string FindSubString(string line)
+        {
+            var result = "";
+            var dividerPosition = line.IndexOf('\"');
+            if (dividerPosition >= 0 && dividerPosition < line.Length)
+            {
+                result = line.Substring(dividerPosition + 1);
+                dividerPosition = result.IndexOf('\"');
+                if (dividerPosition >= 0 && dividerPosition < result.Length)
+                {
+                    result = result.Substring(0, dividerPosition);
+                }
+            }
+
+            return result;
+        }
+
+        private string FindComment(string line)
+        {
+            var result = "";
+            var commentPosition = line.IndexOf("//");
+            if (commentPosition >= 0 && commentPosition + 2 < line.Length)
+            {
+                result = line.Substring(commentPosition + 2);
+            }
+
+            return result;
         }
 
         #endregion
@@ -653,7 +721,7 @@ namespace IoTSettingsUpdate
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             timer1.Enabled = false;
-            if (_clientSocket.Client.Connected)
+            if (_clientSocket?.Client?.Connected ?? false)
             {
                 _clientSocket.Client.Disconnect(false);
                 _clientSocket.Close();
@@ -722,25 +790,51 @@ namespace IoTSettingsUpdate
             openFileDialog1.FileName = "";
             openFileDialog1.Title = "Open text config";
             openFileDialog1.DefaultExt = "json";
-            openFileDialog1.Filter = "JSON files|*.json|All files|*.*";
+            openFileDialog1.Filter = "JSON files|*.json|Header files|*.h";
             openFileDialog1.ShowDialog();
         }
 
         private void OpenFileDialog1_FileOk(object sender, CancelEventArgs e)
         {
-            _espSettings = new CommandConfig<CommandSettings>(openFileDialog1.FileName);
-            if (_espSettings.ConfigStorage.Count > 0)
+            if (openFileDialog1.FileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                _espSettings = new Config<CommandSettings>(openFileDialog1.FileName);
+                FillCommandTable(_espSettings?.ConfigStorage.Commands);
+            }
+            else if (openFileDialog1.FileName.EndsWith(".h", StringComparison.OrdinalIgnoreCase))
+            {
+                string text = "";
+                try
+                {
+                    text = File.ReadAllText(openFileDialog1.FileName);
+                }
+                catch
+                {
+                    MessageBox.Show($"Can't read file: {openFileDialog1.FileName}");
+                }
+                _espSettings = new Config<CommandSettings>();
+                _espSettings.ConfigFileName = openFileDialog1.FileName.Substring(0, openFileDialog1.FileName.Length - 2) + ".json";
+                _espSettings.ConfigStorage.Commands = ParseCommands(text);
+                FillCommandTable(_espSettings?.ConfigStorage?.Commands);
+            }
+            else
+                MessageBox.Show($"Incompatible file type: {openFileDialog1.FileName}");
+        }
+
+        private void FillCommandTable(List<CommandSetting> commandList)
+        {
+            if (commandList?.Count > 0)
             {
                 _configData.Rows.Clear();
-                foreach (var par in _espSettings.ConfigStorage)
+                foreach (var command in commandList)
                 {
                     var newRow = _configData.NewRow();
-                    newRow[(int)Columns.Command] = par.Command;
-                    newRow[(int)Columns.DefaultValue] = par.DefaultValue;
-                    newRow[(int)Columns.ParameterDescription] = par.ParameterDescription;
-                    newRow[(int)Columns.CustomValue] = par.CustomValue;
-                    newRow[(int)Columns.ErrorReplyString] = par.ErrorReplyString;
-                    newRow[(int)Columns.ParameterName] = par.ParameterName;
+                    newRow[(int)Columns.Command] = command.Command;
+                    newRow[(int)Columns.DefaultValue] = command.DefaultValue;
+                    newRow[(int)Columns.ParameterDescription] = command.ParameterDescription;
+                    newRow[(int)Columns.CustomValue] = command.CustomValue;
+                    newRow[(int)Columns.ErrorReplyString] = command.ErrorReplyString;
+                    newRow[(int)Columns.ParameterName] = command.ParameterName;
                     _configData.Rows.Add(newRow);
                 }
             }
@@ -751,7 +845,7 @@ namespace IoTSettingsUpdate
             saveFileDialog1.Title = "Save config...";
             saveFileDialog1.DefaultExt = "json";
             saveFileDialog1.Filter = "JSON files|*.json|All files|*.*";
-            saveFileDialog1.FileName = string.IsNullOrEmpty(openFileDialog1.FileName) ? "config.json" : saveFileDialog1.FileName = openFileDialog1.FileName;
+            saveFileDialog1.FileName = string.IsNullOrEmpty(_espSettings.ConfigFileName) ? "config.json" : _espSettings.ConfigFileName;
 
             saveFileDialog1.ShowDialog();
         }
@@ -1062,8 +1156,6 @@ namespace IoTSettingsUpdate
             SendData(outStream, checkBox_addCrLf.Checked);
         }
 
-        #endregion
-
         private void CheckBox_DTR_CheckedChanged(object sender, EventArgs e)
         {
             serialPort1.DtrEnable = checkBox_DTR.Checked;
@@ -1078,5 +1170,8 @@ namespace IoTSettingsUpdate
         {
             _selStart = textBox_dataLog.SelectionStart;
         }
+
+        #endregion
+
     }
 }
