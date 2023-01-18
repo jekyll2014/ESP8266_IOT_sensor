@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net;
@@ -12,10 +13,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using TextLoggerHelper;
 
-using IoTSettingsUpdate.Properties;
-using System.IO;
+using TextLoggerHelper;
 
 namespace IoTSettingsUpdate
 {
@@ -328,18 +327,14 @@ namespace IoTSettingsUpdate
             var stringsCollection = ConvertBytesToStrings(data, ref _unparsedData);
             foreach (var s in stringsCollection)
             {
-                // try to find awaited reply
-                foreach (var item in _awaitedReplies)
+                foreach (var item in _awaitedReplies.Where(item => s.StartsWith(item.ParameterPattern)))// try to find awaited reply
                 {
-                    if (s.StartsWith(item.ParameterPattern))
+                    var parts = s.Split('=');
+                    if (parts.Length > 1 && parts[1].StartsWith(item.IncorrectReplyPattern))
                     {
-                        var parts = s.Split('=');
-                        item.found = true;
-                        if (parts.Length > 1 && parts[1].StartsWith(item.IncorrectReplyPattern))
-                        {
-                            item.incorrect = true;
-                        }
+                        item.incorrect = true;
                     }
+                    item.found = true;
                 }
             }
         }
@@ -369,6 +364,8 @@ namespace IoTSettingsUpdate
                         break;
                     }
                 }
+
+                _awaitedReplies.Remove(reply);
             }).ConfigureAwait(true);
 
             return result;
@@ -845,7 +842,7 @@ namespace IoTSettingsUpdate
             saveFileDialog1.Title = "Save config...";
             saveFileDialog1.DefaultExt = "json";
             saveFileDialog1.Filter = "JSON files|*.json|All files|*.*";
-            saveFileDialog1.FileName = string.IsNullOrEmpty(_espSettings.ConfigFileName) ? "config.json" : _espSettings.ConfigFileName;
+            saveFileDialog1.FileName = string.IsNullOrEmpty(_espSettings?.ConfigFileName) ? "config.json" : _espSettings.ConfigFileName;
 
             saveFileDialog1.ShowDialog();
         }
@@ -1172,6 +1169,51 @@ namespace IoTSettingsUpdate
         }
 
         #endregion
+
+        private void ContextMenuStrip_item_Opening(object sender, CancelEventArgs e)
+        {
+            contextMenuStrip_item.Items[0].Enabled = (textBox_dataLog.SelectionLength > 0);
+        }
+
+        private void ToolStripMenuItem_parse_Click(object sender, EventArgs e)
+        {
+            var newSettings = ParseConfigText(textBox_dataLog.SelectedText);
+
+            foreach (var setting in newSettings)
+            {
+                var row = _configData.Rows.Cast<DataRow>().FirstOrDefault(n => (string)n.ItemArray[(int)Columns.ParameterName] == setting.Key);
+
+                if (row != null)
+                {
+                    var n = _configData.Rows.IndexOf(row);
+                    var o = row.ItemArray;
+                    o[(int)Columns.CustomValue] = setting.Value;
+                    var newRow = _configData.NewRow();
+                    newRow.ItemArray = o;
+                    _configData.Rows[n].Delete();
+                    _configData.Rows.InsertAt(newRow, n);
+                }
+            }
+        }
+
+        private Dictionary<string, string> ParseConfigText(string text)
+        {
+            var result = new Dictionary<string, string>();
+
+            var lineBuffer = text
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(n => n.Trim().Contains(": "))
+                .ToList();
+
+            for (var i = 0; i < lineBuffer.Count; i++)
+            {
+                var param = lineBuffer[i].Substring(0, lineBuffer[i].IndexOf(": "));
+                var paramValue = lineBuffer[i].Substring(lineBuffer[i].IndexOf(": ") + 2);
+                result.Add(param, paramValue);
+            }
+
+            return result;
+        }
 
     }
 }

@@ -30,13 +30,12 @@
         {
             this.components = new System.ComponentModel.Container();
             this.textBox_dataLog = new System.Windows.Forms.TextBox();
+            this.contextMenuStrip_item = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.toolStripMenuItem_parse = new System.Windows.Forms.ToolStripMenuItem();
             this.button_send = new System.Windows.Forms.Button();
             this.button_connect = new System.Windows.Forms.Button();
             this.button_disconnect = new System.Windows.Forms.Button();
             this.checkBox_hex = new System.Windows.Forms.CheckBox();
-            this.contextMenuStrip_item = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.toolStripMenuItem_delete = new System.Windows.Forms.ToolStripMenuItem();
-            this.saveSelectedToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.checkBox_autoScroll = new System.Windows.Forms.CheckBox();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
@@ -75,6 +74,7 @@
             // 
             // textBox_dataLog
             // 
+            this.textBox_dataLog.ContextMenuStrip = this.contextMenuStrip_item;
             this.textBox_dataLog.Dock = System.Windows.Forms.DockStyle.Fill;
             this.textBox_dataLog.Location = new System.Drawing.Point(0, 0);
             this.textBox_dataLog.Multiline = true;
@@ -86,6 +86,21 @@
             this.textBox_dataLog.Click += new System.EventHandler(this.UpdateDataLogCursorPosition);
             this.textBox_dataLog.TextChanged += new System.EventHandler(this.TextBox_dataLog_TextChanged);
             this.textBox_dataLog.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.UpdateDataLogCursorPosition);
+            // 
+            // contextMenuStrip_item
+            // 
+            this.contextMenuStrip_item.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItem_parse});
+            this.contextMenuStrip_item.Name = "contextMenuStrip_item";
+            this.contextMenuStrip_item.Size = new System.Drawing.Size(178, 26);
+            this.contextMenuStrip_item.Opening += new System.ComponentModel.CancelEventHandler(this.ContextMenuStrip_item_Opening);
+            // 
+            // toolStripMenuItem_parse
+            // 
+            this.toolStripMenuItem_parse.Name = "toolStripMenuItem_parse";
+            this.toolStripMenuItem_parse.Size = new System.Drawing.Size(177, 22);
+            this.toolStripMenuItem_parse.Text = "Parse configuration";
+            this.toolStripMenuItem_parse.Click += new System.EventHandler(this.ToolStripMenuItem_parse_Click);
             // 
             // button_send
             // 
@@ -131,24 +146,6 @@
             this.checkBox_hex.Text = "hex";
             this.checkBox_hex.UseVisualStyleBackColor = true;
             this.checkBox_hex.CheckedChanged += new System.EventHandler(this.CheckBox_hex_CheckedChanged);
-            // 
-            // contextMenuStrip_item
-            // 
-            this.contextMenuStrip_item.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripMenuItem_delete,
-            this.saveSelectedToolStripMenuItem});
-            this.contextMenuStrip_item.Name = "contextMenuStrip_item";
-            this.contextMenuStrip_item.Size = new System.Drawing.Size(68, 48);
-            // 
-            // toolStripMenuItem_delete
-            // 
-            this.toolStripMenuItem_delete.Name = "toolStripMenuItem_delete";
-            this.toolStripMenuItem_delete.Size = new System.Drawing.Size(67, 22);
-            // 
-            // saveSelectedToolStripMenuItem
-            // 
-            this.saveSelectedToolStripMenuItem.Name = "saveSelectedToolStripMenuItem";
-            this.saveSelectedToolStripMenuItem.Size = new System.Drawing.Size(67, 22);
             // 
             // checkBox_autoScroll
             // 
@@ -538,8 +535,7 @@
         private System.IO.Ports.SerialPort serialPort1;
         private System.Windows.Forms.CheckBox checkBox_addCrLf;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip_item;
-        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem_delete;
-        private System.Windows.Forms.ToolStripMenuItem saveSelectedToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem_parse;
         private System.Windows.Forms.DataGridView dataGridView_config;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.Button button_clear;
