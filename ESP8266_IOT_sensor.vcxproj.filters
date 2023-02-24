@@ -39,6 +39,9 @@
     <ClInclude Include="schedule_strings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="configutation_validation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="ESP8266_IOT_sensor.ino" />

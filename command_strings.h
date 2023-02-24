@@ -4,9 +4,6 @@
 #define CMD_DEVICE_NAME						F("device_name")
 #define REPLY_DEVICE_NAME					F("Device name")
 
-#define CMD_TIME_SET						F("set_time") //set_time
-#define REPLY_TIME_SET						F("Time")
-
 #define CMD_CHECK_PERIOD					F("check_period")
 #define REPLY_CHECK_PERIOD					F("Sensor read period")
 
@@ -24,6 +21,18 @@
 
 #define CMD_INTERRUPT_MODE_SET				F("set_interrupt_mode") //set_interrupt_mode
 #define REPLY_INTERRUPT_MODE_SET			F("INT") //
+
+#define CMD_TEMERATURE_OFFSET						F("temperature_offset") //temperature_offset
+#define REPLY_TEMERATURE_OFFSET					F("Temperature offset") //
+
+#define CMD_HUMIDITY_OFFSET						F("humidity_offset") //temperature_offset
+#define REPLY_HUMIDITY_OFFSET					F("Humidity offset") //
+
+#define CMD_CO2_OFFSET						F("co2_offset") //temperature_offset
+#define REPLY_CO2_OFFSET					F("CO2 offset") //
+
+#define CMD_TIME_SET						F("set_time") //set_time
+#define REPLY_TIME_SET						F("Time")
 
 // Wi-Fi
 #define CMD_WIFI_ENABLE						F("wifi_enable") //wifi_enable
@@ -234,7 +243,7 @@
 
 #define CMD_HELP_SCHEDULE					F("help_schedule") //help_schedule
 
-#define CMD_BUZZ							F("buzz")
+#define CMD_BUZZ							F("buzz") // test buzzer
 
 #define CMD_RESET							F("reset") //reset
 

@@ -317,14 +317,17 @@ commandTokens parseCommand(String&, char, char, bool);
 // Sensors
 #ifdef TEMPERATURE_SENSOR
 float getTemperature(sensorDataCollection&);
+float getTemperatureOffset();
 #endif
 
 #ifdef HUMIDITY_SENSOR
-float getHumidity(sensorDataCollection&);
+int getHumidity(sensorDataCollection&);
+int getHumidityOffset();
 #endif
 
 #ifdef CO2_SENSOR
 int getCo2(sensorDataCollection&);
+int getCo2Offset();
 #endif
 
 String timeToString(uint32_t);

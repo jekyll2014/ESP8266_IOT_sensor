@@ -51,7 +51,7 @@
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include <EEPROM.h>
-#include "configuration.h"
+#include "configutation_validation.h"
 #include "datastructures.h"
 #include "command_strings.h"
 #include "action_strings.h"
@@ -2321,14 +2321,14 @@ void loop()
 						{
 							serverClient[i].stop();
 						}
-						serverClient[i] = telnetServer.available();
+						serverClient[i] = telnetServer.accept();
 						break;
 					}
 				}
 				//no free/disconnected spot so reject
 				if (i >= TELNET_MAX_CONNECTIONS)
 				{
-					WiFiClient serverClient = telnetServer.available();
+					WiFiClient serverClient = telnetServer.accept();
 					serverClient.stop();
 #ifdef DEBUG_MODE
 					Serial.print(F("No more slots. Client rejected."));
@@ -2493,7 +2493,7 @@ void loop()
 #ifdef HUMIDITY_SENSOR
 			if (displayState == 2)
 			{
-				int humidity = (int)getHumidity(sensorData);
+				int humidity = getHumidity(sensorData);
 				if (humidity > -1000)
 				{
 					display.showNumberDec(humidity, false, 3, 0);
@@ -2563,7 +2563,7 @@ void loop()
 
 			//show Humidity
 #ifdef HUMIDITY_SENSOR
-			float humidity = getHumidity(sensorData);
+			int humidity = getHumidity(sensorData);
 			if (humidity > -1000)
 			{
 				tmpStr += F("H: ");
@@ -2616,7 +2616,7 @@ String readConfigString(uint16_t startAt, uint16_t maxlen)
 	for (uint16_t i = 0; i < maxlen; i++)
 	{
 		char c = (char)EEPROM.read(startAt + i);
-		if (c == 0)
+		if (c == 0 || c == 0xff)
 			i = maxlen;
 		else
 			str += c;
@@ -2631,7 +2631,7 @@ void readConfigString(uint16_t startAt, uint16_t maxlen, char* array)
 	for (uint16_t i = 0; i < maxlen; i++)
 	{
 		array[i] = (char)EEPROM.read(startAt + i);
-		if (array[i] == 0)
+		if (array[i] == 0 || array[i] == 0xff)
 			i = maxlen;
 		yield();
 	}
@@ -2983,7 +2983,6 @@ String printConfig(bool toJson = false)
 
 	str += REPLY_WIFI_STANDART;
 	str += eq;
-	str += F("802.11");
 	str += readConfigString(WIFI_STANDART_addr, WIFI_STANDART_size);
 	str += delimiter;
 
@@ -2997,7 +2996,22 @@ String printConfig(bool toJson = false)
 
 	str += REPLY_CHECK_PERIOD;
 	str += eq;
-	str += String(readConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size).toInt());
+	str += readConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size);
+	str += delimiter;
+
+	str += REPLY_TEMERATURE_OFFSET;
+	str += eq;
+	str += readConfigString(TEMPERATURE_OFFSET_addr, TEMPERATURE_OFFSET_size);
+	str += delimiter;
+
+	str += REPLY_HUMIDITY_OFFSET;
+	str += eq;
+	str += readConfigString(HUMIDITY_OFFSET_addr, HUMIDITY_OFFSET_size);
+	str += delimiter;
+
+	str += REPLY_CO2_OFFSET;
+	str += eq;
+	str += readConfigString(CO2_OFFSET_addr, CO2_OFFSET_size);
 	str += delimiter;
 
 	str += REPLY_AUTOREPORT;
@@ -3108,13 +3122,10 @@ String printConfig(bool toJson = false)
 		{
 			str += F("OFF");
 		}
-		else
-		{
-			str += F("UNDEFINED");
-		}
 		str += delimiter;
 		yield();
 	}
+
 #ifdef LOG_ENABLE
 	//Log settings
 	str += F("Device log size");
@@ -3124,7 +3135,7 @@ String printConfig(bool toJson = false)
 
 	str += REPLY_LOG_PERIOD;
 	str += eq;
-	str += String(readConfigString(LOG_PERIOD_addr, LOG_PERIOD_size).toInt());
+	str += readConfigString(LOG_PERIOD_addr, LOG_PERIOD_size);
 	str += delimiter;
 #endif
 	yield();
@@ -3778,12 +3789,12 @@ String printHelp()
 
 		"[ADMIN]        set_time=yyyy.mm.dd hh:mm:ss\r\n"
 
-		"[ADMIN][FLASH] set_pin_mode?=OFF/INPUT/OUTPUT/INPUT_PULLUP\r\n"
+		"[ADMIN][FLASH] set_pin_mode?=INPUT/OUTPUT/INPUT_PULLUP/OFF\r\n"
 		"[ADMIN][FLASH] set_init_output?=[on/off, 0..1023]\r\n"
-		"[ADMIN][FLASH] set_interrupt_mode?=OFF/FALLING/RISING/CHANGE\r\n"
+		"[ADMIN][FLASH] set_interrupt_mode?=OFF/RISING/FALLING/CHANGE\r\n"
 		"[ADMIN]        set_output?=[on/off, 0..1023]\r\n"
 
-		"[ADMIN][FLASH] autoreport=n (bit[0..7] 1=UART,2=TELNET,4=MQTT,8=TELEGRAM,16=GSCRIPT,32=PUSHINGBOX,64=SMTP,128=GSM)\r\n"
+		"[ADMIN][FLASH] autoreport=UART, TELNET, MQTT, TELEGRAM, GSCRIPT, PUSHINGBOX, SMTP, GSM)\r\n"
 
 #ifdef SSD1306DISPLAY_ENABLE
 		"[ADMIN][FLASH] display_refresh=n (sec.)\r\n"
@@ -3801,6 +3812,10 @@ String printHelp()
 		"[ADMIN][FLASH] wifi_power=n (0..20.5)\r\n"
 		"[ADMIN][FLASH] wifi_mode=AUTO/STATION/APSTATION/AP/OFF\r\n"
 		"[ADMIN]        wifi_enable=on/off\r\n"
+
+		"[ADMIN][FLASH] temperature_offset=n\r\n"
+		"[ADMIN][FLASH] humidity_offset=n\r\n"
+		"[ADMIN][FLASH] co2_offset=n\r\n"
 
 #ifdef LOG_ENABLE
 		"[ADMIN][FLASH] log_period=n (sec., no less than 'check_period' in fact)\r\n"
@@ -4474,21 +4489,21 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			uint8_t wifi_mode = 255;
 			str += REPLY_WIFI_MODE;
 			str += eq;
-			if (cmd.arguments[0] == F("STATION"))
+			if (cmd.arguments[0] == pinModeList[WIFI_OFF])
+			{
+				wifi_mode = WIFI_OFF;
+			}
+			else if (cmd.arguments[0] == pinModeList[WIFI_STA])
 			{
 				wifi_mode = WIFI_STA;
 			}
-			else if (cmd.arguments[0] == F("APSTATION"))
-			{
-				wifi_mode = WIFI_AP_STA;
-			}
-			else if (cmd.arguments[0] == F("AP"))
+			else if (cmd.arguments[0] == pinModeList[WIFI_AP])
 			{
 				wifi_mode = WIFI_AP;
 			}
-			else if (cmd.arguments[0] == F("OFF"))
+			else if (cmd.arguments[0] == pinModeList[WIFI_AP_STA])
 			{
-				wifi_mode = WIFI_OFF;
+				wifi_mode = WIFI_AP_STA;
 			}
 			else
 			{
@@ -4548,19 +4563,23 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		}
 		else if (cmd.command == CMD_AUTOREPORT)
 		{
-			autoReport = cmd.arguments[0].toInt();
-			writeConfigString(AUTOREPORT_addr, AUTOREPORT_size, String(autoReport));
+			autoReport = 0;
 			str += REPLY_AUTOREPORT;
 			str += eq;
-			for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
+			for (uint8_t i = 0; i < cmd.tokensNumber; i++)
 			{
-				if (bitRead(autoReport, b))
+				for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
 				{
-					str += channels[b];
-					str += F(",");
+					if (cmd.arguments[i].indexOf(channels[b]) >= 0)
+					{
+						bitSet(autoReport, b);
+						str += channels[b];
+						str += F(",");
+					}
+					yield();
 				}
-				yield();
 			}
+			writeConfigString(AUTOREPORT_addr, AUTOREPORT_size, String(autoReport));
 			str += QUOTE;
 		}
 		else if (cmd.command == CMD_PIN_MODE_SET)
@@ -4571,14 +4590,14 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			{
 				cmd.arguments[0].toUpperCase();
 				uint8_t intModeNum = 255;
-				if (cmd.arguments[0] == pinModeList[3])
-					intModeNum = 3; //off
-				else if (cmd.arguments[0] == pinModeList[INPUT])
+				if (cmd.arguments[0] == pinModeList[INPUT])
 					intModeNum = INPUT;
 				else if (cmd.arguments[0] == pinModeList[OUTPUT])
 					intModeNum = OUTPUT;
 				else if (cmd.arguments[0] == pinModeList[INPUT_PULLUP])
 					intModeNum = INPUT_PULLUP;
+				else if (cmd.arguments[0] == pinModeList[3])
+					intModeNum = 3; //off
 				else
 				{
 					str += REPLY_INCORRECT;
@@ -4672,6 +4691,33 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 		else if (cmd.command == CMD_OUTPUT_SET)
 		{
 			str += set_output(cmd.index, cmd.arguments[0]);
+		}
+		else if (cmd.command == CMD_TEMERATURE_OFFSET)
+		{
+			str += REPLY_TEMERATURE_OFFSET;
+			str += eq;
+			float t = cmd.arguments[0].toFloat();
+			str += String(t);
+			writeConfigString(TEMPERATURE_OFFSET_addr, TEMPERATURE_OFFSET_size, String(t));
+			str += QUOTE;
+		}
+		else if (cmd.command == CMD_HUMIDITY_OFFSET)
+		{
+			str += REPLY_HUMIDITY_OFFSET;
+			str += eq;
+			int t = cmd.arguments[0].toInt();
+			str += String(t);
+			writeConfigString(HUMIDITY_OFFSET_addr, HUMIDITY_OFFSET_size, String(t));
+			str += QUOTE;
+		}
+		else if (cmd.command == CMD_CO2_OFFSET)
+		{
+			str += REPLY_CO2_OFFSET;
+			str += eq;
+			int t = cmd.arguments[0].toInt();
+			str += String(t);
+			writeConfigString(CO2_OFFSET_addr, CO2_OFFSET_size, String(t));
+			str += QUOTE;
 		}
 
 #ifdef LOG_ENABLE
@@ -6007,40 +6053,50 @@ float getTemperature(sensorDataCollection& sensorData)
 	if (ds1820_enable)
 		temp = sensorData.ds1820_temp;
 #endif
-	return temp;
+	return temp + getTemperatureOffset();
+}
+
+float getTemperatureOffset()
+{
+	return readConfigString(TEMPERATURE_OFFSET_addr, TEMPERATURE_OFFSET_size).toFloat();
 }
 #endif
 
 #ifdef HUMIDITY_SENSOR
-float getHumidity(sensorDataCollection& sensorData)
+int getHumidity(sensorDataCollection& sensorData)
 {
-	float humidity = -1000;
+	int humidity = -1000;
 #ifdef DHT_ENABLE
 	if (dht_enable)
-		humidity = sensorData.dht_humidity;
+		humidity = (int)sensorData.dht_humidity;
 #endif
 
 #ifdef AMS2320_ENABLE
 	if (am2320_enable)
-		humidity = round(sensorData.ams_humidity);
+		humidity = (int)round(sensorData.ams_humidity);
 #endif
 
 #ifdef HTU21D_ENABLE
 	if (htu21d_enable)
-		humidity = sensorData.htu21d_humidity;
+		humidity = (int)sensorData.htu21d_humidity;
 #endif
 
 #ifdef AHTx0_ENABLE
 	if (ahtx0_enable)
-		humidity = sensorData.ahtx0_humidity;
+		humidity = (int)sensorData.ahtx0_humidity;
 #endif
 
 #ifdef BME280_ENABLE
 	if (bme280_enable)
-		humidity = sensorData.bme280_humidity;
+		humidity = (int)sensorData.bme280_humidity;
 #endif
 
-	return humidity;
+	return humidity + getHumidityOffset();
+}
+
+int getHumidityOffset()
+{
+	return readConfigString(HUMIDITY_OFFSET_addr, HUMIDITY_OFFSET_size).toInt();
 }
 #endif
 
@@ -6068,7 +6124,12 @@ int getCo2(sensorDataCollection& sensorData)
 	}
 #endif
 
-	return co2_avg;
+	return co2_avg + getCo2Offset();
+}
+
+int getCo2Offset()
+{
+	return readConfigString(CO2_OFFSET_addr, CO2_OFFSET_size).toInt();
 }
 #endif
 
@@ -6106,11 +6167,11 @@ WiFiPhyMode getWifiStandard()
 	}
 	else if (wifi_phy == F("N"))
 	{
-		wifi_standard = WIFI_PHY_MODE_11N;
-	}
-	else
-	{
 		wifi_standard = WIFI_PHY_MODE_11B;
+	}
+	else// if (wifi_phy == F("N"))
+	{
+		wifi_standard = WIFI_PHY_MODE_11N;
 	}
 	return wifi_standard;
 }

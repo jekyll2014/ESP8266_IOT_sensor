@@ -63,13 +63,13 @@ const uint8_t pins[PIN_NUMBER] = { 5, 4, 0, 2, 14, 12, 13, 15, 3, 1 }; //D1=05, 
 #define PIN_WIRE_SDA						04 //D2 old
 #define TM1637_CLK							00 //D2
 #define TM1637_DIO							02 //D5
-#define HARD_UART_SPEED						115200
+#define HARD_UART_SPEED					115200
 #define HARD_UART_TX						01 //D10 new
 #define HARD_UART_RX						03 //D9 new
-#define SOFT_UART_SPEED						9600
+#define SOFT_UART_SPEED					9600
 #define SOFT_UART_TX						14 //D5 old
 #define SOFT_UART_RX						12 //D6 old
-#define TELNET_MAX_CONNECTIONS				5 // max. connections
+#define TELNET_MAX_CONNECTIONS	5 // max. connections
 
 
 // Esp ClimateMonitor
