@@ -48,10 +48,16 @@
  - ACS712 (A0)
 */
 
+#include <Adafruit_SPIDevice.h>
+#include <Adafruit_I2CRegister.h>
+#include <Adafruit_I2CDevice.h>
+#include <Adafruit_BusIO_Register.h>
+#include <Utilities.h>
+#include <DHT_U.h>
 #include <ESP8266WiFi.h>
 #include <SPI.h>
 #include <EEPROM.h>
-#include "configutation_validation.h"
+#include "configuration_validation.h"
 #include "datastructures.h"
 #include "command_strings.h"
 #include "action_strings.h"
@@ -179,7 +185,7 @@ int co2SerialRead()
 	//unsigned long lastRequest = 0;
 	uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
 	uart2.flush();
-	delay(50);
+	EspDelay(50);
 
 	byte cmd[9] = { 0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79 };
 	byte response[9]; // for answer
@@ -193,7 +199,7 @@ int co2SerialRead()
 	int waited = 0;
 	while (uart2.available() == 0)
 	{
-		delay(100); // wait a short moment to avoid false reading
+		EspDelay(100); // wait a short moment to avoid false reading
 		if (waited++ > 10)
 		{
 			uart2.flush();
@@ -326,6 +332,10 @@ uint8_t displayState = 0;
 #ifdef SSD1306DISPLAY_ENABLE
 #include <SSD1306Ascii.h>
 #include <SSD1306AsciiWire.h>
+//#include <SSD1306AsciiAvrI2c.h>
+//#include <SSD1306AsciiSoftSpi.h>
+//#include <SSD1306AsciiSpi.h>
+//#include <SSD1306init.h>
 
 const uint8_t* font = fixed_bold10x15; // 10x15 pix
 //const uint8_t* font = cp437font8x8;  // 8*8 pix
@@ -338,12 +348,12 @@ SSD1306AsciiWire oled;
 uint16_t getAdc()
 {
 	uint16_t averageValue = analogRead(A0);
-	delay(10);
+	EspDelay(10);
 	/*const uint8_t measurementsToAverage = 16;
 	for (uint8_t i = 0; i < measurementsToAverage; ++i)
 	{
 		averageValue = uint16_t((analogRead(A0) + averageValue) / 2);
-		//delay(1);
+		//EspDelay(1);
 		yield();
 	}
 	return averageValue;*/
@@ -884,7 +894,7 @@ void sendToTelnet(String& str, uint8_t clientN)
 	if (serverClient[clientN] && serverClient[clientN].connected())
 	{
 		serverClient[clientN].print(str);
-		delay(1);
+		EspDelay(1);
 	}
 }
 
@@ -1062,6 +1072,14 @@ void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
 #ifdef TELEGRAM_ENABLE
 #include <ArduinoJson.h>
 #include <CTBot.h>
+//#include <ArduinoJson.hpp>
+//#include <CTBotDataStructures.h>
+//#include <CTBotDefines.h>
+//#include <CTBotInlineKeyboard.h>
+//#include <CTBotReplyKeyboard.h>
+//#include <CTBotSecureConnection.h>
+//#include <CTBotStatusPin.h>
+//#include <CTBotWifiSetup.h>
 
 CTBot myBot;
 telegramMessage telegramOutboundBuffer[TELEGRAM_MESSAGE_BUFFER_SIZE];
@@ -1378,11 +1396,11 @@ bool sendSMS(String& phone, String& smsText)
 		for (uint16_t i = 0; i < cmdTmp.length(); i++)
 		{
 			uart2.write((char)cmdTmp[i]);
-			delay(50);
+			EspDelay(50);
 			yield();
 		}
 
-		delay(500);
+		EspDelay(500);
 		yield();
 		uart2.flush();
 		uart2.write((char)26);
@@ -4040,12 +4058,12 @@ sensorDataCollection collectData()
 	{
 		ds1820_enable = true;
 		ds1820.requestTemperatures();
-		delay(5);
+		EspDelay(5);
 		sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
 		if (sensorData.ds1820_temp > 100)
 		{
 			ds1820.requestTemperatures();
-			delay(5);
+			EspDelay(5);
 			sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
 		}
 	}
@@ -4489,19 +4507,19 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 			uint8_t wifi_mode = 255;
 			str += REPLY_WIFI_MODE;
 			str += eq;
-			if (cmd.arguments[0] == pinModeList[WIFI_OFF])
+			if (cmd.arguments[0] == wifiModes[WIFI_OFF])
 			{
 				wifi_mode = WIFI_OFF;
 			}
-			else if (cmd.arguments[0] == pinModeList[WIFI_STA])
+			else if (cmd.arguments[0] == wifiModes[WIFI_STA])
 			{
 				wifi_mode = WIFI_STA;
 			}
-			else if (cmd.arguments[0] == pinModeList[WIFI_AP])
+			else if (cmd.arguments[0] == wifiModes[WIFI_AP])
 			{
 				wifi_mode = WIFI_AP;
 			}
-			else if (cmd.arguments[0] == pinModeList[WIFI_AP_STA])
+			else if (cmd.arguments[0] == wifiModes[WIFI_AP_STA])
 			{
 				wifi_mode = WIFI_AP_STA;
 			}
@@ -6214,7 +6232,7 @@ void Start_OFF_Mode()
 	WiFi.softAPdisconnect(true);
 	WiFi.persistent(true);
 	WiFi.mode(WIFI_OFF);
-	delay(1000UL);
+	EspDelay(1000UL);
 }
 
 void Start_STA_Mode()
@@ -6228,7 +6246,7 @@ void Start_STA_Mode()
 	WiFi.softAPdisconnect(false);
 	WiFi.persistent(true);
 	//WiFi.mode(WIFI_OFF);
-	delay(1000UL);
+	EspDelay(1000UL);
 	WiFi.setPhyMode(wifi_standard);
 	WiFi.setOutputPower(wifi_OutputPower);
 	WiFi.setSleepMode(WIFI_NONE_SLEEP);
@@ -6248,7 +6266,7 @@ void Start_AP_Mode()
 	WiFi.softAPdisconnect(false);
 	WiFi.persistent(true);
 	//WiFi.mode(WIFI_OFF);
-	delay(1000UL);
+	EspDelay(1000UL);
 	WiFi.setPhyMode(wifi_standard);
 	WiFi.setOutputPower(wifi_OutputPower);
 	WiFi.mode(WIFI_AP);
@@ -6270,7 +6288,7 @@ void Start_AP_STA_Mode()
 	WiFi.softAPdisconnect(false);
 	WiFi.persistent(true);
 	//WiFi.mode(WIFI_OFF);
-	delay(1000UL);
+	EspDelay(1000UL);
 	WiFi.setPhyMode(wifi_standard);
 	WiFi.setOutputPower(wifi_OutputPower);
 	WiFi.mode(WIFI_AP_STA);
@@ -6278,6 +6296,15 @@ void Start_AP_STA_Mode()
 	WiFi.softAP(AP_Ssid.c_str(), AP_Password.c_str());
 	WiFi.begin(STA_Ssid.c_str(), STA_Password.c_str());
 	//WiFi.softAPConfig(apIP, apIPgate, IPAddress(192, 168, 4, 1));
+}
+
+void EspDelay(uint32_t time_ms)
+{
+	const uint32_t start = millis() + time_ms;
+	while (millis() < start)
+	{
+		yield();
+	}
 }
 
 void int1count()
