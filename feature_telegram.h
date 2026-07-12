@@ -327,7 +327,7 @@ bool tryHandleTelegramAction(commandTokens& cmd, String& tmpAction)
 				if (!sendOk)
 				{
 					/*#ifdef EVENTS_ENABLE
-											eventsFlags[eventNum] = false;
+											eventDisabled[eventNum] = false;
 					#endif*/
 				}
 			}

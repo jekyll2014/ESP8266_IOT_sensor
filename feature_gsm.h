@@ -369,7 +369,7 @@ bool tryHandleGsmCommand(commandTokens& cmd, String& str, String& eq, uint8_t ch
 			gsmEnable = false;
 			str += REPLY_GSM_ENABLE;
 			str += eq;
-			str += REPLY_DISABLED;
+			str += SWITCH_OFF;
 		}
 		else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 		{
@@ -377,7 +377,7 @@ bool tryHandleGsmCommand(commandTokens& cmd, String& str, String& eq, uint8_t ch
 			gsmEnable = true;
 			str += REPLY_GSM_ENABLE;
 			str += eq;
-			str += REPLY_ENABLED;
+			str += SWITCH_ON;
 		}
 		else
 		{
@@ -426,7 +426,7 @@ bool tryHandleGsmAction(commandTokens& cmd, String& tmpAction)
 				if (!sendOk)
 				{
 					/*#ifdef EVENTS_ENABLE
-										eventsFlags[eventNum] = false;
+										eventDisabled[eventNum] = false;
 					#endif*/
 				}
 			}

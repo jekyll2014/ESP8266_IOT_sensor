@@ -60,20 +60,20 @@ bool tryHandleCounterAction(commandTokens& cmd, String& tmpAction)
 #ifdef EVENTS_ENABLE
 bool tryHandleEventFlagAction(commandTokens& cmd, String& tmpAction)
 {
-	//reset_flag?
-	if (cmd.command == ACTION_RESET_FLAG)
+	//enable_event?
+	if (cmd.command == ACTION_ENABLE_EVENT)
 	{
 		if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
 		{
-			eventsFlags[cmd.index] = false;
+			eventDisabled[cmd.index] = false;
 		}
 	}
-	//set_flag?
-	else if (cmd.command == ACTION_SET_FLAG)
+	//disable_event?
+	else if (cmd.command == ACTION_DISABLE_EVENT)
 	{
 		if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
 		{
-			eventsFlags[cmd.index] = true;
+			eventDisabled[cmd.index] = true;
 		}
 	}
 	//set_event_flag?=0/1/off/on
@@ -84,12 +84,12 @@ bool tryHandleEventFlagAction(commandTokens& cmd, String& tmpAction)
 			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
 			{
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
-				eventsFlags[cmd.index] = false;
+				eventDisabled[cmd.index] = false;
 			}
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
-				eventsFlags[cmd.index] = true;
+				eventDisabled[cmd.index] = true;
 			}
 		}
 	}

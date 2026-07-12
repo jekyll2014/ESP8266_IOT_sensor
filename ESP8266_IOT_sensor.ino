@@ -382,7 +382,7 @@ void otaEndCallback()
 
 // EVENTS
 #ifdef EVENTS_ENABLE
-bool eventsFlags[EVENTS_NUMBER];
+bool eventDisabled[EVENTS_NUMBER];
 bool eventsEnable = false;
 
 String getEvent(uint8_t n)
@@ -395,7 +395,7 @@ String getEvent(uint8_t n)
 
 void processEvent(uint8_t eventNum)
 {
-	if (eventsFlags[eventNum])
+	if (eventDisabled[eventNum])
 		return;
 
 	String event = getEvent(eventNum);
@@ -526,7 +526,7 @@ void processEvent(uint8_t eventNum)
 		uint16_t value = cmd.command.substring(4).toInt();
 		if ((operation == '>' && adcValue > value) || (operation == '<' && adcValue < value))
 		{
-			ProcessAction(event, eventNum, true);
+			ProcessAction(cmd.arguments[0], eventNum, true);
 		}
 	}
 #endif
@@ -1906,9 +1906,14 @@ commandTokens parseCommand(String& commandString, char cmd_divider, char arg_div
 		equalSignPos = commandString.length();
 	}
 
-	int cmdEnd = equalSignPos - 1;
+	// cmdEnd defaults to equalSignPos (whole prefix is the command name); only the
+	// findIndex path needs to rewind past a trailing numeric index first - doing
+	// that unconditionally used to chop the last command-name char for findIndex=false
+	// callers (processEvent's condition parsing), corrupting numeric thresholds.
+	int cmdEnd = equalSignPos;
 	if (findIndex)
 	{
+		cmdEnd = equalSignPos - 1;
 		for (cmdEnd; cmdEnd >= 0; cmdEnd--)
 		{
 			if (commandString[cmdEnd] < '0' || commandString[cmdEnd] > '9')
@@ -2711,7 +2716,7 @@ String printStatus(bool toJson)
 			str += String(i);
 			str += F(" active");
 			str += eq;
-			str += String(eventsFlags[i]);
+			str += String(eventDisabled[i]);
 			str += delimiter;
 		}
 		yield();
@@ -3434,7 +3439,7 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 	if (isEvent)
 	{
 #ifdef EVENTS_ENABLE
-		eventsFlags[eventNum] = true;
+		eventDisabled[eventNum] = true;
 #endif
 	}
 	else

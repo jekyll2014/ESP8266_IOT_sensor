@@ -523,7 +523,7 @@ bool tryHandleEventCommand(commandTokens& cmd, String& command, String& str, Str
 			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
 			{
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
-				eventsFlags[cmd.index] = false;
+				eventDisabled[cmd.index] = false;
 				str += REPLY_EVENT_FLAG_SET;
 				str += String(cmd.index);
 				str += F(" cleared");
@@ -531,7 +531,7 @@ bool tryHandleEventCommand(commandTokens& cmd, String& command, String& str, Str
 			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
 			{
 				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
-				eventsFlags[cmd.index] = true;
+				eventDisabled[cmd.index] = true;
 				str += REPLY_EVENT_FLAG_SET;
 				str += String(cmd.index);
 				str += F(" set");
