@@ -130,7 +130,6 @@
     </Compile>
     <None Include="packages.config" />
     <None Include="Properties\app.manifest" />
-    <None Include="TCP_client_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
