@@ -48,6 +48,7 @@
  - ACS712 (A0)
 */
 
+#include <ArduinoJson.hpp>
 #include <Adafruit_SPIDevice.h>
 #include <Adafruit_I2CRegister.h>
 #include <Adafruit_I2CDevice.h>
@@ -78,6 +79,7 @@ bool wifiEnable = true;
 
 uint32_t checkSensorLastTime = 0;
 uint32_t checkSensorPeriod = 60000;
+sensorDataCollection lastSensorData; // refreshed once per checkSensorPeriod; display reuses this instead of re-reading sensors every refresh tick
 
 bool uartReady = false;
 String uartCommand = "";
@@ -106,63 +108,13 @@ OneWire oneWire(ONEWIRE_DATA);
 
 // SENSORS
 
-//AM2320 I2C temperature + humidity sensor
-#ifdef AMS2320_ENABLE
-#include <Adafruit_Sensor.h>
-#include <Adafruit_AM2320.h>
-
-Adafruit_AM2320 am2320;
-bool am2320_enable;
-#endif
-
-// HTU21D I2C temperature + humidity sensor
-#ifdef HTU21D_ENABLE
-#include <Adafruit_HTU21DF.h>
-
-Adafruit_HTU21DF htu21d;
-bool htu21d_enable;
-#endif
-
-// BME280 I2C temperature + humidity + pressure sensor
-#ifdef BME280_ENABLE
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
-
-Adafruit_BME280 bme280;
-bool bme280_enable;
-#endif
-
-// BMP180 I2C temperature + pressure sensor
-#ifdef BMP180_ENABLE
-#include <Adafruit_BMP085.h>
-
-Adafruit_BMP085 bmp180;
-bool bmp180_enable;
-#endif
-
-// HTU21D I2C temperature + humidity sensor
-#ifdef AHTx0_ENABLE
-#include <Adafruit_AHTX0.h>
-
-Adafruit_AHTX0 ahtx0;
-bool ahtx0_enable;
-#endif
-
-// DS18B20 OneWire temperature sensor
-#ifdef DS18B20_ENABLE
-#include <DallasTemperature.h>
-
-DallasTemperature ds1820(&oneWire);
-bool ds1820_enable;
-#endif
-
-// DHT11/DHT21(AM2301)/DHT22(AM2302, AM2321) temperature + humidity sensor
-#ifdef DHT_ENABLE
-#include <DHT.h>
-
-DHT dht(DHT_PIN, DHT_ENABLE);
-bool dht_enable;
-#endif
+#include "feature_sensor_ams2320.h"
+#include "feature_sensor_htu21d.h"
+#include "feature_sensor_bme280.h"
+#include "feature_sensor_bmp180.h"
+#include "feature_sensor_ahtx0.h"
+#include "feature_sensor_ds18b20.h"
+#include "feature_sensor_dht.h"
 
 // MH-Z19 CO2 sensor via UART
 #ifdef MH_Z19_UART_ENABLE
@@ -426,102 +378,7 @@ void otaEndCallback()
 */
 #endif
 
-// NTP
-#ifdef NTP_TIME_ENABLE
-#include <WiFiUdp.h>
-
-WiFiUDP Udp;
-int ntpRefreshDelay = 180;
-uint32_t lastTimeRefersh = 0;
-uint32_t timeRefershPeriod = 24 * 60 * 60 * 1000; //once a day
-bool NTPenable = false;
-
-// send an NTP request to the time server at the given address
-void sendNTPpacket(IPAddress& address)
-{
-	//buffer to hold incoming & outgoing packets
-	uint8_t packetBuffer[NTP_PACKET_SIZE];
-	// set all bytes in the buffer to 0
-	memset(packetBuffer, 0, NTP_PACKET_SIZE);
-	// Initialize values needed to form NTP request (see URL above for details on the packets)
-	packetBuffer[0] = 0b11100011; // LI, Version, Mode
-	packetBuffer[1] = 0;		  // Stratum, or type of clock
-	packetBuffer[2] = 6;		  // Polling Interval
-	packetBuffer[3] = 0xEC;		  // Peer Clock Precision
-	// 8 bytes of zero for Root Delay & Root Dispersion
-	packetBuffer[12] = 49;
-	packetBuffer[13] = 0x4E;
-	packetBuffer[14] = 49;
-	packetBuffer[15] = 52;
-	// all NTP fields have been given values, now you can send a packet requesting a timestamp:
-	Udp.beginPacket(address, 123); //NTP requests are to port 123
-	Udp.write(packetBuffer, NTP_PACKET_SIZE);
-	Udp.endPacket();
-}
-
-time_t getNtpTime()
-{
-	if (!NTPenable || WiFi.status() != WL_CONNECTED)
-		return 0;
-
-	while (Udp.parsePacket() > 0)
-		yield(); // discard any previously received packets
-
-	IPAddress timeServerIP(129, 6, 15, 28); //129.6.15.28 = time-a.nist.gov
-
-	String ntpServer = readConfigString(NTP_SERVER_addr, NTP_SERVER_size);
-	const int timeZone = readConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size).toInt();
-
-	if (!timeServerIP.fromString(ntpServer))
-	{
-		if (WiFi.hostByName(ntpServer.c_str(), timeServerIP) != 1)
-		{
-			timeServerIP = IPAddress(129, 6, 15, 28);
-		}
-	}
-
-	sendNTPpacket(timeServerIP);
-	const uint32_t beginWait = millis();
-	while (millis() - beginWait < 1500)
-	{
-		const int size = Udp.parsePacket();
-		if (size >= NTP_PACKET_SIZE)
-		{
-			uint8_t packetBuffer[NTP_PACKET_SIZE];	 //buffer to hold incoming & outgoing packets
-			Udp.read(packetBuffer, NTP_PACKET_SIZE); // read packet into the buffer
-			timeIsSet = true;
-			// convert four bytes starting at location 40 to a long integer
-			uint32_t secsSince1900 = (uint32_t)packetBuffer[40] << 24;
-			secsSince1900 |= (uint32_t)packetBuffer[41] << 16;
-			secsSince1900 |= (uint32_t)packetBuffer[42] << 8;
-			secsSince1900 |= (uint32_t)packetBuffer[43];
-			//NTPenable = false;
-			setSyncProvider(nullptr);
-			Udp.stop();
-			lastTimeRefersh = millis();
-			return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
-		}
-		yield();
-	}
-	return 0; // return 0 if unable to get the time
-}
-
-void restartNTP()
-{
-	if (readConfigString(NTP_ENABLE_addr, NTP_ENABLE_size) == SWITCH_ON_NUMBER)
-		NTPenable = true;
-
-	if (NTPenable)
-	{
-		ntpRefreshDelay = readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size).toInt();
-		Udp.begin(UDP_LOCAL_PORT);
-		setSyncProvider(getNtpTime);
-		setSyncInterval(ntpRefreshDelay); //60 sec. = 1 min.
-		timeRefershPeriod = readConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size).toInt() * 1000;
-	}
-}
-
-#endif
+#include "feature_ntp.h"
 
 // EVENTS
 #ifdef EVENTS_ENABLE
@@ -883,884 +740,27 @@ void processSchedule(uint8_t scheduleNum)
 }
 #endif
 
-// TELNET
-#ifdef TELNET_ENABLE
-WiFiServer telnetServer(23);
-WiFiClient serverClient[TELNET_MAX_CONNECTIONS];
-bool telnetEnable = true;
+#include "feature_telnet.h"
 
-void sendToTelnet(String& str, uint8_t clientN)
-{
-	if (serverClient[clientN] && serverClient[clientN].connected())
-	{
-		serverClient[clientN].print(str);
-		EspDelay(1);
-	}
-}
+#include "feature_smtp.h"
 
-#endif
+#include "feature_mqtt.h"
 
-// SMTP
-#ifdef SMTP_ENABLE
-#include <sendemail.h>
+#include "feature_telegram.h"
 
-bool smtpEnable = false;
+#include "feature_gsm.h"
 
-bool sendMail(String& subject, String& message, String& addressTo)
-{
-	String smtpServerAddress = readConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size);
-	uint16_t smtpServerPort = readConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size).toInt();
-	String smtpLogin = readConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size);
-	String smtpPassword = readConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size);
-	if (addressTo.length() <= 0)
-		addressTo = readConfigString(SMTP_TO_addr, SMTP_TO_size);
+#include "feature_gscript.h"
 
-	bool result = false;
-	if (smtpEnable && WiFi.status() == WL_CONNECTED)
-	{
-		SendEmail smtp(smtpServerAddress, smtpServerPort, smtpLogin, smtpPassword, 20000, true);
-		result = smtp.send(smtpLogin, addressTo, subject, message);
-	}
-	return result;
-}
-#endif
+#include "feature_pushingbox.h"
 
-// MQTT
-#ifdef MQTT_ENABLE
-#include <PubSubClient.h>
-WiFiClient espClient;
-PubSubClient mqtt_client(espClient);
+#include "feature_http.h"
 
-String mqttCommand = "";
-bool mqttEnable = false;
+#include "feature_log.h"
 
-String getMqttServer()
-{
-	return readConfigString(MQTT_SERVER_addr, MQTT_SERVER_size);
-}
+#include "feature_core_commands.h"
 
-int getMqttPort()
-{
-	return readConfigString(MQTT_PORT_addr, MQTT_PORT_size).toInt();
-}
-
-String getMqttUser()
-{
-	return readConfigString(MQTT_USER_addr, MQTT_USER_size);
-}
-
-String getMqttPassword()
-{
-	return readConfigString(MQTT_PASS_addr, MQTT_PASS_size);
-}
-
-String getMqttDeviceId()
-{
-	return readConfigString(MQTT_ID_addr, MQTT_ID_size);
-}
-
-String getMqttTopicIn()
-{
-	return readConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size);
-}
-
-String getMqttTopicOut()
-{
-	return readConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size);
-}
-
-bool getMqttClean()
-{
-	bool mqttClean = false;
-	if (readConfigString(MQTT_CLEAN_addr, MQTT_CLEAN_size) == SWITCH_ON_NUMBER)
-		mqttClean = true;
-	return mqttClean;
-}
-
-bool mqtt_connect()
-{
-	bool result = false;
-	if (mqttEnable && WiFi.status() == WL_CONNECTED)
-	{
-		IPAddress mqtt_ip_server;
-		String mqtt_server = getMqttServer();
-		uint16_t mqtt_port = getMqttPort();
-		String mqtt_User = getMqttUser();
-		String mqtt_Password = getMqttPassword();
-		String mqtt_device_id = getMqttDeviceId();
-		String mqtt_topic_in = getMqttTopicIn();
-		bool mqttClean = getMqttClean();
-
-		if (mqtt_ip_server.fromString(mqtt_server))
-		{
-			mqtt_client.setServer(mqtt_ip_server, mqtt_port);
-		}
-		else
-		{
-			mqtt_client.setServer(mqtt_server.c_str(), mqtt_port);
-		}
-
-		mqtt_client.setCallback(mqtt_callback);
-
-		if (mqtt_device_id.length() <= 0)
-		{
-			mqtt_device_id = deviceName;
-			mqtt_device_id += F("_");
-			mqtt_device_id += CompactMac();
-		}
-
-		if (mqtt_User.length() > 0)
-		{
-			result = mqtt_client.connect(mqtt_device_id.c_str(), mqtt_User.c_str(), mqtt_Password.c_str(), "", 0, false, "", mqttClean);
-		}
-		else
-		{
-			result = mqtt_client.connect(mqtt_device_id.c_str());
-		}
-		if (!result)
-		{
-			return result;
-		}
-		result = mqtt_client.subscribe(mqtt_topic_in.c_str());
-	}
-	return result;
-}
-
-bool mqtt_send(String& message, int dataLength, String& topic)
-{
-	if (!mqtt_client.connected())
-	{
-		mqtt_connect();
-	}
-
-	bool result = false;
-	if (mqttEnable && WiFi.status() == WL_CONNECTED)
-	{
-		if (topic.length() <= 0)
-			topic = getMqttTopicOut();
-
-		if (dataLength > MQTT_MAX_PACKET)
-		{
-			result = mqtt_client.beginPublish(topic.c_str(), dataLength, false);
-			for (uint16_t i = 0; i < dataLength; i++)
-			{
-				mqtt_client.write(message[i]);
-				yield();
-			}
-			result = mqtt_client.endPublish();
-		}
-		else
-		{
-			result = mqtt_client.publish(topic.c_str(), message.c_str(), dataLength);
-		}
-	}
-	return result;
-}
-
-void mqtt_callback(char* topic, uint8_t* payload, uint16_t dataLength)
-{
-	for (uint16_t i = 0; i < dataLength; i++)
-	{
-		mqttCommand += char(payload[i]);
-		yield();
-	}
-}
-
-#endif
-
-// TELEGRAM
-#ifdef TELEGRAM_ENABLE
-#include <ArduinoJson.h>
-#include <CTBot.h>
-//#include <ArduinoJson.hpp>
-//#include <CTBotDataStructures.h>
-//#include <CTBotDefines.h>
-//#include <CTBotInlineKeyboard.h>
-//#include <CTBotReplyKeyboard.h>
-//#include <CTBotSecureConnection.h>
-//#include <CTBotStatusPin.h>
-//#include <CTBotWifiSetup.h>
-
-CTBot myBot;
-telegramMessage telegramOutboundBuffer[TELEGRAM_MESSAGE_BUFFER_SIZE];
-uint8_t telegramOutboundBufferPos = 0;
-uint32_t telegramLastTime = 0;
-bool telegramEnable = false;
-
-String uint64ToString(uint64_t input)
-{
-	String result = "";
-	uint8_t base = 10;
-	do
-	{
-		char c = input % base;
-		input /= base;
-		if (c < 10)
-			c += '0';
-		else
-			c += 'A' - 10;
-		result = c + result;
-		yield();
-	} while (input);
-	return result;
-}
-
-uint64_t StringToUint64(String& value)
-{
-	for (uint8_t i = 0; i < value.length(); i++)
-	{
-		if (value[i] < '0' || value[i] > '9')
-			return 0;
-	}
-	uint64_t result = 0;
-	const char* p = value.c_str();
-	const char* q = p + value.length();
-	while (p < q)
-	{
-		result = (result << 1) + (result << 3) + *(p++) - '0';
-		yield();
-	}
-	return result;
-}
-
-bool sendToTelegramServer(int64_t user, String& message)
-{
-	bool result = false;
-	if (telegramEnable && WiFi.status() == WL_CONNECTED)
-	{
-		result = myBot.testConnection();
-		if (result)
-		{
-			result = myBot.sendMessage(user, message);
-			if (result)
-			{
-				result = true;
-			}
-		}
-	}
-	return result;
-}
-
-void addMessageToTelegramOutboundBuffer(int64_t user, String message, uint8_t retries)
-{
-	if (telegramOutboundBufferPos >= TELEGRAM_MESSAGE_BUFFER_SIZE)
-	{
-		for (uint8_t i = 0; i < TELEGRAM_MESSAGE_BUFFER_SIZE - 1; i++)
-		{
-			telegramOutboundBuffer[i] = telegramOutboundBuffer[i + 1];
-			yield();
-		}
-		telegramOutboundBufferPos = TELEGRAM_MESSAGE_BUFFER_SIZE - 1;
-	}
-	telegramOutboundBuffer[telegramOutboundBufferPos].user = user;
-	telegramOutboundBuffer[telegramOutboundBufferPos].message = message;
-	telegramOutboundBuffer[telegramOutboundBufferPos].retries = retries;
-	telegramOutboundBufferPos++;
-}
-
-void removeMessageFromTelegramOutboundBuffer()
-{
-	if (telegramOutboundBufferPos <= 0)
-		return;
-	for (uint8_t i = 0; i < telegramOutboundBufferPos; i++)
-	{
-		if (i < TELEGRAM_MESSAGE_BUFFER_SIZE - 1)
-			telegramOutboundBuffer[i] = telegramOutboundBuffer[i + 1];
-		else
-		{
-			telegramOutboundBuffer[i].message.clear();
-			telegramOutboundBuffer[i].user = 0;
-		}
-		yield();
-	}
-	telegramOutboundBufferPos--;
-}
-
-void sendToTelegram(int64_t user, String& message, uint8_t retries)
-{
-	// slice message to pieces
-	while (message.length() > 0)
-	{
-		if (message.length() >= TELEGRAM_MESSAGE_MAX_SIZE)
-		{
-			addMessageToTelegramOutboundBuffer(user, message.substring(0, TELEGRAM_MESSAGE_MAX_SIZE), retries);
-			message = message.substring(TELEGRAM_MESSAGE_MAX_SIZE);
-		}
-		else
-		{
-			addMessageToTelegramOutboundBuffer(user, message, retries);
-			message.clear();
-		}
-		yield();
-	}
-}
-
-void sendBufferToTelegram()
-{
-	if (telegramEnable && WiFi.status() == WL_CONNECTED && myBot.testConnection())
-	{
-		bool isRegisteredUser = false;
-		bool isAdmin = false;
-		TBMessage msg;
-		while (myBot.getNewMessage(msg))
-		{
-			yield();
-			//consider 1st sender an admin if admin is empty
-			if (getTelegramUser(0) != 0)
-			{
-				//check if it's registered user
-				for (uint8_t i = 0; i < TELEGRAM_USERS_NUMBER; i++)
-				{
-					yield();
-					if (getTelegramUser(i) == msg.sender.id)
-					{
-						isRegisteredUser = true;
-						if (i == 0)
-							isAdmin = true;
-						break;
-					}
-				}
-			}
-			yield();
-			//process data from TELEGRAM
-			if (isRegisteredUser && msg.text.length() > 0)
-			{
-				//sendToTelegram(msg.sender.id, deviceName + ": " + msg.text, telegramRetries);
-				String tmpCmd = msg.text;
-				String str = processCommand(tmpCmd, CHANNEL_TELEGRAM, isAdmin);
-				String message = deviceName;
-				message += F(": ");
-				message += str;
-				sendToTelegram(msg.sender.id, message, TELEGRAM_RETRIES);
-			}
-		}
-
-		if (telegramOutboundBuffer[0].message.length() != 0)
-		{
-			if (sendToTelegramServer(telegramOutboundBuffer[0].user, telegramOutboundBuffer[0].message))
-			{
-				removeMessageFromTelegramOutboundBuffer();
-			}
-			else
-			{
-				telegramOutboundBuffer[0].retries--;
-				if (telegramOutboundBuffer[0].retries <= 0)
-				{
-					removeMessageFromTelegramOutboundBuffer();
-				}
-			}
-		}
-	}
-}
-
-uint64_t getTelegramUser(uint8_t n)
-{
-	uint16_t singleUserLength = TELEGRAM_USERS_TABLE_size / TELEGRAM_USERS_NUMBER;
-	String userStr = readConfigString((TELEGRAM_USERS_TABLE_addr + n * singleUserLength), singleUserLength);
-	userStr.trim();
-	return StringToUint64(userStr);
-}
-
-#endif
-
-// GSM
-#ifdef GSM_ENABLE
-#include <SoftwareSerial.h>
-
-uint32_t gsmTimeOut = 0;
-bool gsmEnable = false;
-
-SoftwareSerial uart2(SOFT_UART_TX, SOFT_UART_RX);
-
-String getGsmUser(uint8_t n)
-{
-	const uint8_t singleUserLength = GSM_USERS_TABLE_size / GSM_USERS_NUMBER;
-	String userStr = readConfigString((GSM_USERS_TABLE_addr + n * singleUserLength), singleUserLength);
-	userStr.trim();
-	return userStr;
-}
-
-String sendATCommand(String cmd, bool waiting)
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	uart2.flush();
-	String _resp = "";
-	uart2.println(cmd);
-#ifdef DEBUG_MODE
-	Serial.print(F(">>"));
-	Serial.println(cmd);
-#endif
-	if (waiting)
-	{
-		const uint32_t _timeout = millis() + SMS_TIME_OUT;
-		while (!uart2.available() && millis() < _timeout)
-		{
-			yield();
-		}
-		while (uart2.available())
-		{
-			_resp += uart2.readString();
-			yield();
-		}
-#ifdef DEBUG_MODE
-		Serial.println("<<" + _resp);
-#endif
-		if (_resp.length() <= 0)
-		{
-#ifdef DEBUG_MODE
-			Serial.println("Timeout...");
-#endif
-		}
-
-		if (stopSerial)
-			uart2.end();
-		return _resp;
-	}
-	return _resp;
-}
-
-bool initModem()
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	bool resp = true;
-	String response = sendATCommand(AT_COMMAND_INIT1, true);
-	if (response.lastIndexOf(F("OK")) <= 0)
-		resp &= false;
-	response = sendATCommand(AT_COMMAND_INIT2, true);
-	if (response.lastIndexOf(F("OK")) <= 0)
-		resp &= false;
-	response = sendATCommand(AT_COMMAND_INIT3, true);
-	if (response.lastIndexOf(F("OK")) <= 0)
-		resp &= false;
-	response = sendATCommand(AT_COMMAND_INIT4, true);
-	if (response.lastIndexOf(F("OK")) <= 0)
-		resp &= false;
-	if (stopSerial)
-		uart2.end();
-
-	return resp;
-}
-
-bool sendSMS(String& phone, String& smsText)
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	String cmdTmp;
-	cmdTmp.reserve(175);
-	while (smsText.length() > 0)
-	{
-		yield();
-		initModem();
-		cmdTmp = AT_COMMAND_SEND;
-		cmdTmp.reserve(175);
-		cmdTmp += phone;
-		cmdTmp += F("\"");
-		sendATCommand(cmdTmp, true);
-		cmdTmp.clear();
-		if (smsText.length() > 150)
-		{
-			cmdTmp += smsText.substring(0, 150);
-			smsText = smsText.substring(151, smsText.length());
-		}
-		else
-		{
-			cmdTmp += smsText;
-			smsText.clear();
-		}
-
-#ifdef DEBUG_MODE
-		Serial.print(F("Sending SMS to "));
-		Serial.print(phone);
-		Serial.print(F(":\'"));
-		Serial.print(cmdTmp);
-		Serial.println(F("\'"));
-		Serial.println(String(cmdTmp.length()));
-#endif
-		for (uint16_t i = 0; i < cmdTmp.length(); i++)
-		{
-			uart2.write((char)cmdTmp[i]);
-			EspDelay(50);
-			yield();
-		}
-
-		EspDelay(500);
-		yield();
-		uart2.flush();
-		uart2.write((char)26);
-		yield();
-		cmdTmp.clear();
-		const uint32_t _timeout = millis() + SMS_TIME_OUT;
-		while (!uart2.available() && millis() < _timeout)
-		{
-			yield();
-		}
-
-		while (uart2.available())
-		{
-			cmdTmp += uart2.readString();
-			yield();
-		}
-
-		if (cmdTmp.length() <= 0)
-		{
-#ifdef DEBUG_MODE
-			//Serial.println("Timeout...");
-#endif
-		}
-
-		if (cmdTmp.lastIndexOf(F("OK")) > 0)
-		{
-#ifdef DEBUG_MODE
-			//Serial.println(F("SMS sent..."));
-#endif
-		}
-		else
-		{
-#ifdef DEBUG_MODE
-			//Serial.println(F("SMS not sent..."));
-#endif
-		}
-	}
-
-	if (stopSerial)
-		uart2.end();
-
-	if (cmdTmp.lastIndexOf(F("OK")) > 0)
-		return true;
-	return false;
-}
-
-smsMessage parseSMS(String& msg)
-{
-	String msgheader = "";
-	String msgbody = "";
-	String msgphone = "";
-
-	msg = msg.substring(msg.indexOf(F("+CMGR: ")));
-	msgheader = msg.substring(0, msg.indexOf("\r"));
-
-	msgbody = msg.substring(msgheader.length() + 2);
-	msgbody = msgbody.substring(0, msgbody.lastIndexOf(F("OK")));
-	msgbody.trim();
-
-	int firstIndex = msgheader.indexOf(F("\",\"")) + 3;
-	int secondIndex = msgheader.indexOf(F("\",\""), firstIndex);
-	msgphone = msgheader.substring(firstIndex, secondIndex);
-	if (msgphone.length() <= 0)
-		msgphone = SPACE;
-
-	smsMessage response;
-	response.PhoneNumber = msgphone;
-	for (uint8_t i = 0; i < GSM_USERS_NUMBER; i++)
-	{
-		String gsmUser = getGsmUser(i);
-		if (msgphone == gsmUser)
-		{
-			if (i == 0)
-				response.IsAdmin = true;
-			response.Message = msgbody;
-			break;
-		}
-		yield();
-	}
-
-	return response;
-}
-
-smsMessage getSMS()
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	initModem();
-	//getModemStatus();
-	smsMessage sms;
-	for (int i = 1; i <= 15; i++)
-	{
-		const String cmd = String(AT_COMMAND_GET_SMS) + String(i);
-		String _response = sendATCommand(cmd, true);
-		_response.trim();
-		if (_response.lastIndexOf(F("OK")) > 0)
-		{
-			deleteSMS(i);
-			sms = parseSMS(_response);
-			break;
-		}
-		yield();
-	}
-#ifdef DEBUG_MODE
-	//Serial.println("Sms: " + sms.Message);
-	//Serial.println("From: " + sms.PhoneNumber);
-#endif
-	if (stopSerial)
-		uart2.end();
-
-	return sms;
-}
-
-bool deleteSMS(int n)
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	const String cmd = String(AT_COMMAND_DELETE_SMS) + String(n);
-	const String response = sendATCommand(cmd, true);
-	if (stopSerial)
-		uart2.end();
-	if (response.lastIndexOf(F("OK")) > 0)
-		return true;
-	else
-		return false;
-}
-
-String getModemStatus()
-{
-	bool stopSerial = false;
-	if (!uart2.isListening())
-	{
-		uart2.begin(SOFT_UART_SPEED, SWSERIAL_8N1, SOFT_UART_TX, SOFT_UART_RX, false, 64);
-		stopSerial = true;
-	}
-
-	String response = sendATCommand(AT_COMMAND_STATUS1, true);
-	response += sendATCommand(AT_COMMAND_STATUS2, true);
-	response += sendATCommand(AT_COMMAND_STATUS3, true);
-	response += sendATCommand(AT_COMMAND_STATUS4, true);
-
-	if (stopSerial)
-		uart2.end();
-
-	//if (response.lastIndexOf(F("OK")) > 0) return true;
-	//else return false;
-	return response;
-}
-
-#endif
-
-// Google script
-#ifdef GSCRIPT_ENABLE
-#include <HTTPSRedirect.h>
-
-bool gScriptEnable = false;
-
-bool sendValueToGoogle(String& value)
-{
-	bool flag = false;
-	if (gScriptEnable && WiFi.status() == WL_CONNECTED)
-	{
-		const String host = F("script.google.com");
-		//const char* googleRedirHost = "script.googleusercontent.com";
-		//const char* fingerprint = "C2 00 62 1D F7 ED AF 8B D1 D5 1D 24 D6 F0 A1 3A EB F1 B4 92";
-		//String[] valuesNames = {"?tag", "?value="};
-		String gScriptId = readConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size);
-		const uint16_t httpsPort = 443;
-
-		HTTPSRedirect* gScriptClient = new HTTPSRedirect(httpsPort);
-		gScriptClient->setInsecure();
-		gScriptClient->setPrintResponseBody(true);
-
-		for (uint8_t i = 0; i < 5; i++)
-		{
-			int retval = gScriptClient->connect(host.c_str(), httpsPort);
-			if (retval == 1)
-			{
-				flag = true;
-				break;
-			}
-#ifdef DEBUG_MODE
-			//else Serial.println(F("Connection failed. Retrying..."));
-#endif
-			yield();
-		}
-		if (flag)
-		{
-			String urlFinal = F("/macros/s/");
-			urlFinal += gScriptId;
-			urlFinal += F("/exec");
-			urlFinal += F("?value=");
-			urlFinal += value;
-			flag = gScriptClient->GET(urlFinal, host.c_str(), true);
-			if (flag)
-			{
-				gScriptClient->stopAll();
-				gScriptClient->~HTTPSRedirect();
-			}
-		}
-	}
-	return flag;
-}
-#endif
-
-// PushingBox
-#ifdef PUSHINGBOX_ENABLE
-#define PUSHINGBOX_SUBJECT F("device_name")
-
-bool pushingBoxEnable = false;
-
-bool sendToPushingBoxServer(String message)
-{
-	bool flag = false;
-	if (pushingBoxEnable && WiFi.status() == WL_CONNECTED)
-	{
-		WiFiClient client;
-
-		const String pushingBoxServer = String(F("api.pushingbox.com"));
-		if (client.connect(pushingBoxServer, 80))
-		{
-			String pushingBoxId = readConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size);
-			String pushingBoxParameter = readConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size);
-
-			String postStr = F("devid=");
-			postStr += pushingBoxId;
-			postStr += F("&");
-			postStr += PUSHINGBOX_SUBJECT;
-			postStr += F("=");
-			postStr += deviceName;
-			postStr += F("&");
-			postStr += pushingBoxParameter;
-			postStr += F("=");
-			postStr += String(message);
-			postStr += F("\r\n\r\n");
-
-			client.print(F("POST /pushingbox HTTP/1.1\n"));
-			client.print(F("Host: "));
-			client.print(pushingBoxServer);
-			client.print(F("\nConnection: close\n"));
-			client.print(F("Content-Type: application/x-www-form-urlencoded\n"));
-			client.print(F("Content-Length: "));
-			client.print(postStr.length());
-			client.print(F("\n\n"));
-			client.print(postStr);
-			// check server reply
-			flag = true;
-		}
-		client.stop();
-	}
-	return flag;
-}
-
-bool sendToPushingBox(String& message)
-{
-	const uint16_t pushingBoxMessageMaxSize = 1000;
-	bool result = true;
-	// slice message to pieces
-	while (message.length() > 0)
-	{
-		if (message.length() >= pushingBoxMessageMaxSize)
-		{
-			result &= sendToPushingBoxServer(message.substring(0, pushingBoxMessageMaxSize));
-			message = message.substring(pushingBoxMessageMaxSize);
-		}
-		else
-		{
-			result &= sendToPushingBoxServer(message);
-			message.clear();
-		}
-		yield();
-	}
-	return result;
-}
-#endif
-
-// HTTP server
-#ifdef HTTP_ENABLE
-#include <ESP8266WebServer.h>
-
-uint16_t httpPort = 80;
-ESP8266WebServer http_server(httpPort);
-bool httpServerEnable = false;
-
-void handleRoot()
-{
-	sensorDataCollection sensorData = collectData();
-	String str = F("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: ");
-	str += String(uint16_t(checkSensorPeriod / 1000UL));
-	str += F("\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\n");
-	str += parseSensorReport(sensorData, F("<br>"), false);
-	str += F("<br />\r\n</html>\r\n");
-	http_server.sendContent(str);
-}
-
-/*void handleRoot()
-{
-	sensorDataCollection sensorData = collectData();
-	String str = F("Connection: close\r\nRefresh: ");
-	str += String(uint16_t(checkSensorPeriod / 1000UL));
-	str += F("\r\n\r\n<!DOCTYPE HTML>\r\n<html>\r\n");
-	str += parseSensorReport(sensorData, F("<br>"), false);
-	str += F("<br />\r\n</html>\r\n");
-	http_server.send(200, F("text/html"), str);
-}*/
-
-void handleNotFound()
-{
-	String message = F("File Not Found\n\nURI: ");
-	message += http_server.uri();
-	message += F("\nMethod: ");
-	message += (http_server.method() == HTTP_GET) ? F("GET") : F("POST\nArguments: ");
-	message += http_server.args();
-	message += EOL;
-	for (uint8_t i = 0; i < http_server.args(); i++)
-	{
-		message += SPACE;
-		message += http_server.argName(i);
-		message += F(": ");
-		message += http_server.arg(i);
-		message += EOL;
-		yield();
-	}
-	http_server.send(404, F("text/plain"), message);
-}
-#endif
-
-// Log history
-#ifdef LOG_ENABLE
-// Log settings for 32 hours of storage
-#define LOG_SIZE 120 // Save sensors value each 10 minutes: ( 32hours * 60minutes/hour ) / 10minutes/pcs = 192 pcs
-
-sensorDataCollection history_log[LOG_SIZE];
-uint16_t history_record_number = 0;
-uint32_t logLastTime = 0;
-//uint32_t logPeriod = 60 / (LOG_SIZE / 32) * 60 * 1000 / 5; // 60minutes/hour / ( 192pcs / 32hours ) * 60seconds/minute * 1000 msec/second
-uint32_t logPeriod = 600000UL;
-
-void addToLog(sensorDataCollection& record)
-{
-	history_log[history_record_number] = record;
-	history_record_number++;
-
-	//if log is full - roll back to 0
-	if (history_record_number >= LOG_SIZE)
-	{
-		history_record_number = 0;
-	}
-}
-#endif
+#include "feature_core_actions.h"
 
 void setup()
 {
@@ -1793,7 +793,7 @@ void setup()
 #ifdef TELEGRAM_ENABLE
 	for (uint8_t b = 0; b < TELEGRAM_MESSAGE_BUFFER_SIZE; b++)
 	{
-		telegramOutboundBuffer[0].message.reserve(TELEGRAM_MESSAGE_MAX_SIZE);
+		telegramOutboundBuffer[b].message.reserve(TELEGRAM_MESSAGE_MAX_SIZE);
 		yield();
 	}
 #endif
@@ -2072,7 +1072,7 @@ void setup()
 			//setting interrupt modes
 			l = INTERRUPT_MODE_size / PIN_NUMBER;
 			uint8_t intModeCfg = readConfigString(INTERRUPT_MODE_addr + num * l, l).toInt();
-			if (intModeCfg >= 1 && intModeCfg < intModeList->length())
+			if (intModeCfg >= 1 && intModeCfg < INT_MODE_LIST_NUMBER)
 			{
 				bitSet(INTERRUPT_PINS, num);
 				if (num == 0)
@@ -2160,25 +1160,43 @@ void loop()
 	//check if it's time to get sensors value
 	if (millis() - checkSensorLastTime > checkSensorPeriod)
 	{
+		lastSensorData = collectData();
 		if (autoReport > 0)
 		{
-			sensorDataCollection sensorData = collectData();
+			sensorDataCollection& sensorData = lastSensorData;
+			String report;
+			bool needReport = bitRead(autoReport, CHANNEL_UART)
+#ifdef TELNET_ENABLE
+				|| bitRead(autoReport, CHANNEL_TELNET)
+#endif
+#ifdef TELEGRAM_ENABLE
+				|| bitRead(autoReport, CHANNEL_TELEGRAM)
+#endif
+#ifdef GSCRIPT_ENABLE
+				|| bitRead(autoReport, CHANNEL_GSCRIPT)
+#endif
+#ifdef PUSHINGBOX_ENABLE
+				|| bitRead(autoReport, CHANNEL_PUSHINGBOX)
+#endif
+				;
+			if (needReport)
+			{
+				report = parseSensorReport(sensorData, EOL, false);
+			}
 			if (bitRead(autoReport, CHANNEL_UART))
 			{
-				String str = parseSensorReport(sensorData, EOL, false);
 #ifdef DEBUG_MODE
-				Serial.println(str);
+				Serial.println(report);
 #endif
 			}
 #ifdef TELNET_ENABLE
 			if ((WiFi.status() == WL_CONNECTED || WiFi.softAPgetStationNum() > 0) && telnetEnable && bitRead(autoReport, CHANNEL_TELNET))
 			{
-				String str = parseSensorReport(sensorData, EOL, false);
 				for (uint8_t i = 0; i < TELNET_MAX_CONNECTIONS; i++)
 				{
 					if (serverClient[i] && serverClient[i].connected())
 					{
-						sendToTelnet(str, i);
+						sendToTelnet(report, i);
 					}
 					yield();
 				}
@@ -2199,13 +1217,15 @@ void loop()
 #ifdef TELEGRAM_ENABLE
 				if (telegramEnable && bitRead(autoReport, CHANNEL_TELEGRAM))
 				{
-					String str = parseSensorReport(sensorData, EOL, false);
 					for (uint8_t i = 0; i < TELEGRAM_USERS_NUMBER; i++)
 					{
 						uint64_t user = getTelegramUser(i);
 						if (user > 0)
 						{
-							sendToTelegram(user, str, TELEGRAM_RETRIES);
+							// sendToTelegram consumes/clears its message arg while slicing, so each
+							// user (and the shared `report` used by later channels) needs its own copy.
+							String telegramMsg = report;
+							sendToTelegram(user, telegramMsg, TELEGRAM_RETRIES);
 						}
 						yield();
 					}
@@ -2215,16 +1235,14 @@ void loop()
 #ifdef GSCRIPT_ENABLE
 				if (gScriptEnable && bitRead(autoReport, CHANNEL_GSCRIPT))
 				{
-					String str = parseSensorReport(sensorData, EOL, false);
-					sendValueToGoogle(str);
+					sendValueToGoogle(report);
 				}
 #endif
 
 #ifdef PUSHINGBOX_ENABLE
 				if (pushingBoxEnable && bitRead(autoReport, CHANNEL_PUSHINGBOX))
 				{
-					String str = parseSensorReport(sensorData, EOL, false);
-					sendToPushingBox(str);
+					sendToPushingBox(report);
 				}
 #endif
 			}
@@ -2391,7 +1409,13 @@ void loop()
 		if (mqttEnable)
 		{
 			if (!mqtt_client.connected())
-				mqtt_connect();
+			{
+				if (millis() - mqttLastReconnectAttempt > MQTT_RECONNECT_DELAY)
+				{
+					mqttLastReconnectAttempt = millis();
+					mqtt_connect();
+				}
+			}
 			else
 				mqtt_client.loop();
 			if (mqttCommand.length() > 0)
@@ -2476,7 +1500,7 @@ void loop()
 		if (millis() - displaySwitchedLastTime > displaySwitchPeriod)
 		{
 			displaySwitchedLastTime = millis();
-			sensorDataCollection sensorData = collectData();
+			sensorDataCollection& sensorData = lastSensorData; // reuse the periodic reading instead of re-reading all sensors every display tick
 
 #ifdef TM1637DISPLAY_ENABLE
 
@@ -2624,7 +1648,7 @@ void loop()
 
 uint32_t collectEepromSize()
 {
-	return FINAL_CRC_addr + FINAL_CRC_size + 100; // add 100 bytes as a reserve
+	return FINAL_CRC_addr + FINAL_CRC_size + 16; // small reserve for future config additions
 }
 
 String readConfigString(uint16_t startAt, uint16_t maxlen)
@@ -2946,12 +1970,12 @@ String set_output(uint8_t outNum, String& outStateStr)
 	return str;
 }
 
-String printConfig(bool toJson = false)
+String printConfig(bool toJson)
 {
 	String eq = F(": ");
 	String delimiter = F("\r\n");
 	String str = "";
-	//str.reserve(3000);
+	str.reserve(3000);
 	if (toJson)
 	{
 		delimiter = F("\",\r\n\"");
@@ -3007,7 +2031,7 @@ String printConfig(bool toJson = false)
 	str += REPLY_WIFI_MODE;
 	str += eq;
 	long m = readConfigString(WIFI_MODE_addr, WIFI_MODE_size).toInt();
-	if (m < 0 || m >= wifiModes->length())
+	if (m < 0 || m >= WIFI_MODES_NUMBER)
 		m = WIFI_AP_STA;
 	str += wifiModes[m];
 	str += delimiter;
@@ -3125,7 +2149,7 @@ String printConfig(bool toJson = false)
 			str += F(", interrupt mode ");
 			uint16_t l = INTERRUPT_MODE_size / PIN_NUMBER;
 			uint8_t n = readConfigString(INTERRUPT_MODE_addr + m * l, l).toInt();
-			if (n < 0 || n >= intModeList->length())
+			if (n < 0 || n >= INT_MODE_LIST_NUMBER)
 				n = 0;
 			str += intModeList[n];
 		}
@@ -3570,7 +2594,7 @@ String printConfig(bool toJson = false)
 	return str;
 }
 
-String printStatus(bool toJson = false)
+String printStatus(bool toJson)
 {
 	String delimiter = F("\r\n");
 	String eq = F(": ");
@@ -3959,131 +2983,31 @@ sensorDataCollection collectData()
 	sensorData.second = second();
 
 #ifdef AMS2320_ENABLE
-	am2320 = Adafruit_AM2320(&Wire);
-	if (!am2320.begin())
-	{
-		am2320_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find AMS2320 sensor!"));
-#endif
-	}
-	else
-	{
-		am2320_enable = true;
-		sensorData.ams_humidity = am2320.readHumidity();
-		sensorData.ams_temp = am2320.readTemperature();
-		if (isnan(sensorData.ams_temp))
-			am2320_enable = false;
-	}
+	readAms2320(sensorData);
 #endif
 
 #ifdef HTU21D_ENABLE
-	htu21d = Adafruit_HTU21DF();
-	if (!htu21d.begin())
-	{
-		htu21d_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find HTU21D sensor!"));
-#endif
-	}
-	else
-	{
-		htu21d_enable = true;
-		sensorData.htu21d_humidity = htu21d.readHumidity();
-		sensorData.htu21d_temp = htu21d.readTemperature();
-	}
+	readHtu21d(sensorData);
 #endif
 
 #ifdef BME280_ENABLE
-	if (!bme280.begin(BME280_ENABLE))
-	{
-		bme280_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find BME280 sensor!"));
-#endif
-	}
-	else
-	{
-		bme280_enable = true;
-		sensorData.bme280_humidity = bme280.readHumidity();
-		sensorData.bme280_temp = bme280.readTemperature();
-		sensorData.bme280_pressure = bme280.readPressure();
-	}
+	readBme280(sensorData);
 #endif
 
 #ifdef BMP180_ENABLE
-	if (!bmp180.begin())
-	{
-		bmp180_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find BMP180 sensor!"));
-#endif
-	}
-	else
-	{
-		bmp180_enable = true;
-		sensorData.bmp180_temp = bmp180.readTemperature();
-		sensorData.bmp180_pressure = bmp180.readPressure();
-	}
+	readBmp180(sensorData);
 #endif
 
 #ifdef AHTx0_ENABLE
-	if (!ahtx0.begin())
-	{
-		ahtx0_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find AHTx0 sensor!"));
-#endif
-	}
-	else
-	{
-		ahtx0_enable = true;
-		sensors_event_t humidity, temp;
-		ahtx0.getEvent(&humidity, &temp);
-		sensorData.ahtx0_humidity = humidity.relative_humidity;
-		sensorData.ahtx0_temp = temp.temperature;
-	}
+	readAhtx0(sensorData);
 #endif
 
 #ifdef DS18B20_ENABLE
-	ds1820.begin();
-	if (ds1820.getDS18Count() <= 0)
-	{
-		ds1820_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find DS18B20 sensor!"));
-#endif
-	}
-	else
-	{
-		ds1820_enable = true;
-		ds1820.requestTemperatures();
-		EspDelay(5);
-		sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
-		if (sensorData.ds1820_temp > 100)
-		{
-			ds1820.requestTemperatures();
-			EspDelay(5);
-			sensorData.ds1820_temp = ds1820.getTempCByIndex(0);
-		}
-	}
+	readDs18b20(sensorData);
 #endif
 
 #ifdef DHT_ENABLE
-	dht.begin();
-	if (!dht.read())
-	{
-		dht_enable = false;
-#ifdef DEBUG_MODE
-		Serial.println(F("Can't find DHT sensor!"));
-#endif
-	}
-	else
-	{
-		dht_enable = true;
-		sensorData.dht_humidity = dht.readHumidity();
-		sensorData.dht_temp = dht.readTemperature();
-	}
+	readDht(sensorData);
 #endif
 
 #ifdef MH_Z19_UART_ENABLE
@@ -4138,7 +3062,34 @@ sensorDataCollection collectData()
 	return sensorData;
 }
 
-String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJson = false)
+// appendInt/appendUInt/appendFloat write into a stack buffer instead of building
+// a temporary String per numeric field (parseSensorReport ran ~10+ of those per
+// call); avoids the extra heap churn on every autoreport cycle.
+void appendInt(String& str, long value)
+{
+	char buf[12];
+	ltoa(value, buf, 10);
+	str += buf;
+}
+
+void appendUInt(String& str, unsigned long value)
+{
+	char buf[12];
+	ultoa(value, buf, 10);
+	str += buf;
+}
+
+void appendFloat(String& str, float value, uint8_t decimals)
+{
+	// 33 bytes matches Arduino's own String(float) conversion buffer (WString.cpp) -
+	// dtostrf() does no bounds checking, so this has to be big enough for the
+	// worst-case finite float (~40 digits fixed-notation for FLT_MAX) plus sign/point/null.
+	char buf[33];
+	dtostrf(value, 0, decimals, buf);
+	str += buf;
+}
+
+String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJson)
 {
 	String eq = F("=");
 	if (toJson)
@@ -4163,35 +3114,35 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 
 	str += F("Time");
 	str += eq;
-	str += String(data.hour);
+	appendInt(str, data.hour);
 	str += COLON;
-	str += String(data.minute);
+	appendInt(str, data.minute);
 	str += COLON;
-	str += String(data.second);
+	appendInt(str, data.second);
 	str += SPACE;
-	str += String(data.year);
+	appendInt(str, data.year);
 	str += F("/");
-	str += String(data.month);
+	appendInt(str, data.month);
 	str += F("/");
-	str += String(data.day);
+	appendInt(str, data.day);
 
 #ifdef MH_Z19_UART_ENABLE
 	str += delimiter;
 	str += F("UART CO2");
 	str += eq;
-	str += String(data.mh_uart_co2);
+	appendInt(str, data.mh_uart_co2);
 	str += delimiter;
 
 	str += F("MH-Z19 t");
 	str += eq;
-	str += String(data.mh_temp);
+	appendInt(str, data.mh_temp);
 #endif
 
 #ifdef MH_Z19_PPM_ENABLE
 	str += delimiter;
 	str += F("MH-Z19 CO2");
 	str += eq;
-	str += String(data.mh_ppm_co2);
+	appendInt(str, data.mh_ppm_co2);
 #endif
 
 #ifdef AMS2320_ENABLE
@@ -4202,14 +3153,14 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 			str += delimiter;
 			str += F("AMS2320 t");
 			str += eq;
-			str += String(data.ams_temp);
+			appendFloat(str, data.ams_temp);
 		}
 		if (!isnan(data.ams_temp))
 		{
 			str += delimiter;
 			str += F("AMS2320 h");
 			str += eq;
-			str += String(data.ams_humidity);
+			appendFloat(str, data.ams_humidity);
 		}
 	}
 #endif
@@ -4220,11 +3171,11 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += delimiter;
 		str += F("HTU21D t");
 		str += eq;
-		str += String(data.htu21d_temp);
+		appendFloat(str, data.htu21d_temp);
 		str += delimiter;
 		str += F("HTU21D h");
 		str += eq;
-		str += String(data.htu21d_humidity);
+		appendFloat(str, data.htu21d_humidity);
 	}
 #endif
 
@@ -4234,15 +3185,15 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += delimiter;
 		str += F("BME280 t");
 		str += eq;
-		str += String(data.bme280_temp);
+		appendFloat(str, data.bme280_temp);
 		str += delimiter;
 		str += F("BME280 h");
 		str += eq;
-		str += String(data.bme280_humidity);
+		appendFloat(str, data.bme280_humidity);
 		str += delimiter;
 		str += F("BME280 p");
 		str += eq;
-		str += String(data.bme280_pressure);
+		appendFloat(str, data.bme280_pressure);
 	}
 #endif
 
@@ -4252,11 +3203,11 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += delimiter;
 		str += F("BMP180 t");
 		str += eq;
-		str += String(data.bmp180_temp);
+		appendFloat(str, data.bmp180_temp);
 		str += delimiter;
 		str += F("BMP180 p");
 		str += eq;
-		str += String(data.bmp180_pressure);
+		appendFloat(str, data.bmp180_pressure);
 	}
 #endif
 
@@ -4266,11 +3217,11 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += delimiter;
 		str += F("AHTx0 t");
 		str += eq;
-		str += String(data.ahtx0_temp);
+		appendFloat(str, data.ahtx0_temp);
 		str += delimiter;
 		str += F("AHTx0 h");
 		str += eq;
-		str += String(data.ahtx0_humidity);
+		appendFloat(str, data.ahtx0_humidity);
 	}
 #endif
 
@@ -4280,7 +3231,7 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += delimiter;
 		str += F("DS18B20 t");
 		str += eq;
-		str += String(data.ds1820_temp);
+		appendFloat(str, data.ds1820_temp);
 	}
 #endif
 
@@ -4291,13 +3242,13 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 		str += DHT_ENABLE;
 		str += F("DHT t");
 		str += eq;
-		str += String(data.dht_temp);
+		appendFloat(str, data.dht_temp);
 		str += delimiter;
 
 		str += DHT_ENABLE;
 		str += F("DHT h");
 		str += eq;
-		str += String(data.dht_humidity);
+		appendFloat(str, data.dht_humidity);
 	}
 #endif
 
@@ -4305,7 +3256,7 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 	str += delimiter;
 	str += F("ADC");
 	str += eq;
-	str += String(data.adc);
+	appendInt(str, data.adc);
 #endif
 
 	if (INTERRUPT_PINS > 0)
@@ -4316,9 +3267,9 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 			{
 				str += delimiter;
 				str += F("COUNTER");
-				str += String(num + 1);
+				appendInt(str, num + 1);
 				str += eq;
-				str += String(data.InterruptCounters[num]);
+				appendUInt(str, data.InterruptCounters[num]);
 			}
 			yield();
 		}
@@ -4332,9 +3283,9 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 			{
 				str += delimiter;
 				str += F("IN");
-				str += String(num + 1);
+				appendInt(str, num + 1);
 				str += eq;
-				str += String(data.inputs[num]);
+				appendInt(str, data.inputs[num]);
 			}
 			yield();
 		}
@@ -4348,9 +3299,9 @@ String parseSensorReport(sensorDataCollection& data, String delimiter, bool toJs
 			{
 				str += delimiter;
 				str += F("OUT");
-				str += String(num + 1);
+				appendInt(str, num + 1);
 				str += eq;
-				str += String(data.outputs[num]);
+				appendInt(str, data.outputs[num]);
 			}
 			yield();
 		}
@@ -4366,7 +3317,7 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 	cmd.command.toLowerCase();
 	String eq = F("=\"");
 	String str = "";
-	str.reserve(2048);
+	str.reserve(96);
 	if (channel == CHANNEL_GSM)
 		str += F("^");
 
@@ -4385,1325 +3336,65 @@ String processCommand(String& command, uint8_t channel, bool isAdmin)
 	}
 	else if (isAdmin)
 	{
-		if (cmd.command == CMD_GET_CONFIG)
-		{
-			str += printConfig();
-		}
-		else if (cmd.command == CMD_TIME_SET)
-		{
-			uint8_t _hr = cmd.arguments[0].substring(11, 13).toInt();
-			uint8_t _min = cmd.arguments[0].substring(14, 16).toInt();
-			uint8_t _sec = cmd.arguments[0].substring(17, 19).toInt();
-			uint8_t _day = cmd.arguments[0].substring(8, 10).toInt();
-			uint8_t _month = cmd.arguments[0].substring(5, 7).toInt();
-			uint16_t _yr = cmd.arguments[0].substring(0, 4).toInt();
-			setTime(_hr, _min, _sec, _day, _month, _yr);
-			str += REPLY_TIME_SET;
-			str += eq;
-			str += String(_yr);
-			str += F(".");
-			str += String(_month);
-			str += F(".");
-			str += String(_day);
-			str += SPACE;
-			str += String(_hr);
-			str += COLON;
-			str += String(_min);
-			str += COLON;
-			str += String(_sec);
-			str += QUOTE;
-			timeIsSet = true;
-#ifdef NTP_TIME_ENABLE
-			NTPenable = false;
-#endif
-		}
-		else if (cmd.command == CMD_CHECK_PERIOD)
-		{
-			checkSensorPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			str += REPLY_CHECK_PERIOD;
-			str += eq;
-			str += String(uint16_t(checkSensorPeriod / 1000UL));
-			str += QUOTE;
-			writeConfigString(SENSOR_READ_DELAY_addr, SENSOR_READ_DELAY_size, String(uint16_t(checkSensorPeriod / 1000UL)));
-		}
-		else if (cmd.command == CMD_DEVICE_NAME)
-		{
-			deviceName = cmd.arguments[0];
-			str += REPLY_DEVICE_NAME;
-			str += eq;
-			str += deviceName;
-			str += QUOTE;
-			writeConfigString(DEVICE_NAME_addr, DEVICE_NAME_size, deviceName);
-		}
-		else if (cmd.command == CMD_STA_SSID)
-		{
-			str += REPLY_STA_SSID;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(STA_SSID_addr, STA_SSID_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_STA_PASS)
-		{
-			str += REPLY_STA_PASS;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(STA_PASS_addr, STA_PASS_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_AP_SSID)
-		{
-			str += REPLY_AP_SSID;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(AP_SSID_addr, AP_SSID_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_AP_PASS)
-		{
-			str += REPLY_AP_PASS;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(AP_PASS_addr, AP_PASS_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_WIFI_STANDART)
-		{
-			str += REPLY_WIFI_STANDART;
-			str += eq;
-			if (cmd.arguments[0] == F("B") || cmd.arguments[0] == F("G") || cmd.arguments[0] == F("N"))
-			{
-				str += cmd.arguments[0];
-				str += QUOTE;
-				writeConfigString(WIFI_STANDART_addr, WIFI_STANDART_size, cmd.arguments[0]);
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += cmd.arguments[0];
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_WIFI_POWER)
-		{
-			str += REPLY_WIFI_POWER;
-			str += eq;
-			float power = cmd.arguments[0].toFloat();
-			if (power >= 0 && power <= 20.5)
-			{
-				str += String(power);
-				writeConfigFloat(WIFI_POWER_addr, power);
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += cmd.arguments[0];
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_WIFI_MODE)
-		{
-			cmd.arguments[0].toUpperCase();
-			uint8_t wifi_mode = 255;
-			str += REPLY_WIFI_MODE;
-			str += eq;
-			if (cmd.arguments[0] == wifiModes[WIFI_OFF])
-			{
-				wifi_mode = WIFI_OFF;
-			}
-			else if (cmd.arguments[0] == wifiModes[WIFI_STA])
-			{
-				wifi_mode = WIFI_STA;
-			}
-			else if (cmd.arguments[0] == wifiModes[WIFI_AP])
-			{
-				wifi_mode = WIFI_AP;
-			}
-			else if (cmd.arguments[0] == wifiModes[WIFI_AP_STA])
-			{
-				wifi_mode = WIFI_AP_STA;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-			if (wifi_mode != 255)
-			{
-				str += wifiModes[wifi_mode];
-				writeConfigString(WIFI_MODE_addr, WIFI_MODE_size, String(wifi_mode));
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += cmd.arguments[0];
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_WIFI_ENABLE)
-		{
-			str += REPLY_WIFI_ENABLE;
-			str += eq;
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				wifiEnable = false;
-				Start_OFF_Mode();
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				wifiEnable = true;
-				startWiFi();
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_RESET)
-		{
-			if (channel == CHANNEL_TELEGRAM)
-			{
-				uartCommand = F("reset");
-				uartReady = true;
-			}
-			else
-			{
-#ifdef DEBUG_MODE
-				//Serial.println(F("Resetting..."));
-				//Serial.flush();
-#endif
-				ESP.restart();
-			}
-		}
-		else if (cmd.command == CMD_AUTOREPORT)
-		{
-			autoReport = 0;
-			str += REPLY_AUTOREPORT;
-			str += eq;
-			for (uint8_t i = 0; i < cmd.tokensNumber; i++)
-			{
-				for (uint8_t b = 0; b < CHANNELS_NUMBER; b++)
-				{
-					if (cmd.arguments[i].indexOf(channels[b]) >= 0)
-					{
-						bitSet(autoReport, b);
-						str += channels[b];
-						str += F(",");
-					}
-					yield();
-				}
-			}
-			writeConfigString(AUTOREPORT_addr, AUTOREPORT_size, String(autoReport));
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_PIN_MODE_SET)
-		{
-			str += REPLY_PIN_MODE_SET;
-			str += eq;
-			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
-			{
-				cmd.arguments[0].toUpperCase();
-				uint8_t intModeNum = 255;
-				if (cmd.arguments[0] == pinModeList[INPUT])
-					intModeNum = INPUT;
-				else if (cmd.arguments[0] == pinModeList[OUTPUT])
-					intModeNum = OUTPUT;
-				else if (cmd.arguments[0] == pinModeList[INPUT_PULLUP])
-					intModeNum = INPUT_PULLUP;
-				else if (cmd.arguments[0] == pinModeList[3])
-					intModeNum = 3; //off
-				else
-				{
-					str += REPLY_INCORRECT;
-					str += F("pin mode: ");
-					str += cmd.arguments[0];
-				}
-
-				if (intModeNum != 255)
-				{
-					uint16_t l = PIN_MODE_size / PIN_NUMBER;
-					writeConfigString(PIN_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
-
-					str += String(cmd.index);
-					str += F(" mode: ");
-					str += pinModeList[intModeNum];
-				}
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += F("pin: ");
-				str += String(cmd.index);
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_INTERRUPT_MODE_SET)
-		{
-			str += REPLY_INTERRUPT_MODE_SET;
-			str += eq;
-			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
-			{
-				cmd.arguments[0].toUpperCase();
-				uint8_t intModeNum = 255;
-				if (cmd.arguments[0] == intModeList[0])
-					intModeNum = 0;
-				else if (cmd.arguments[0] == intModeList[RISING])
-					intModeNum = RISING;
-				else if (cmd.arguments[0] == intModeList[FALLING])
-					intModeNum = FALLING;
-				else if (cmd.arguments[0] == intModeList[CHANGE])
-					intModeNum = CHANGE;
-				else
-				{
-					str += REPLY_INCORRECT;
-					str += F("INT mode: ");
-					str += cmd.arguments[0];
-				}
-				if (intModeNum != 255)
-				{
-					uint16_t l = INTERRUPT_MODE_size / PIN_NUMBER;
-					writeConfigString(INTERRUPT_MODE_addr + (cmd.index - 1) * l, l, String(intModeNum));
-					str += String(cmd.index);
-					str += F(" mode: ");
-					str += intModeList[intModeNum];
-				}
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += F("INT: ");
-				str += String(cmd.index);
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_OUTPUT_INIT_SET)
-		{
-			str += REPLY_OUTPUT_INIT_SET;
-			str += eq;
-			if (cmd.index >= 1 && cmd.index <= PIN_NUMBER && !bitRead(SIGNAL_PINS, cmd.index - 1))
-			{
-				if (cmd.arguments[0] != SWITCH_ON && cmd.arguments[0] != SWITCH_OFF)
-				{
-					uint16_t outState = 0;
-					outState = cmd.arguments[0].toInt();
-					cmd.arguments[0] = String(outState);
-				}
-				uint16_t l = OUTPUT_INIT_size / PIN_NUMBER;
-				writeConfigString(OUTPUT_INIT_addr + (cmd.index - 1) * l, l, cmd.arguments[0]);
-				str += String(cmd.index);
-				str += F(" initial state: ");
-				str += cmd.arguments[0];
-			}
-			else
-			{
-				str += REPLY_INCORRECT;
-				str += F("OUT");
-				str += String(cmd.index);
-			}
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_OUTPUT_SET)
-		{
-			str += set_output(cmd.index, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_TEMERATURE_OFFSET)
-		{
-			str += REPLY_TEMERATURE_OFFSET;
-			str += eq;
-			float t = cmd.arguments[0].toFloat();
-			str += String(t);
-			writeConfigString(TEMPERATURE_OFFSET_addr, TEMPERATURE_OFFSET_size, String(t));
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_HUMIDITY_OFFSET)
-		{
-			str += REPLY_HUMIDITY_OFFSET;
-			str += eq;
-			int t = cmd.arguments[0].toInt();
-			str += String(t);
-			writeConfigString(HUMIDITY_OFFSET_addr, HUMIDITY_OFFSET_size, String(t));
-			str += QUOTE;
-		}
-		else if (cmd.command == CMD_CO2_OFFSET)
-		{
-			str += REPLY_CO2_OFFSET;
-			str += eq;
-			int t = cmd.arguments[0].toInt();
-			str += String(t);
-			writeConfigString(CO2_OFFSET_addr, CO2_OFFSET_size, String(t));
-			str += QUOTE;
-		}
-
+		// NOTE: CMD_RESET is grouped here with the other core/device commands
+		// (tryHandleCoreCommand) instead of staying in its original position
+		// right after the WiFi commands. Command strings are unique so this
+		// does not change behavior, but it is a deliberate reordering - see
+		// the refactor report for details.
+		if (tryHandleCoreCommand(cmd, str, eq, channel, isAdmin)) {}
+		else if (tryHandleWifiCommand(cmd, str, eq, channel, isAdmin)) {}
+		else if (tryHandlePinCommand(cmd, str, eq, channel, isAdmin)) {}
+		else if (tryHandleSensorOffsetCommand(cmd, str, eq, channel, isAdmin)) {}
 #ifdef LOG_ENABLE
-		else if (cmd.command == CMD_LOG_PERIOD)
-		{
-			logPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			str += REPLY_LOG_PERIOD;
-			str += eq;
-			str += String(uint16_t(logPeriod / 1000UL));
-			str += QUOTE;
-			writeConfigString(LOG_PERIOD_addr, LOG_PERIOD_size, String(uint16_t(logPeriod / 1000UL)));
-		}
-		//getLog - to be implemented
-		else if (cmd.command == CMD_GETLOG)
-		{
-			for (int i = 0; i < LOG_SIZE; i++)
-			{
-				if (history_log[i].year > 0)
-				{
-					str += parseSensorReport(history_log[i], EOL, true);
-					switch (channel)
-					{
-#ifdef DEBUG_MODE
-					case CHANNEL_UART:
-						Serial.println(str);
-						break;
+		else if (tryHandleLogCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-					case CHANNEL_TELNET:
-
-						break;
-#ifdef MQTT_ENABLE
-					case CHANNEL_MQTT:
-
-						break;
-#endif
-#ifdef TELEGRAM_ENABLE
-					case CHANNEL_TELEGRAM:
-
-						break;
-#endif
-#ifdef GSCRIPT_ENABLE
-					case CHANNEL_GSCRIPT:
-
-						break;
-#endif
-#ifdef PUSHINGBOX_ENABLE
-					case CHANNEL_PUSHINGBOX:
-
-						break;
-#endif
-#ifdef SMTP_ENABLE
-					case CHANNEL_SMTP:
-
-						break;
-#endif
-#ifdef GSM_ENABLE
-					case CHANNEL_GSM:
-
-						break;
-#endif
-					default:
-						break;
-					};
-				}
-			}
-		}
-#endif
-
 #ifdef TELNET_ENABLE
-		else if (cmd.command == CMD_TELNET_PORT)
-		{
-			uint16_t telnetPort = cmd.arguments[0].toInt();
-			str += REPLY_TELNET_PORT;
-			str += eq;
-			str += String(telnetPort);
-			str += QUOTE;
-			writeConfigString(TELNET_PORT_addr, TELNET_PORT_size, String(telnetPort));
-			//WiFiServer server(telnetPort);
-		}
-		else if (cmd.command == CMD_TELNET_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_OFF_NUMBER);
-				telnetEnable = false;
-				telnetServer.stop();
-				str += REPLY_TELNET_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(TELNET_ENABLE_addr, TELNET_ENABLE_size, SWITCH_ON_NUMBER);
-				telnetEnable = true;
-				telnetServer.begin();
-				telnetServer.setNoDelay(true);
-				str += REPLY_TELNET_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleTelnetCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef BUZZER_ENABLE
-		else if (cmd.command == CMD_BUZZ)
-		{
-			int f = uint32_t(cmd.arguments[0].toInt());
-			long d = cmd.arguments[1].toInt();
-			tone(BUZZER_ENABLE, f, d);
-		}
+		else if (tryHandleBuzzerCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef SLEEP_ENABLE
-		else if (cmd.command == CMD_SLEEP_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				//sleepEnable = false;
-				writeConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size, SWITCH_OFF_NUMBER);
-				str += REPLY_SLEEP_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				//sleepEnable = true;
-				writeConfigString(SLEEP_ENABLE_addr, SLEEP_ENABLE_size, SWITCH_ON_NUMBER);
-				str += REPLY_SLEEP_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
-		else if (cmd.command == CMD_SLEEP_ON)
-		{
-			activeTimeOut_ms = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			if (activeTimeOut_ms == 0)
-				activeTimeOut_ms = uint32_t(2 * connectTimeLimit);
-
-			str += REPLY_SLEEP_ON;
-			str += eq;
-			str += String(uint16_t(activeTimeOut_ms / 1000UL));
-			str += QUOTE;
-			writeConfigString(SLEEP_ON_addr, SLEEP_ON_size, String(uint16_t(activeTimeOut_ms / 1000UL)));
-		}
-		else if (cmd.command == CMD_SLEEP_OFF)
-		{
-			sleepTimeOut_us = uint32_t(cmd.arguments[0].toInt() * 1000000UL);
-			if (sleepTimeOut_us == 0)
-				sleepTimeOut_us = uint32_t(20UL * connectTimeLimit * 1000UL); //max 71 minutes (Uint32_t / 1000 / 1000 /60)
-
-			str += REPLY_SLEEP_OFF;
-			str += eq;
-			str += String(uint16_t(sleepTimeOut_us / 1000000UL));
-			str += QUOTE;
-			writeConfigString(SLEEP_OFF_addr, SLEEP_OFF_size, String(uint16_t(sleepTimeOut_us / 1000000UL)));
-		}
+		else if (tryHandleSleepCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef HTTP_ENABLE
-		else if (cmd.command == CMD_HTTP_PORT)
-		{
-			httpPort = cmd.arguments[0].toInt();
-			str += REPLY_HTTP_PORT;
-			str += eq;
-			str += String(httpPort);
-			str += QUOTE;
-			writeConfigString(HTTP_PORT_addr, HTTP_PORT_size, String(httpPort));
-			//if (httpServerEnable) http_server.begin(httpPort);
-		}
-		else if (cmd.command == CMD_HTTP_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size, SWITCH_OFF_NUMBER);
-				//httpServerEnable = false;
-				//if (httpServerEnable) http_server.stop();
-				str += REPLY_HTTP_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(HTTP_ENABLE_addr, HTTP_ENABLE_size, SWITCH_ON_NUMBER);
-				/*httpServerEnable = true;
-				http_server.on("/", handleRoot);
-				http_server.onNotFound(handleNotFound);
-				http_server.begin(httpPort);*/
-				str += REPLY_HTTP_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleHttpCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef MQTT_ENABLE
-		// send_mqtt=topic,message - to be implemented
-		else if (cmd.command == CMD_SEND_MQTT)
-		{
-			if (mqtt_send(cmd.arguments[1], cmd.arguments[1].length(), cmd.arguments[0]))
-			{
-				str += F("Message sent");
-			}
-			else
-			{
-				str += F("Message not sent");
-			}
-		}
-		else if (cmd.command == CMD_MQTT_SERVER)
-		{
-			IPAddress tmpAddr;
-			str += REPLY_MQTT_SERVER;
-			str += eq;
-			if (tmpAddr.fromString(cmd.arguments[0]))
-			{
-				IPAddress mqtt_ip_server = tmpAddr;
-				str += mqtt_ip_server.toString();
-			}
-			else
-			{
-				str += cmd.arguments[0];
-			}
-			str += QUOTE;
-			writeConfigString(MQTT_SERVER_addr, MQTT_SERVER_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_PORT)
-		{
-			uint16_t mqtt_port = cmd.arguments[0].toInt();
-			str += REPLY_MQTT_PORT;
-			str += eq;
-			str += String(mqtt_port);
-			str += QUOTE;
-			writeConfigString(MQTT_PORT_addr, MQTT_PORT_size, String(mqtt_port));
-			//mqtt_client.setServer(mqtt_ip_server, mqtt_port);
-		}
-		else if (cmd.command == CMD_MQTT_LOGIN)
-		{
-			str += REPLY_MQTT_LOGIN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(MQTT_USER_addr, MQTT_USER_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_PASS)
-		{
-			str += REPLY_MQTT_PASS;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(MQTT_PASS_addr, MQTT_PASS_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_ID)
-		{
-			str += REPLY_MQTT_ID;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(MQTT_ID_addr, MQTT_ID_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_TOPIC_IN)
-		{
-			str += REPLY_MQTT_TOPIC_IN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(MQTT_TOPIC_IN_addr, MQTT_TOPIC_IN_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_TOPIC_OUT)
-		{
-			str += REPLY_MQTT_TOPIC_OUT;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(MQTT_TOPIC_OUT_addr, MQTT_TOPIC_OUT_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_MQTT_CLEAN)
-		{
-			str += REPLY_MQTT_CLEAN;
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_OFF_NUMBER);
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(MQTT_CLEAN_addr, MQTT_CLEAN_size, SWITCH_ON_NUMBER);
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-			}
-			str += cmd.arguments[0];
-		}
-		else if (cmd.command == CMD_MQTT_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_OFF_NUMBER);
-				mqttEnable = false;
-				str += REPLY_MQTT_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-				mqtt_client.disconnect();
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(MQTT_ENABLE_addr, MQTT_ENABLE_size, SWITCH_ON_NUMBER);
-				mqttEnable = true;
-				str += REPLY_MQTT_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-				mqtt_connect();
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleMqttCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef SMTP_ENABLE
-		// send_mail=address,subject,message
-		else if (cmd.command == CMD_SEND_MAIL)
-		{
-			if (cmd.arguments[0].length() > 0)
-			{
-				if (cmd.arguments[1].length() > 0)
-				{
-					if (sendMail(cmd.arguments[1], cmd.arguments[2], cmd.arguments[0]))
-					{
-						str += F("Mail sent");
-					}
-					else
-					{
-						str += F("Mail send failed");
-					}
-				}
-				else
-					str += F("Message empty");
-			}
-			else
-				str += F("Address empty");
-		}
-		else if (cmd.command == CMD_SMTP_SERVER)
-		{
-			str += REPLY_SMTP_SERVER;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(SMTP_SERVER_ADDRESS_addr, SMTP_SERVER_ADDRESS_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_SMTP_PORT)
-		{
-			uint16_t smtpServerPort = cmd.arguments[0].toInt();
-			str += REPLY_SMTP_PORT;
-			str += eq;
-			str += String(smtpServerPort);
-			str += QUOTE;
-			writeConfigString(SMTP_SERVER_PORT_addr, SMTP_SERVER_PORT_size, String(smtpServerPort));
-		}
-		else if (cmd.command == CMD_SMTP_LOGIN)
-		{
-			str += REPLY_SMTP_LOGIN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(SMTP_LOGIN_addr, SMTP_LOGIN_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_SMTP_PASS)
-		{
-			str += REPLY_SMTP_PASS;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(SMTP_PASSWORD_addr, SMTP_PASSWORD_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_SMTP_TO)
-		{
-			str += REPLY_SMTP_TO;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(SMTP_TO_addr, SMTP_TO_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_SMTP_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size, SWITCH_OFF_NUMBER);
-				//smtpEnable = false;
-				str += REPLY_SMTP_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(SMTP_ENABLE_addr, SMTP_ENABLE_size, SWITCH_ON_NUMBER);
-				//smtpEnable = true;
-				str += REPLY_SMTP_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleSmtpCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef GSM_ENABLE
-		// send_sms=[*/user#],message
-		else if (cmd.command == CMD_SEND_SMS)
-		{
-			uint8_t i = 0;
-			uint8_t j = 0;
-			if (cmd.arguments[0] == STAR) //if * then all
-			{
-				i = 0;
-				j = GSM_USERS_NUMBER;
-			}
-			else
-			{
-				i = cmd.arguments[0].toInt();
-				j = i + 1;
-			}
-
-			if (i <= GSM_USERS_NUMBER)
-			{
-				for (; i < j; i++)
-				{
-					String gsmUser = getGsmUser(i);
-					if (gsmUser.length() > 0)
-					{
-						if (sendSMS(gsmUser, cmd.arguments[1]))
-						{
-							str += F("SMS sent");
-						}
-						else
-						{
-							str += F("SMS not sent");
-						}
-					}
-					yield();
-				}
-			}
-		}
-		else if (cmd.command == CMD_GSM_USER)
-		{
-			if (cmd.index >= 0 && cmd.index < GSM_USERS_NUMBER)
-			{
-				uint16_t m = GSM_USERS_TABLE_size / GSM_USERS_NUMBER;
-				writeConfigString(GSM_USERS_TABLE_addr + cmd.index * m, m, cmd.arguments[0]);
-				str += REPLY_GSM_USER;
-				str += String(cmd.index);
-				str += F(" is now: ");
-				str += cmd.arguments[0];
-			}
-			else
-			{
-				str += F("User #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(GSM_USERS_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_GSM_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(GSM_ENABLE_addr, GSM_ENABLE_size, SWITCH_OFF_NUMBER);
-				gsmEnable = false;
-				str += REPLY_GSM_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(GSM_ENABLE_addr, GSM_ENABLE_size, SWITCH_ON_NUMBER);
-				gsmEnable = true;
-				str += REPLY_GSM_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleGsmCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef TELEGRAM_ENABLE
-		// send_telegram=[*/user#],message
-		else if (cmd.command == CMD_SEND_TELEGRAM)
-		{
-			uint8_t i = 0;
-			uint8_t j = 0;
-			if (cmd.arguments[0] == STAR) //if * then all
-			{
-				i = 0;
-				j = TELEGRAM_USERS_NUMBER;
-			}
-			else
-			{
-				i = cmd.arguments[0].toInt();
-				j = i + 1;
-			}
-
-			if (i <= TELEGRAM_USERS_NUMBER)
-			{
-				for (; i < j; i++)
-				{
-					int64_t gsmUser = getTelegramUser(i);
-					if (gsmUser != 0)
-					{
-						if (sendToTelegramServer(gsmUser, cmd.arguments[1]))
-						{
-							str += F("Message sent");
-						}
-						else
-						{
-							str += F("Message not sent");
-						}
-					}
-					yield();
-				}
-			}
-		}
-		else if (cmd.command == CMD_TELEGRAM_USER)
-		{
-			uint64_t newUser = StringToUint64(cmd.arguments[0]);
-			if (cmd.index >= 0 && cmd.index < TELEGRAM_USERS_NUMBER)
-			{
-				uint16_t m = TELEGRAM_USERS_TABLE_size / TELEGRAM_USERS_NUMBER;
-				writeConfigString(TELEGRAM_USERS_TABLE_addr + cmd.index * m, m, uint64ToString(newUser));
-				str += REPLY_TELEGRAM_USER;
-				str += uint64ToString(cmd.index);
-				str += F(" is now: ");
-				str += uint64ToString(newUser);
-			}
-			else
-			{
-				str += F("Telegram user #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(TELEGRAM_USERS_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_TELEGRAM_TOKEN)
-		{
-			str += REPLY_TELEGRAM_TOKEN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(TELEGRAM_TOKEN_addr, TELEGRAM_TOKEN_size, cmd.arguments[0]);
-			//myBot.setTelegramToken(telegramToken);
-		}
-		else if (cmd.command == CMD_TELEGRAM_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(TELEGRAM_ENABLE_addr, TELEGRAM_ENABLE_size, SWITCH_OFF_NUMBER);
-				//telegramEnable = false;
-				str += REPLY_TELEGRAM_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(TELEGRAM_ENABLE_addr, TELEGRAM_ENABLE_size, SWITCH_ON_NUMBER);
-				//telegramEnable = true;
-				//myBot.wifiConnect(STA_Ssid, STA_Password);
-				//myBot.setTelegramToken(telegramToken);
-				//myBot.testConnection();
-				str += REPLY_TELEGRAM_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleTelegramCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef GSCRIPT_ENABLE
-		//send_gscript - to be implemented
-		else if (cmd.command == CMD_GSCRIPT_TOKEN)
-		{
-			str += REPLY_GSCRIPT_TOKEN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(GSCRIPT_ID_addr, GSCRIPT_ID_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_GSCRIPT_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size, SWITCH_OFF_NUMBER);
-				//gScriptEnable = false;
-				str += REPLY_GSCRIPT_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(GSCRIPT_ENABLE_addr, GSCRIPT_ENABLE_size, SWITCH_ON_NUMBER);
-				//gScriptEnable = true;
-				str += REPLY_GSCRIPT_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleGscriptCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef PUSHINGBOX_ENABLE
-		//send_pushingbox - to be implemented
-		else if (cmd.command == CMD_PUSHINGBOX_TOKEN)
-		{
-			str += REPLY_PUSHINGBOX_TOKEN;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(PUSHINGBOX_ID_addr, PUSHINGBOX_ID_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_PUSHINGBOX_PARAMETER)
-		{
-			str += REPLY_PUSHINGBOX_PARAMETER;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(PUSHINGBOX_PARAM_addr, PUSHINGBOX_PARAM_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_PUSHINGBOX_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size, SWITCH_OFF_NUMBER);
-				//pushingBoxEnable = false;
-				str += REPLY_PUSHINGBOX_ENABLE;
-				str += eq;
-				str += REPLY_DISABLED;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(PUSHINGBOX_ENABLE_addr, PUSHINGBOX_ENABLE_size, SWITCH_ON_NUMBER);
-				//pushingBoxEnable = true;
-				str += REPLY_PUSHINGBOX_ENABLE;
-				str += eq;
-				str += REPLY_ENABLED;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandlePushingboxCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef NTP_TIME_ENABLE
-		else if (cmd.command == CMD_NTP_SERVER)
-		{
-			str += REPLY_NTP_SERVER;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(NTP_SERVER_addr, NTP_SERVER_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_NTP_TIME_ZONE)
-		{
-			int timeZone = cmd.arguments[0].toInt();
-			str += REPLY_NTP_TIME_ZONE;
-			str += eq;
-			str += String(timeZone);
-			str += QUOTE;
-			writeConfigString(NTP_TIME_ZONE_addr, NTP_TIME_ZONE_size, String(timeZone));
-		}
-		else if (cmd.command == CMD_NTP_REFRESH_DELAY)
-		{
-			ntpRefreshDelay = cmd.arguments[0].toInt();
-			str += REPLY_NTP_REFRESH_DELAY;
-			str += eq;
-			str += String(ntpRefreshDelay);
-			str += QUOTE;
-			writeConfigString(NTP_REFRESH_DELAY_addr, NTP_REFRESH_DELAY_size, String(ntpRefreshDelay));
-			setSyncInterval(ntpRefreshDelay);
-		}
-		else if (cmd.command == CMD_NTP_REFRESH_PERIOD)
-		{
-			timeRefershPeriod = cmd.arguments[0].toInt();
-			str += REPLY_NTP_REFRESH_PERIOD;
-			str += eq;
-			str += String(timeRefershPeriod);
-			str += QUOTE;
-			writeConfigString(NTP_REFRESH_PERIOD_addr, NTP_REFRESH_PERIOD_size, String(timeRefershPeriod));
-		}
-		else if (cmd.command == CMD_NTP_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(NTP_ENABLE_addr, NTP_ENABLE_size, SWITCH_OFF_NUMBER);
-				NTPenable = false;
-				setSyncProvider(nullptr);
-				Udp.stop();
-				str += REPLY_NTP_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(NTP_ENABLE_addr, NTP_ENABLE_size, SWITCH_ON_NUMBER);
-				NTPenable = true;
-				Udp.begin(UDP_LOCAL_PORT);
-				setSyncProvider(getNtpTime);
-				setSyncInterval(ntpRefreshDelay);
-				str += REPLY_NTP_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleNtpCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef EVENTS_ENABLE
-		else if (cmd.command == CMD_EVENT_SET)
-		{
-			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
-			{
-				int t = command.indexOf('=');
-				command = command.substring(t + 1);
-				uint16_t m = EVENTS_TABLE_size / EVENTS_NUMBER;
-				writeConfigString(EVENTS_TABLE_addr + cmd.index * m, m, command);
-				str += REPLY_EVENT_SET;
-				str += String(cmd.index);
-				str += F(" is now: ");
-				str += cmd.arguments[0];
-			}
-			else
-			{
-				str += F("Event #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(EVENTS_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_EVENTS_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
-				eventsEnable = false;
-				str += REPLY_EVENTS_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
-				eventsEnable = true;
-				str += REPLY_EVENTS_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
-		else if (cmd.command == CMD_EVENT_FLAG_SET)
-		{
-			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
-			{
-				if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-				{
-					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
-					eventsFlags[cmd.index] = false;
-					str += REPLY_EVENT_FLAG_SET;
-					str += String(cmd.index);
-					str += F(" cleared");
-				}
-				else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-				{
-					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
-					eventsFlags[cmd.index] = true;
-					str += REPLY_EVENT_FLAG_SET;
-					str += String(cmd.index);
-					str += F(" set");
-				}
-			}
-			else
-			{
-				str += F("Event #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(EVENTS_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_HELP_EVENT)
-		{
-			str += printHelpEvent();
-		}
+		else if (tryHandleEventCommand(cmd, command, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef SCHEDULER_ENABLE
-		else if (cmd.command == CMD_SCHEDULE_SET)
-		{
-			if (cmd.index >= 0 && cmd.index < SCHEDULES_NUMBER)
-			{
-				int t = command.indexOf('=');
-				command = command.substring(t + 1);
-				uint16_t m = SCHEDULER_TABLE_size / SCHEDULES_NUMBER;
-				writeConfigString(SCHEDULER_TABLE_addr + cmd.index * m, m, command);
-				writeScheduleExecTime(cmd.index, 0);
-				str += REPLY_SCHEDULE_SET;
-				str += String(cmd.index);
-				str += F(" is now: ");
-				str += cmd.arguments[0];
-			}
-			else
-			{
-				str += F("Schedule #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(SCHEDULES_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_SCHEDULER_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size, SWITCH_OFF_NUMBER);
-				schedulerEnable = false;
-				str += REPLY_SCHEDULER_ENABLE;
-				str += eq;
-				str += SWITCH_OFF;
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(SCHEDULER_ENABLE_addr, SCHEDULER_ENABLE_size, SWITCH_ON_NUMBER);
-				schedulerEnable = true;
-				str += REPLY_SCHEDULER_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
-		else if (cmd.command == CMD_CLEAR_SCHEDULE_EXEC_TIME)
-		{
-			if (cmd.index >= 0 && cmd.index < SCHEDULES_NUMBER)
-			{
-				writeScheduleExecTime(cmd.index, 0);
-				str += REPLY_CLEAR_SCHEDULE_EXEC_TIME;
-				str += String(cmd.index);
-				str += F(" reset");
-			}
-			else
-			{
-				str += F("Schedule #");
-				str += String(cmd.index);
-				str += F(" is out of range [0,");
-				str += String(SCHEDULES_NUMBER - 1);
-				str += F("]");
-			}
-		}
-		else if (cmd.command == CMD_HELP_SCHEDULE)
-		{
-			str += printHelpSchedule();
-		}
+		else if (tryHandleScheduleCommand(cmd, command, str, eq, channel, isAdmin)) {}
 #endif
-
 #if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
-		else if (cmd.command == CMD_HELP_ACTION)
-		{
-			str += printHelpAction();
-		}
+		else if (tryHandleHelpActionCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef DISPLAY_ENABLED
-		else if (cmd.command == CMD_DISPLAY_REFRESH)
-		{
-			displaySwitchPeriod = uint32_t(cmd.arguments[0].toInt() * 1000UL);
-			str += REPLY_DISPLAY_REFRESH;
-			str += eq;
-			str += String(uint16_t(displaySwitchPeriod));
-			str += QUOTE;
-			writeConfigString(DISPLAY_REFRESH_addr, DISPLAY_REFRESH_size, String(uint16_t(displaySwitchPeriod / 1000UL)));
-		}
+		else if (tryHandleDisplayCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
-
 #ifdef OTA_UPDATE
-		else if (cmd.command == CMD_OTA_PORT)
-		{
-			uint16_t ota_port = cmd.arguments[0].toInt();
-			str += REPLY_OTA_PORT;
-			str += eq;
-			str += String(ota_port);
-			str += QUOTE;
-			writeConfigString(OTA_PORT_addr, OTA_PORT_size, String(ota_port));
-		}
-		else if (cmd.command == CMD_OTA_PASSWORD)
-		{
-			str += REPLY_OTA_PASSWORD;
-			str += eq;
-			str += cmd.arguments[0];
-			str += QUOTE;
-			writeConfigString(OTA_PASSWORD_addr, OTA_PASSWORD_size, cmd.arguments[0]);
-		}
-		else if (cmd.command == CMD_OTA_ENABLE)
-		{
-			if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-			{
-				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_OFF_NUMBER);
-				otaEnable = false;
-				str += REPLY_OTA_ENABLE;
-				str += eq;
-				str += SWITCH_OFF_NUMBER;
-				ArduinoOTA.begin();
-			}
-			else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-			{
-				writeConfigString(OTA_ENABLE_addr, OTA_ENABLE_size, SWITCH_ON_NUMBER);
-				otaEnable = true;
-				str += REPLY_OTA_ENABLE;
-				str += eq;
-				str += SWITCH_ON;
-			}
-			else
-			{
-				str += REPLY_INCORRECT_VALUE;
-				str += cmd.arguments[0];
-			}
-		}
+		else if (tryHandleOtaCommand(cmd, str, eq, channel, isAdmin)) {}
 #endif
 	}
 	if (str.length() == 0)
@@ -5768,253 +3459,27 @@ void ProcessAction(String& action, uint8_t eventNum, bool isEvent)
 			action.clear();
 		}
 		commandTokens cmd = parseCommand(tmpAction, '=', ',', true);
-		//command=****
-		if (cmd.command == ACTION_COMMAND)
-		{
-			String tmpCmd = tmpAction.substring(sizeof(ACTION_COMMAND));
-			processCommand(tmpCmd, CHANNEL_UART, true);
-		}
-		//set_output?=x
-		else if (cmd.command == ACTION_SET_OUTPUT)
-		{
-			set_output(cmd.index, cmd.arguments[0]);
-		}
-
-		//reset_counter? - deprecated
-		else if (cmd.command == ACTION_RESET_COUNTER)
-		{
-			if (cmd.index >= 0 && cmd.index < PIN_NUMBER)
-			{
-				InterruptCounter[cmd.index - 1] = 0;
-			}
-		}
-
-		//set_counter?=x
-		else if (cmd.command == ACTION_SET_COUNTER)
-		{
-			if (cmd.index >= 0 && cmd.index < PIN_NUMBER)
-			{
-				InterruptCounter[cmd.index - 1] = cmd.arguments[0].toInt();
-			}
-		}
-
-#ifdef EVENTS_ENABLE
-		//reset_flag?
-		else if (cmd.command == ACTION_RESET_FLAG)
-		{
-			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
-			{
-				eventsFlags[cmd.index] = false;
-			}
-		}
-		//set_flag?
-		else if (cmd.command == ACTION_SET_FLAG)
-		{
-			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
-			{
-				eventsFlags[cmd.index] = true;
-			}
-		}
-		//set_event_flag?=0/1/off/on
-		else if (cmd.command == ACTION_SET_EVENT_FLAG)
-		{
-			if (cmd.index >= 0 && cmd.index < EVENTS_NUMBER)
-			{
-				if (cmd.arguments[0] == SWITCH_OFF_NUMBER || cmd.arguments[0] == SWITCH_OFF)
-				{
-					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_OFF_NUMBER);
-					eventsFlags[cmd.index] = false;
-				}
-				else if (cmd.arguments[0] == SWITCH_ON_NUMBER || cmd.arguments[0] == SWITCH_ON)
-				{
-					writeConfigString(EVENTS_ENABLE_addr, EVENTS_ENABLE_size, SWITCH_ON_NUMBER);
-					eventsFlags[cmd.index] = true;
-				}
-			}
-		}
-
-#endif
-#ifdef SCHEDULER_ENABLE
-		//clear_schedule_exec_time?
-		else if (cmd.command == ACTION_CLEAR_SCHEDULE_EXEC_TIME)
-		{
-			if (cmd.index >= 0 && cmd.index < SCHEDULES_NUMBER)
-			{
-				writeScheduleExecTime(cmd.index, 0);
-			}
-		}
-#endif
+		if (tryHandleCoreAction(cmd, tmpAction)) {}
 #ifdef GSM_ENABLE
-		//send_sms=* / user#,message
-		else if (gsmEnable && cmd.command == ACTION_SEND_SMS)
-		{
-			uint8_t i = 0;
-			uint8_t j = 0;
-			if (cmd.arguments[0] == STAR) //if * then all
-			{
-				i = 0;
-				j = GSM_USERS_NUMBER;
-			}
-			else
-			{
-				i = cmd.arguments[0].toInt();
-				j = i + 1;
-			}
-
-			tmpAction = tmpAction.substring(tmpAction.indexOf(',') + 1);
-			sensorDataCollection sensorData = collectData();
-			for (; i < j; i++)
-			{
-				String gsmUser = getGsmUser(i);
-				if (gsmUser.length() > 0)
-				{
-					String tmpStr = deviceName;
-					tmpStr += COLON;
-					tmpStr += cmd.arguments[1];
-					tmpStr += EOL;
-					tmpStr += parseSensorReport(sensorData, EOL);
-					bool sendOk = sendSMS(gsmUser, tmpStr);
-					if (!sendOk)
-					{
-						/*#ifdef EVENTS_ENABLE
-												eventsFlags[eventNum] = false;
-						#endif*/
-					}
-				}
-				yield();
-			}
-		}
+		else if (tryHandleGsmAction(cmd, tmpAction)) {}
 #endif
 #ifdef TELEGRAM_ENABLE
-		//send_telegram=* / user#,message
-		else if (telegramEnable && cmd.command == ACTION_SEND_TELEGRAM)
-		{
-			uint8_t i = 0;
-			uint8_t j = 0;
-			if (cmd.arguments[0] == STAR) //if * then all
-			{
-				i = 0;
-				j = TELEGRAM_USERS_NUMBER;
-			}
-			else
-			{
-				i = cmd.arguments[0].toInt();
-				j = i + 1;
-			}
-			sensorDataCollection sensorData = collectData();
-			for (; i < j; i++)
-			{
-				uint64_t user = getTelegramUser(i);
-				if (user > 0)
-				{
-					String tmpStr = deviceName;
-					tmpStr += COLON;
-					tmpStr += cmd.arguments[1];
-					tmpStr += EOL;
-					tmpStr += parseSensorReport(sensorData, EOL);
-					bool sendOk = sendToTelegramServer(user, tmpStr);
-					if (!sendOk)
-					{
-						/*#ifdef EVENTS_ENABLE
-												eventsFlags[eventNum] = false;
-						#endif*/
-					}
-				}
-				yield();
-			}
-		}
+		else if (tryHandleTelegramAction(cmd, tmpAction)) {}
 #endif
 #ifdef PUSHINGBOX_ENABLE
-		//send_PushingBox=message
-		else if (pushingBoxEnable && cmd.command == ACTION_SEND_PUSHINGBOX)
-		{
-			sensorDataCollection sensorData = collectData();
-			String tmpStr = deviceName;
-			tmpStr += F(": ");
-			tmpStr += cmd.arguments[0];
-			tmpStr += EOL;
-			tmpStr += parseSensorReport(sensorData, EOL);
-			bool sendOk = sendToPushingBox(tmpStr);
-			if (!sendOk)
-			{
-				/*#ifdef EVENTS_ENABLE
-								eventsFlags[eventNum] = false;
-				#endif*/
-			}
-		}
+		else if (tryHandlePushingboxAction(cmd, tmpAction)) {}
 #endif
 #ifdef SMTP_ENABLE
-		//send_mail=address_to,subject,message
-		else if (smtpEnable && cmd.command == ACTION_SEND_MAIL)
-		{
-			sensorDataCollection sensorData = collectData();
-			String tmpStr = cmd.arguments[2];
-			tmpStr += EOL;
-			tmpStr += parseSensorReport(sensorData, EOL);
-			String subj = deviceName;
-			subj += F(" alert");
-			bool sendOk = sendMail(cmd.arguments[1], tmpStr, cmd.arguments[0]);
-			if (!sendOk)
-			{
-				/*#ifdef EVENTS_ENABLE
-								eventsFlags[eventNum] = false;
-				#endif*/
-			}
-		}
+		else if (tryHandleSmtpAction(cmd, tmpAction)) {}
 #endif
 #ifdef GSCRIPT_ENABLE
-		//send_GScript=message
-		else if (gScriptEnable && cmd.command == ACTION_SEND_GSCRIPT)
-		{
-			sensorDataCollection sensorData = collectData();
-			String tmpStr = deviceName;
-			tmpStr += F(": ");
-			tmpStr += cmd.arguments[0];
-			tmpStr += EOL;
-			tmpStr += parseSensorReport(sensorData, EOL);
-			bool sendOk = sendValueToGoogle(tmpStr);
-			if (!sendOk)
-			{
-				/*#ifdef EVENTS_ENABLE
-								eventsFlags[eventNum] = false;
-				#endif*/
-			}
-		}
+		else if (tryHandleGscriptAction(cmd, tmpAction)) {}
 #endif
 #ifdef MQTT_ENABLE
-		//send_MQTT=topic_to,message
-		if (mqttEnable && cmd.command == ACTION_SEND_MQTT)
-		{
-			String delimiter = F("\",\r\n\"");
-			String eq = F("\":\"");
-			String tmpStr = F("{\"");
-			tmpStr += F("Device name");
-			tmpStr += eq;
-			tmpStr += deviceName;
-			tmpStr += delimiter;
-			tmpStr += F("Message");
-			tmpStr += eq;
-			tmpStr += cmd.arguments[1];
-			tmpStr += delimiter;
-			tmpStr += F("\"}");
-
-			bool sendOk = false;
-			sendOk = mqtt_send(tmpStr, tmpStr.length(), cmd.arguments[0]);
-			if (!sendOk)
-			{
-				/*#ifdef EVENTS_ENABLE
-								eventsFlags[eventNum] = false;
-				#endif*/
-			}
-		}
+		else if (tryHandleMqttAction(cmd, tmpAction)) {}
 #endif
 #ifdef LOG_ENABLE
-		//save_log
-		else if (cmd.command == ACTION_SAVE_LOG)
-		{
-			sensorDataCollection sensorData = collectData();
-			addToLog(sensorData);
-		}
+		else if (tryHandleLogAction(cmd, tmpAction)) {}
 #endif
 		else
 		{

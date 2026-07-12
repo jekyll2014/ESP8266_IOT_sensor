@@ -199,7 +199,8 @@
 #define HARD_UART 0
 #define SOFT_UART 1
 
-const String wifiModes[4] = { "OFF", "STATION", "AP",  "APSTATION" };
+#define WIFI_MODES_NUMBER 4
+const char* const wifiModes[WIFI_MODES_NUMBER] = { "OFF", "STATION", "AP",  "APSTATION" };
 
 #define CHANNELS_NUMBER 8
 #define CHANNEL_UART 0
@@ -211,11 +212,13 @@ const String wifiModes[4] = { "OFF", "STATION", "AP",  "APSTATION" };
 #define CHANNEL_SMTP 6
 #define CHANNEL_GSM 7
 
-const String channels[CHANNELS_NUMBER] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
+const char* const channels[CHANNELS_NUMBER] = { "UART", "TELNET", "MQTT", "TELEGRAM", "GSCRIPT", "PUSHINGBOX", "SMTP", "GSM" };
 
-const String pinModeList[4] = { "INPUT","OUTPUT","INPUT_PULLUP", "OFF" };
+#define PIN_MODE_LIST_NUMBER 4
+const char* const pinModeList[PIN_MODE_LIST_NUMBER] = { "INPUT","OUTPUT","INPUT_PULLUP", "OFF" };
 
-const String intModeList[4] = { "OFF", "RISING", "FALLING" , "CHANGE" };
+#define INT_MODE_LIST_NUMBER 4
+const char* const intModeList[INT_MODE_LIST_NUMBER] = { "OFF", "RISING", "FALLING" , "CHANGE" };
 
 //D1=05, D2=04, D3=00, D4=02, D5=14, D6=12, D7=13, D8=15, reverse to binary order
 //pins in byte: byte d=0x00000000

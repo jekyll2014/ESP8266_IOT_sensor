@@ -46,7 +46,6 @@ struct sensorDataCollection
 
 #ifdef BMP180_ENABLE
 	float bmp180_temp;
-	float bmp180_humidity;
 	float bmp180_pressure;
 #endif
 
@@ -122,6 +121,8 @@ uint16_t getAdc();
 String getEvent(uint8_t);
 void processEvent(uint8_t);
 String printHelpEvent();
+bool tryHandleEventCommand(commandTokens&, String&, String&, String&, uint8_t, bool);
+bool tryHandleEventFlagAction(commandTokens&, String&);
 #endif
 
 // Schedules
@@ -131,6 +132,13 @@ void writeScheduleExecTime(uint8_t, uint32_t);
 uint32_t readScheduleExecTime(uint8_t);
 String printHelpSchedule();
 void processSchedule(uint8_t);
+bool tryHandleScheduleCommand(commandTokens&, String&, String&, String&, uint8_t, bool);
+bool tryHandleClearScheduleAction(commandTokens&, String&);
+#endif
+
+// Help action (shared between Events and Scheduler)
+#if defined(EVENTS_ENABLE) || defined(SCHEDULER_ENABLE)
+bool tryHandleHelpActionCommand(commandTokens&, String&, String&, uint8_t, bool);
 #endif
 
 // Wi-Fi
@@ -145,20 +153,51 @@ void Start_OFF_Mode();
 void Start_STA_Mode();
 void Start_AP_Mode();
 void Start_AP_STA_Mode();
+bool tryHandleWifiCommand(commandTokens&, String&, String&, uint8_t, bool);
+
+// Core / generic device commands (not tied to a single optional feature)
+bool tryHandleCoreCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandlePinCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleSensorOffsetCommand(commandTokens&, String&, String&, uint8_t, bool);
+
+// Core / generic (ungrouped) actions (not tied to a single optional feature)
+bool tryHandleCommandAction(commandTokens&, String&);
+bool tryHandleOutputAction(commandTokens&, String&);
+bool tryHandleCounterAction(commandTokens&, String&);
+bool tryHandleCoreAction(commandTokens&, String&);
+
+// Buzzer
+#ifdef BUZZER_ENABLE
+bool tryHandleBuzzerCommand(commandTokens&, String&, String&, uint8_t, bool);
+#endif
+
+// Sleep
+#ifdef SLEEP_ENABLE
+bool tryHandleSleepCommand(commandTokens&, String&, String&, uint8_t, bool);
+#endif
+
+// Display
+#ifdef DISPLAY_ENABLED
+bool tryHandleDisplayCommand(commandTokens&, String&, String&, uint8_t, bool);
+#endif
 
 // Telnet
 #ifdef TELNET_ENABLE
 void sendToTelnet(String&, uint8_t);
+bool tryHandleTelnetCommand(commandTokens&, String&, String&, uint8_t, bool);
 #endif
 
 // SMTP
 #ifdef SMTP_ENABLE
 bool sendMail(String&, String&, String&);
+bool tryHandleSmtpCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleSmtpAction(commandTokens&, String&);
 #endif
 
 // MQTT
 #ifdef MQTT_ENABLE
-#define MQTT_MAX_PACKET 100
+#define MQTT_MAX_PACKET 200 // PubSubClient's internal buffer defaults to 256B (uncustomized here); keep app payloads under it so plain publish() is used instead of the manual beginPublish/write/endPublish streaming path, which was found to leak ~1344B per call
+#define MQTT_RECONNECT_DELAY 5000 // min ms between reconnect attempts; unthrottled retries leaked heap on every loop() when broker unreachable
 String getMqttServer();
 int getMqttPort();
 String getMqttUser();
@@ -170,11 +209,13 @@ bool getMqttClean();
 bool mqtt_connect();
 bool mqtt_send(String&, int, String&);
 void mqtt_callback(char*, uint8_t*, uint16_t);
+bool tryHandleMqttCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleMqttAction(commandTokens&, String&);
 #endif
 
 // Telegram
 #ifdef TELEGRAM_ENABLE
-#define TELEGRAM_MESSAGE_MAX_SIZE 1000
+#define TELEGRAM_MESSAGE_MAX_SIZE 600 // 5 slots * 600B = 3000B reserved; get_config (~3000B) fits in exactly 5 chunks
 #define TELEGRAM_MESSAGE_DELAY 2000
 #define TELEGRAM_RETRIES 10
 #define TELEGRAM_MESSAGE_BUFFER_SIZE 5
@@ -194,6 +235,8 @@ void removeMessageFromTelegramOutboundBuffer();
 void sendToTelegram(int64_t, String&, uint8_t);
 void sendBufferToTelegram();
 uint64_t getTelegramUser(uint8_t);
+bool tryHandleTelegramCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleTelegramAction(commandTokens&, String&);
 #endif
 
 // GSM
@@ -238,23 +281,30 @@ smsMessage parseRawSMS(String&);
 smsMessage getSMS();
 bool deleteSMS(int);
 String getModemStatus();
+bool tryHandleGsmCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleGsmAction(commandTokens&, String&);
 #endif
 
 // Google script
 #ifdef GSCRIPT_ENABLE
 bool sendValueToGoogle(String&);
+bool tryHandleGscriptCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleGscriptAction(commandTokens&, String&);
 #endif
 
 // PushingBox
 #ifdef PUSHINGBOX_ENABLE
 bool sendToPushingBoxServer(String);
 bool sendToPushingBox(String&);
+bool tryHandlePushingboxCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandlePushingboxAction(commandTokens&, String&);
 #endif
 
 // HTTP
 #ifdef HTTP_ENABLE
 void handleRoot();
 void handleNotFound();
+bool tryHandleHttpCommand(commandTokens&, String&, String&, uint8_t, bool);
 #endif
 
 #ifdef OTA_UPDATE
@@ -263,6 +313,7 @@ void otaStartCallback();
 void otaErrorCallback(ota_error_t);
 void otaProgressCallback(unsigned int, unsigned int);
 void otaEndCallback();
+bool tryHandleOtaCommand(commandTokens&, String&, String&, uint8_t, bool);
 #endif
 
 // NTP
@@ -274,11 +325,14 @@ void otaEndCallback();
 void sendNTPpacket(IPAddress&);
 time_t getNtpTime();
 void restartNTP();
+bool tryHandleNtpCommand(commandTokens&, String&, String&, uint8_t, bool);
 #endif
 
 // Log
 #ifdef LOG_ENABLE
 void addToLog(sensorDataCollection&);
+bool tryHandleLogCommand(commandTokens&, String&, String&, uint8_t, bool);
+bool tryHandleLogAction(commandTokens&, String&);
 #endif
 
 // EEPROM
@@ -298,16 +352,20 @@ void refreshEepromCrc();
 // I/O
 bool add_signal_pin(uint8_t);
 String set_output(uint8_t, String&);
+void EspDelay(uint32_t);
 
 // Help printout
-String printConfig(bool);
-String printStatus(bool);
+String printConfig(bool = false);
+String printStatus(bool = false);
 String printHelp();
 String printHelpAction();
 
 // Sensor data processing
 sensorDataCollection collectData();
-String parseSensorReport(sensorDataCollection&, String, bool);
+void appendInt(String&, long);
+void appendUInt(String&, unsigned long);
+void appendFloat(String&, float, uint8_t = 2);
+String parseSensorReport(sensorDataCollection&, String, bool = false);
 
 // Command processing
 String processCommand(String&, uint8_t, bool);
